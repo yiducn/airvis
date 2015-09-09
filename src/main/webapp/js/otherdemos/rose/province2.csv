@@ -1,0 +1,31 @@
+count,line,sum,name,nameE
+2,11,0,北京市,bei jing shi 
+2,12,2,天津市,tian jin shi 
+11,13,4,河北省,he bei sheng 
+12,14,15,山西省,shan xi sheng(-) 
+10,15,27,内蒙古自治区,nei meng gu zi zhi qu 
+5,21,37,辽宁省,liao ning sheng 
+1,22,42,吉林省,ji lin sheng 
+3,23,43,黑龙江省,hei long jiang sheng 
+2,31,46,上海市,shang hai shi 
+13,32,48,江苏省,jiang su sheng 
+11,33,61,浙江省,zhe jiang sheng 
+18,34,72,安徽省,an hui sheng 
+7,35,90,福建省,fu jian sheng 
+11,36,97,江西省,jiang xi sheng 
+18,37,108,山东省,shan dong sheng 
+20,41,126,河南省,he nan sheng 
+15,42,146,湖北省,hu bei sheng 
+15,43,161,湖南省,hu nan sheng 
+22,44,176,广东省,guang dong sheng 
+15,45,198,广西壮族自治区,guang xi zhuang zu zi zhi qu 
+3,46,213,海南省,hai nan sheng 
+3,50,216,重庆市,zhong qing shi 
+20,51,219,四川省,si chuan sheng 
+10,52,239,贵州省,gui zhou sheng 
+14,53,249,云南省,yun nan sheng 
+12,61,263,陕西省,shan xi sheng 
+3,62,275,甘肃省,gan su sheng(v) 
+2,63,278,青海省,qing hai sheng 
+4,64,280,宁夏回族自治区,ning xia hui zu zi zhi qu 
+3,65,284,新疆维吾尔自治区,xin jiang wei wu dong zi zhi qu 

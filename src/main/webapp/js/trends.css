@@ -1,0 +1,143 @@
+svg {
+    font: 10px sans-serif;
+}
+.area {
+    fill: steelblue;
+    clip-path: url(#clip);
+}
+.axis path,
+.axis line {
+    fill: none;
+    stroke: #000;
+    shape-rendering: crispEdges;
+}
+.brush .extent {
+    stroke: #fff;
+    fill-opacity: .125;
+    shape-rendering: crispEdges;
+}
+
+.line {
+    fill: none;
+    stroke: steelblue;
+    stroke-width: 1.5px;
+}
+
+.context .line {
+    stroke-width: 0.5px;
+}
+.line.highlight {
+    fill-opacity: 1;
+    stroke-opacity: 1;
+}
+.focus .line.highlight {
+    stroke-width: 3;
+}
+.context .line.highlight {
+    stroke-width: 1.0;
+}
+
+.line.fadeout {
+    fill-opacity: 0.2;
+    stroke-opacity: 0.2;
+}
+
+.d3-tip {
+    line-height: 1;
+    font-weight: bold;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    border-radius: 2px;
+}
+
+/* Creates a small triangle extender for the tooltip */
+.d3-tip:after {
+    box-sizing: border-box;
+    display: inline;
+    font-size: 10px;
+    width: 100%;
+    line-height: 1;
+    color: rgba(0, 0, 0, 0.8);
+    content: "\25BC";
+    position: absolute;
+    text-align: center;
+}
+
+/* Style northward tooltips differently */
+.d3-tip.n:after {
+    margin: -1px 0 0 0;
+    top: 100%;
+    left: 0;
+}
+
+
+.RdYlGn .q0-11{fill:rgb(165,0,38)}
+.RdYlGn .q1-11{fill:rgb(215,48,39)}
+.RdYlGn .q2-11{fill:rgb(244,109,67)}
+.RdYlGn .q3-11{fill:rgb(253,174,97)}
+.RdYlGn .q4-11{fill:rgb(254,224,139)}
+.RdYlGn .q5-11{fill:rgb(255,255,191)}
+.RdYlGn .q6-11{fill:rgb(217,239,139)}
+.RdYlGn .q7-11{fill:rgb(166,217,106)}
+.RdYlGn .q8-11{fill:rgb(102,189,99)}
+.RdYlGn .q9-11{fill:rgb(26,152,80)}
+.RdYlGn .q10-11{fill:rgb(0,104,55)}
+
+.RdYlGn .r0-11{fill:#FF0000}
+.RdYlGn .r1-11{fill:#FF1A00}
+.RdYlGn .r2-11{fill:#FF3300}
+.RdYlGn .r3-11{fill:#FF4C00}
+.RdYlGn .r4-11{fill:#FF6600}
+.RdYlGn .r5-11{fill:#FF8000}
+.RdYlGn .r6-11{fill:#FF9900}
+.RdYlGn .r7-11{fill:#FFB200}
+.RdYlGn .r8-11{fill:#FFCC00}
+.RdYlGn .r9-11{fill:#FFE600}
+.RdYlGn .r10-11{fill:#FFFF00}
+.RdYlGn .r11-11{fill:#E6FF00}
+.RdYlGn .r12-11{fill:#CCFF00}
+.RdYlGn .r13-11{fill:#B2FF00}
+.RdYlGn .r14-11{fill:#99FF00}
+.RdYlGn .r15-11{fill:#80FF00}
+.RdYlGn .r16-11{fill:#66FF00}
+.RdYlGn .r17-11{fill:#4DFF00}
+.RdYlGn .r18-11{fill:#33FF00}
+.RdYlGn .r19-11{fill:#19FF00}
+.RdYlGn .r20-11{fill:#00FF00}
+
+.day {
+    fill: #fff;
+    stroke: #ccc;
+}
+
+.month {
+    fill: none;
+    stroke: #000;
+    stroke-width: 1px;
+}
+
+.monthAvg {
+    /*fill: #fff;*/
+    stroke: #000;
+}
+
+/*下面是heatmap的*/
+rect.bordered {
+    stroke: #E6E6E6;
+    stroke-width:2px;
+}
+
+text.mono {
+    font-size: 9pt;
+    font-family: Consolas, courier;
+    fill: #aaa;
+}
+
+text.axis-workweek {
+    fill: #000;
+}
+
+text.axis-worktime {
+    fill: #000;
+}

@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+<head>
+    <style>
+        rect.bordered {
+            stroke: #E6E6E6;
+            stroke-width:0px;
+        }
+
+        text.mono {
+            font-size: 9pt;
+            font-family: Consolas, courier;
+            fill: #aaa;
+        }
+
+        text.axis-workweek {
+            fill: #000;
+        }
+
+        text.axis-worktime {
+            fill: #000;
+        }
+    </style>
+    <script src="http://d3js.org/d3.v3.js"></script>
+</head>
+<body >
+
+<div style="position:absolute;left:380px;height:40px">
+<div id="yearLabel" style="left:400px;top:0px;height:20px"></div>
+<div id="monthLabel" style="left:400px;top:20px;height:20px"></div>
+<div id="chart" style="top:40px;left:400px"></div>
+</div>
+<div id="provinceLabel" style="position:absolute;top:48px;left:0px;height: 2500px;"></div>
+<div id="cityLabel" style="position:absolute;top:48px;left:250px;height: 2500px;"></div>
+<div id="legend" style="position:absolute;top:10px;left:10px;width:350px;height: 50px;"></div>
+<script type="text/javascript">
+
+var csv ;
+d3.text("code.csv", function(text) {
+     csv = d3.csv.parseRows(text);
+});
+/**
+ * 根据代码返回英文
+ * @param code
+ * @returns {*}
+ */
+function find(code){
+//    var csv = d3.csv.parseRows("code.csv");
+    for(var i = 0; i < csv.length; i ++){
+//        console.log(code+":"+csv[i][3]);
+        if(code == csv[i][3])
+            return csv[i][4];
+    }
+    return code;
+}
+var colorRange = [0,1, 2,3,4,5, 20,100];
+var colorValue = ["#F0F0F0","#FFFF00", "#F7BF00", "#EE7300", "#E63300", "#E00000", "#FE0000", "#FF0000"];
+
+var colorScale = d3.scale.linear()
+        .domain([0,1, 5, 20,100])
+//        .range(["#FFFFFF","#fc9272", "#FC0000", "#ff0000"]);
+//        .range(["#FFFFFF","#FFE6E6", "#FFB2B2","#FF8080","#FF4D4D", "#ff0000"]);
+//        .range(["#FFFFFF","#FFE6E6", "#FF9999","#FF4D4D","#FF1919", "#ff0000"]);
+        .range(["#FFFFFF","#FFFF00", "#E00000", "#FE0000", "#FF0000"]);
+//        .range(["#FFFFFF","#00FF00", "#878800", "#FC0000", "#ff0000"]);
+var margin = { top: 0, right: 0, bottom: 0, left: 0 },
+//        totalWidth = 120,
+        width = 96 + margin.left + margin.right,
+        height = 2500 - margin.top - margin.bottom,
+//        gridSize = Math.floor(width / 24),
+        gridWidth = 8,
+        gridHeight = 8,
+        legendElementWidth = gridWidth*2,
+//        buckets = 9,
+        colors = ["#ffffd9","#edf8b1","#c7e9b4","#7fcdbb","#41b6c4","#1d91c0","#225ea8","#253494","#081d58"], // alternatively colorbrewer.YlGnBu[9]
+        days = ["2005", "2006", "2007", "2008", "2009", "2010", "2011", "2012", "2013"],
+        monthLabel = ["1","2","3","4","5","6","7","8","9","10","11","12"];
+
+//绘制yearlabel
+var svg = d3.select("#yearLabel").append("svg")
+        .attr("width", 96*10)
+        .attr("height", 20)
+        .append("g")
+        .attr("transform", "translate(" +  + 0 + "," + 0 + ")");
+var timeLabels = svg.selectAll(".yearLabel")
+                        .data(days)
+                        .enter().append("text")
+                        .text(function(d) { return d; })
+                        .attr("x", function(d, i) { return i * 96+50; })
+                        .attr("y", 10)
+                        .attr("width","50")
+                        .attr("height","20")
+                        .style("text-anchor", "middle")
+                        .style("fill", function (d) { return "red"; })
+                        .attr("class", function (d, i) { return "dayLabel mono axis axis-workweek"; });
+//                        .attr("transform", "translate(" + gridSize / 2 + ", 0)")
+
+var file = "province2.csv";
+d3.csv(file,
+        function (d) {
+            return {
+                line: +d.line,
+                count: +d.count,
+                sum: +d.sum,
+                name: d.nameE
+            };
+        },
+        function (error, data) {
+            var svg = d3.select("#provinceLabel").append("svg")
+                    .attr("width", 250)
+                    .attr("height", 2500)
+                    .append("g")
+                    .attr("transform", "translate(" +  + 200 + "," + 0 + ")");
+            var timeLabels = svg.selectAll(".provinceLabel")
+                    .data(data)
+                    .enter().append("text")
+                    .text(function(d) { return d.name; })
+                    .attr("x", function(d, i) { return 15; })
+                    .attr("y", function(d, i){return 8+(gridHeight* d.sum)})
+                    .attr("width","10")
+                    .attr("height",gridHeight)
+                    .style("text-anchor", "end")
+                    .style("fill", function (d) { return "red"; })
+                    .attr("class", function (d, i) { return "dayLabel mono axis axis-workweek"; })
+                    .attr("font-size", "8px");
+        });
+
+var svg = d3.select("#legend").append("svg")
+        .attr("width", 350)
+        .attr("height", 50)
+        .append("g")
+        .attr("transform", "translate(" +  + 0 + "," + "-100" + ")");
+for(var i = 0; i < colorRange.length; i ++) {
+    svg.append("rect")
+            .attr("x", 40 * i)
+            .attr("y", 100)
+            .attr("width", 40)
+            .attr("height", 20)
+            .style("fill", colorValue[i]);
+
+    svg.append("text")
+            .attr("class", "mono")
+            .text("≥ " + Math.round(colorRange[i]))
+            .attr("x", 40 * i)
+            .attr("y", 100 + 30);
+}
+
+var hasDraw = false;
+for(var yIndex = 1; yIndex <= 9; yIndex ++) {
+    //绘制monthlabel
+    var svg = d3.select("#monthLabel").append("svg")
+            .attr("width", width)
+            .attr("height", 20)
+            .append("g")
+            .attr("transform", "translate(" +  + margin.left + "," + margin.top + ")");
+    var timeLabels = svg.selectAll(".monthLabel"+yIndex)
+            .data(monthLabel)
+            .enter().append("text")
+            .text(function(d) { return d; })
+            .attr("x", function(d, i) { return (i) * gridWidth+4; })
+            .attr("y", 10)
+            .attr("width","10")
+            .attr("height","10")
+            .style("text-anchor", "middle")
+            .style("fill", function (d) { return "red"; })
+            .attr("font-size", "6px");
+
+    var file = "2005-2013-city-sta-month_y"+yIndex+".csv";
+    d3.csv(file,
+            function (d) {
+                return {
+                    m1: +d.m1,
+                    m2: +d.m2,
+                    m3: +d.m3,
+                    m4: +d.m4,
+                    m5: +d.m5,
+                    m6: +d.m6,
+                    m7: +d.m7,
+                    m8: +d.m8,
+                    m9: +d.m9,
+                    m10: +d.m10,
+                    m11: +d.m11,
+                    m12: +d.m12,
+                    city: parseInt((+d.line) / 100),
+                    line: +d.line,
+                    count: +d.count
+                };
+            },
+            function (error, data) {
+                if(hasDraw == false){
+                    var svg = d3.select("#cityLabel").append("svg")
+                            .attr("width", 250)
+                            .attr("height", 2500)
+                            .append("g")
+                            .attr("transform", "translate(" +  + 0 + "," + 0 + ")");
+                    var timeLabels = svg.selectAll(".cityLabel")
+                            .data(data)
+                            .enter().append("text")
+                            .text(function(d) { return  find(d.line); })
+                            .attr("x", function(d, i) { return 15; })
+                            .attr("y", function(d, i){return 8+i*gridHeight})
+                            .attr("width","10")
+                            .attr("height",gridHeight)
+                            .style("text-anchor", "start")
+                            .style("fill", function (d) { return "red"; })
+                            .attr("font-size", "6px");
+                    hasDraw = true;
+                }
+
+                var svg = d3.select("#chart").append("svg")
+                        .attr("width", width)
+                        .attr("height", height)
+                        .append("g")
+                        .attr("transform", "translate(" +  + margin.left + "," + margin.top + ")");
+
+//            var dayLabels = svg.selectAll(".dayLabel")
+//                    .data(days)
+//                    .enter().append("text")
+//                    .text(function (d) { return d; })
+//                    .attr("x", 0)
+//                    .attr("y", function (d, i) { return (i-1) * gridHeight; })
+//                    .style("text-anchor", "end")
+//                    .attr("transform", "translate(-6," + gridHeight / 1.5 + ")")
+//                    .attr("class", function (d, i) { return "dayLabel mono axis axis-workweek"; })
+//                    .attr("onclick",function(d,i){return "reload("+(i+1)+");"});
+
+//                var timeLabels = svg.selectAll(".timeLabel")
+//                        .data(times)
+//                        .enter().append("text")
+//                        .text(function(d) { return d; })
+//                        .attr("x", function(d, i) { return i * gridSize; })
+//                        .attr("y", 0)
+//                        .style("text-anchor", "middle")
+//                        .attr("transform", "translate(" + gridSize / 2 + ", -6)")
+//                        .attr("class", function(d, i) { return ((i >= 7 && i <= 16) ? "timeLabel mono axis axis-worktime" : "timeLabel mono axis"); });
+
+                for (var i = 0; i < 12; i++) {
+                    var heatMap = svg.selectAll(".hour" + i+"year"+yIndex)
+                            .data(data)
+                            .enter().append("rect")
+                            .attr("x", function (d) {
+                                return i * gridWidth;
+                            })
+                            .attr("y", function (d) {
+                                return (d.count - 1) * gridHeight;
+                            })
+                            .attr("class", "hour bordered")
+                            .attr("width", gridWidth)
+                            .attr("height", gridHeight)
+                            .style("fill", colors[0]);
+//                        .attr("onclick", function (d) {
+//                            return "reloadC(" + (d.line) + ");"
+//                        });
+
+                    heatMap.transition().duration(1000)
+                            .style("fill", function (d) {
+                                if (i == 0)
+                                    return colorScale(d.m1);
+                                else if (i == 1)
+                                    return colorScale(d.m2);
+                                else if (i == 2)
+                                    return colorScale(d.m3);
+                                else if (i == 3)
+                                    return colorScale(d.m4);
+                                else if (i == 4)
+                                    return colorScale(d.m5);
+                                else if (i == 5)
+                                    return colorScale(d.m6);
+                                else if (i == 6)
+                                    return colorScale(d.m7);
+                                else if (i == 7)
+                                    return colorScale(d.m8);
+                                else if (i == 8)
+                                    return colorScale(d.m9);
+                                else if (i == 9)
+                                    return colorScale(d.m10);
+                                else if (i == 10)
+                                    return colorScale(d.m11);
+                                else if (i == 11)
+                                    return colorScale(d.m12);
+//
+//                            if (d.value == "")
+//                                return "#7B7B7B";
+//                            else {
+//
+//                                return colorScale(d.value);
+//                                ;
+//                            }
+                            });
+                    heatMap.append("title").text(function (d) {
+                        if (i == 0)
+                            return d.m1;
+                        else if (i == 1)
+                            return d.m2;
+                        else if (i == 2)
+                            return d.m3;
+                        else if (i == 3)
+                            return d.m4;
+                        else if (i == 4)
+                            return d.m5;
+                        else if (i == 5)
+                            return d.m6;
+                        else if (i == 6)
+                            return d.m7;
+                        else if (i == 7)
+                            return d.m8;
+                        else if (i == 8)
+                            return d.m9;
+                        else if (i == 9)
+                            return d.m10;
+                        else if (i == 10)
+                            return d.m11;
+                        else if (i == 11)
+                            return d.m12;
+                    });
+
+
+
+
+                }
+
+                //画边框
+//                var lineData = [ { "x": -1,   "y": -1},  { "x": 121,  "y": -1},
+//                    { "x": 121,  "y": gridHeight*287+1}, { "x": -1,  "y": gridHeight*287+1},
+//                    { "x": -1,  "y": -1}];
+//                var lineFunction = d3.svg.line()
+//                        .x(function(d) { return d.x; })
+//                        .y(function(d) { return d.y; })
+//                        .interpolate("linear");
+//                var lineGraph = svg.append("path")
+//                        .attr("d", lineFunction(lineData))
+//                        .attr("stroke", "blue")
+//                        .attr("stroke-width", 2)
+//                        .attr("fill", "none");
+            });
+
+}
+
+function reloadC(line){
+    document.getElementById("month").innerHTML = ""
+    var height = 300 - margin.top - margin.bottom,
+            days = ["2005", "2006", "2007", "2008", "2009", "2010", "2011", "2012", "2013"];
+    var gridWidth = 10;
+    var count = [0,0,0,0,0,0,0,0,0,0,0,0];
+    d3.csv("county"+".csv",
+            function(error, data) {
+                var svg = d3.select("#month").append("svg")
+                        .attr("width", width + margin.left + margin.right)
+                        .attr("height", height + margin.top + margin.bottom)
+                        .append("g")
+                        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var dayLabels = svg.selectAll(".dayLabel")
+                        .data(days)
+                        .enter().append("text")
+                        .text(function (d) { return d; })
+                        .attr("x", 0)
+                        .attr("y", function (d, i) { return (i-1) * gridHeight; })
+                        .style("text-anchor", "end")
+                        .attr("transform", "translate(-6," + gridHeight / 1.5 + ")")
+                        .attr("class", function (d, i) { return "dayLabel mono axis axis-workweek"; })
+                        .attr("onclick",function(d,i){return "reload("+i+");"});
+
+                var heatMap;
+
+                for(var i = 0; i < 9; i ++) {
+                    heatMap= svg.selectAll(".hour"+i)
+                            .data(data)
+                            .enter()
+                            .append("rect")
+                            .attr("x", function (d) {
+                                if(d.city == line){
+                                    return (count[i]++) * gridWidth;
+                                }
+                                else
+                                    return -100;
+//                                    return (count[i]++) * gridWidth;
+                            })
+                            .attr("y", function (d) {
+                                return (i-1) * gridHeight;
+                            })
+                            .attr("class", "hour bordered")
+                            .attr("width", gridWidth)
+                            .attr("height", gridHeight)
+                            .style("fill", colors[0]);
+
+                    heatMap.transition().duration(1000)
+                            .style("fill", function(d) {
+                                var value;
+                                if(i == 0) value = d.y2005;
+                                else if(i == 1) value = d.y2006;
+                                else if(i == 2) value = d.y2007;
+                                else if(i == 3) value = d.y2008;
+                                else if(i == 4) value = d.y2009;
+                                else if(i == 5) value = d.y2010;
+                                else if(i == 6) value = d.y2011;
+                                else if(i == 7) value = d.y2012;
+                                else if(i == 8) value = d.y2013;
+                                else value = d.m12;
+                                if (value == "")
+                                    return "#7B7B7B";
+                                else {
+                                    return colorScale(value);
+                                    ;
+                                }
+                            });
+
+                    heatMap.append("title").text(function(d) {if(d.value == "")return "-"; else  return d.value; });
+                }
+            });
+}
+
+function reload(year){
+    document.getElementById("month").innerHTML = ""
+    var height = 300 - margin.top - margin.bottom,
+            days = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+
+    d3.csv("2005-2013-city-sta-month_y"+year+".csv",
+            function(error, data) {
+                var svg = d3.select("#month").append("svg")
+                        .attr("width", width + margin.left + margin.right)
+                        .attr("height", height + margin.top + margin.bottom)
+                        .append("g")
+                        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var dayLabels = svg.selectAll(".dayLabel")
+                        .data(days)
+                        .enter().append("text")
+                        .text(function (d) { return d; })
+                        .attr("x", 0)
+                        .attr("y", function (d, i) { return (i-1) * gridHeight; })
+                        .style("text-anchor", "end")
+                        .attr("transform", "translate(-6," + gridHeight / 1.5 + ")")
+                        .attr("class", function (d, i) { return "dayLabel mono axis axis-workweek"; })
+                        .attr("onclick",function(d,i){return "reload("+i+");"});
+
+                var heatMap;
+                for(var i = 0; i < 12; i ++) {
+                    heatMap= svg.selectAll(".hour"+i)
+                            .data(data)
+                            .enter().append("rect")
+                            .attr("x", function (d) {
+                                return (d.count - 1) * gridWidth;
+                            })
+                            .attr("y", function (d) {
+                                return (i-1) * gridHeight;
+                            })
+                            .attr("class", "hour bordered")
+                            .attr("width", gridWidth)
+                            .attr("height", gridHeight)
+                            .style("fill", colors[0]);
+
+                    heatMap.transition().duration(1000)
+                            .style("fill", function(d) {
+                                var value;
+                                if(i == 0) value = d.m1;
+                                else if(i == 1) value = d.m2;
+                                else if(i == 2) value = d.m3;
+                                else if(i == 3) value = d.m4;
+                                else if(i == 4) value = d.m5;
+                                else if(i == 5) value = d.m6;
+                                else if(i == 6) value = d.m7;
+                                else if(i == 7) value = d.m8;
+                                else if(i == 8) value = d.m9;
+                                else if(i == 9) value = d.m10;
+                                else if(i == 10) value = d.m11;
+                                else value = d.m12;
+                                if (value == "")
+                                    return "#7B7B7B";
+                                else {
+                                    return colorScale(value);
+                                    ;
+                                }
+                            });
+
+                    heatMap.append("title").text(function(d) {if(d.value == "")return "-"; else  return d.value; });
+                }
+            });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+    <!-- 新 Bootstrap 核心 CSS 文件 -->
+    <link rel="stylesheet" href="/js/bootstrap-3.3.0/css/bootstrap.min.css">
+    <!-- 可选的Bootstrap主题文件（一般不用引入） -->
+    <link rel="stylesheet" href="/js/bootstrap-3.3.0/css/bootstrap-theme.min.css">
+    <link rel="stylesheet" href="/js/ol3/v3.1.1/css/ol.css" type="text/css">
+    <!-- jQuery文件。务必在bootstrap.min.js 之前引入 -->
+    <script src="/js/jquery-2.1.3/jquery-2.1.3.js"></script>
+    <!-- 最新的 Bootstrap 核心 JavaScript 文件 -->
+    <script src="/js/bootstrap-3.3.0/js/bootstrap.min.js"></script>
+
+    <script src="js/d3.js/d3.js"></script>
+    <script src="js/heatmap.js/build/heatmap.js"></script>
+    <script src="js/ol3/v3.1.1/build/ol.js"></script>
+</head>
+
+<body>
+<h2>My Map</h2>
+<div id="map" class="map"></div>
+<script type="text/javascript">
+    var map = new ol.Map({
+        target: 'map',
+        layers: [
+            new ol.layer.Tile({
+                source: new ol.source.MapQuest({layer: 'sat'})
+            })
+        ],
+        view: new ol.View({
+            center: ol.proj.transform([37.41, 8.82], 'EPSG:4326', 'EPSG:3857'),
+            zoom: 4
+        })
+    });
+</script>
+</body>
+</html>
