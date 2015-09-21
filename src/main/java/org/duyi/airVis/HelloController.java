@@ -1,14 +1,19 @@
 package org.duyi.airVis;
 
 import com.mongodb.*;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
 import com.mongodb.util.JSON;
 import org.apache.commons.io.FileUtils;
 import org.bson.BSONObject;
+import org.bson.Document;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.io.File;
@@ -18,8 +23,228 @@ import java.text.*;
 
 @Controller
 public class HelloController {
-    private String SERVER_IP = "192.168.16.71";//192.168.16.71
+    private String SERVER_IP = "127.0.0.1";//192.168.16.71
     private static final String CITY_PATH = "d:\\city.txt";//home/duyi/city.txt;
+    private static MongoClient client = new MongoClient("127.0.0.1");
+    //a variable used to store all station info
+    private HashMap<String, StationInfo> stations = null;
+
+    private static final String DB_NAME = "pm";
+    private static final String COL_LOCATION_BAIDU = "loc_ll_g_b";
+    private static final String COL_AVG_YEAR = "pmdata_year";
+    private static final String COL_AVG_MONTH = "pmdata_month";
+    private static final String COL_AVG_DAY = "pmdata_day";
+
+    /**
+     * 返回所有城市列表
+     * modified by yidu at Purdue
+     * @return [{},{}]
+     */
+    @RequestMapping("cities.do")
+    public @ResponseBody String getAllCities() {
+        MongoCollection coll = getCollection(COL_LOCATION_BAIDU);
+        MongoCursor cur = coll.find().iterator();
+        JSONObject onecity;
+        JSONArray result = new JSONArray();
+        Document d;
+        while(cur.hasNext()){
+            d = (Document)cur.next();
+            onecity = new JSONObject();
+            try {
+                onecity.put("city", d.getString("city"));
+                onecity.put("station", d.getString("name"));
+                onecity.put("longitude", d.getDouble("lon"));
+                onecity.put("latitude", d.getDouble("lat"));
+                onecity.put("code", d.getString("code"));
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+            result.put(onecity);
+        }
+
+        return result.toString();
+    }
+
+    /**
+     * generate all stations info
+     */
+    private void generateStations(){
+        if(stations != null)
+            return;
+        MongoCollection coll = getCollection(COL_LOCATION_BAIDU);
+        MongoCursor cur = coll.find().iterator();
+        Document d;
+        stations = new HashMap<String, StationInfo>();
+        StationInfo oneStation;
+        while(cur.hasNext()){
+            d = (Document)cur.next();
+            oneStation = new StationInfo();
+            oneStation.setCity(d.getString("city"));
+            oneStation.setName(d.getString("name"));
+            oneStation.setLatitude(d.getDouble("lat"));
+            oneStation.setLongitude(d.getDouble("lon"));
+            oneStation.setCode(d.getString("code"));
+            stations.put(oneStation.getCode(), oneStation);
+        }
+    }
+
+
+
+
+    private MongoCollection getCollection(String collName){
+        MongoDatabase db = client.getDatabase(DB_NAME);
+        MongoCollection coll = db.getCollection(collName);
+        return coll;
+    }
+    /**
+     * @return 所有监测站的平均值
+     * modified by Yi Du at Purdue
+     */
+    @RequestMapping("yearAvg_v2.do")
+    public
+    @ResponseBody
+    String getYearAvgV2() {
+        if(stations == null)
+            generateStations();
+        MongoCollection coll = getCollection(COL_AVG_YEAR);
+        MongoCursor cur = coll.find().iterator();
+        JSONArray result = new JSONArray();
+        JSONObject oneResult;
+        Document d;
+        StationInfo oneStation = null;
+        while(cur.hasNext()){
+            d = (Document)cur.next();
+            oneResult = new JSONObject();
+            oneStation = stations.get(d.getString("code"));
+            if(oneStation == null)
+                continue;
+            try {
+                oneResult.put("aqi", d.getDouble("aqi"));
+                oneResult.put("co", d.getDouble("co"));
+                oneResult.put("no2", d.getDouble("no2"));
+                oneResult.put("o3", d.getDouble("o3"));
+                oneResult.put("pm10", d.getDouble("pm10"));
+                oneResult.put("pm25", d.getDouble("pm25"));
+                oneResult.put("so2", d.getDouble("so2"));
+                oneResult.put("city", oneStation.getCity());
+                oneResult.put("station", oneStation.getName());
+                oneResult.put("longitude", oneStation.getLongitude());
+                oneResult.put("latitude", oneStation.getLatitude());
+                oneResult.put("code", oneStation.getCode());
+                result.put(oneResult);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+        return result.toString();
+    }
+
+    /**
+     * 根据城市约束返回按月的趋势
+     * http://localhost:8081/monthTrends_v2.do?codes[]=1010A&codes[]=1011A
+     * @param codes 站点代码
+     * @return
+     */
+    @RequestMapping("monthTrends_v2.do")
+    public
+    @ResponseBody
+    String getMonthTrendsV2(@RequestParam(value="codes[]", required=false)String[] codes) {
+        MongoCollection coll = getCollection(COL_AVG_MONTH);
+
+        Document match;
+        Document sort = new Document("$sort", new Document("time", 1));
+        Document group = new Document().append("$group",
+                new Document().append("_id",
+                        new Document().append("month", new Document("$month", "$time"))
+                                .append("year", new Document("$year","$time")))
+                        .append("time", new Document("$first", "$time"))
+                        .append("aqi", new Document("$avg", "$aqi"))
+                        .append("aqi", new Document("$avg", "$aqi"))
+                        .append("co", new Document("$avg", "$co"))
+                        .append("no2", new Document("$avg", "$no2"))
+                        .append("o3", new Document("$avg", "$o3"))
+                        .append("pm10", new Document("$avg", "$pm10"))
+                        .append("pm25", new Document("$avg", "$pm25"))
+                        .append("so2", new Document("$avg", "$so2")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+        if (codes == null || codes.length == 0){
+            query.add(group);
+            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }
+        else {
+            match = new Document("$match",new Document("code", new Document("$in", Arrays.asList(codes))));
+            query.add(match);
+            query.add(group);
+            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+        return result.toString();
+    }
+
+
+    /**
+     * 根据时间区间、城市代码返回日趋势
+     *
+     * @param timeList 时间，格式：2014-01-01
+     * @param codes    城市代码，即城市名称
+     */
+    @RequestMapping("dayTrendsByCodes_v2.do")
+    public
+    @ResponseBody
+    String getDayTrendsByCodesV2(@RequestParam(value="codes[]", required=false) String[] timeList,
+                                 @RequestParam(value="codes[]", required=false) String codes) {
+        MongoCollection coll = getCollection(COL_AVG_DAY);
+
+        Document match;
+        Document sort = new Document("$sort", new Document("time", 1));
+        Document group = new Document().append("$group",
+                new Document().append("_id",
+                        new Document().append("day", new Document("$dayOfMonth", "$time"))
+                                .append("month", new Document("$month", "$time"))
+                                .append("year", new Document("$year","$time")))
+                        .append("time", new Document("$first", "$time"))
+                        .append("aqi", new Document("$avg", "$aqi"))
+                        .append("aqi", new Document("$avg", "$aqi"))
+                        .append("co", new Document("$avg", "$co"))
+                        .append("no2", new Document("$avg", "$no2"))
+                        .append("o3", new Document("$avg", "$o3"))
+                        .append("pm10", new Document("$avg", "$pm10"))
+                        .append("pm25", new Document("$avg", "$pm25"))
+                        .append("so2", new Document("$avg", "$so2")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+
+        if(timeList == null && codes == null){
+            query.add(group);
+            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }else if(timeList == null  && codes != null){
+            match = new Document("$match",new Document("code", new Document("$in", Arrays.asList(codes))));
+            query.add(match);
+            query.add(group);
+            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }else if(timeList != null  && codes == null){
+            //TODO
+            cur = null;
+        }else{
+            //TODO
+            cur = null;
+        }
+
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+        return result.toString();
+    }
+
 
     /**
      * @param cities 城市名数组
@@ -28,9 +253,7 @@ public class HelloController {
      * 未测试
      */
     @RequestMapping("getCityLocation.do")
-    public
-    @ResponseBody
-    String getCityLocation(String[] cities) {
+    public @ResponseBody String getCityLocation(String[] cities) {
         List<String> array = getCities();
         Iterator itr = array.iterator();
         JSONArray result = new JSONArray();
@@ -63,40 +286,7 @@ public class HelloController {
         return result.toString();
     }
 
-    /**
-     * 返回所有城市列表
-     *
-     * @return
-     */
-    @RequestMapping("cities.do")
-    public
-    @ResponseBody
-    String getAllCities() {
-        List<String> cities = null;
-        try {
-            cities = FileUtils.readLines(new File(CITY_PATH), "utf-8");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        JSONArray result = new JSONArray();
-        StringTokenizer st;
-        JSONObject onecity;
-        for (String s : cities) {
-            onecity = new JSONObject();
-            st = new StringTokenizer(s, ",");
-            try {
-                onecity.put("city", st.nextToken());
-                onecity.put("station", st.nextToken());
-                onecity.put("longitude", Double.parseDouble(st.nextToken()));
-                onecity.put("latitude", Double.parseDouble(st.nextToken()));
-                onecity.put("code", st.nextToken());
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-            result.put(onecity);
-        }
-        return result.toString();
-    }
+
 
     /**
      * 返回所有城市的List，包括城市名、经纬度
@@ -215,64 +405,68 @@ public class HelloController {
         return parsedResult.toString();
     }
 
-    /**
-     * @return 所有监测站的pm25年平均值
-     */
-    @RequestMapping("yearAvg.do")
-    public
-    @ResponseBody
-    String getYearAvg() {
-        JSONArray result = new JSONArray();
-
-        MongoClient mongo = null;
-        try {
-            mongo = new MongoClient(SERVER_IP);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        DB db = mongo.getDB("pmdata_2014");
-        DBCollection collection = db.getCollection("pmdata_year");
-        DBObject ref = new BasicDBObject();
-        DBObject key = new BasicDBObject();
-        key.put("longitude", 1);
-        key.put("latitude", 1);
-        key.put("position_name", 1);
-        key.put("pm25_ave", 1);
-        DBCursor cursor = collection.find(ref, key);
-
-        JSONObject oneResult;
-        DBObject oneObj;
-        double max = 0;
-        while (cursor.hasNext()) {
-            oneResult = new JSONObject();
-            oneObj = cursor.next();
-            //判断是否所有键都存在
-            if (oneObj.get("longitude") == null || oneObj.get("latitude") == null ||
-                    oneObj.get("position_name") == null || oneObj.get("pm25_ave") == null)
-                continue;
-            //keySet方法获取map所有的K值
-            Set<String> i = oneObj.keySet();
-            for (String k : i) {
-                try {
-                    oneResult.put(k, oneObj.get(k));
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
-            if (max < Double.parseDouble(oneObj.get("pm25_ave").toString()))
-                max = Double.parseDouble(oneObj.get("pm25_ave").toString());
-            result.put(oneResult);
-        }
-        JSONObject parsedResult = new JSONObject();
-
-        try {
-            parsedResult.put("max", max);
-            parsedResult.put("data", result);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        return parsedResult.toString();
-    }
+//    /**
+//     * @return 所有监测站的pm25年平均值
+//     * modified by Yi Du at Purdue
+//     */
+//    @RequestMapping("yearAvg.do")
+//    public
+//    @ResponseBody
+//    String getYearAvg() {
+//        MongoCollection coll = getLocationCollection();
+//        MongoCursor cur = coll.find().iterator();
+//
+//        JSONArray result = new JSONArray();
+//
+//        MongoClient mongo = null;
+//        try {
+//            mongo = new MongoClient(SERVER_IP);
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//        DB db = mongo.getDB("pmdata_2014");
+//        DBCollection collection = db.getCollection("pmdata_year");
+//        DBObject ref = new BasicDBObject();
+//        DBObject key = new BasicDBObject();
+//        key.put("longitude", 1);
+//        key.put("latitude", 1);
+//        key.put("position_name", 1);
+//        key.put("pm25_ave", 1);
+//        DBCursor cursor = collection.find(ref, key);
+//
+//        JSONObject oneResult;
+//        DBObject oneObj;
+//        double max = 0;
+//        while (cursor.hasNext()) {
+//            oneResult = new JSONObject();
+//            oneObj = cursor.next();
+//            //判断是否所有键都存在
+//            if (oneObj.get("longitude") == null || oneObj.get("latitude") == null ||
+//                    oneObj.get("position_name") == null || oneObj.get("pm25_ave") == null)
+//                continue;
+//            //keySet方法获取map所有的K值
+//            Set<String> i = oneObj.keySet();
+//            for (String k : i) {
+//                try {
+//                    oneResult.put(k, oneObj.get(k));
+//                } catch (JSONException e) {
+//                    e.printStackTrace();
+//                }
+//            }
+//            if (max < Double.parseDouble(oneObj.get("pm25_ave").toString()))
+//                max = Double.parseDouble(oneObj.get("pm25_ave").toString());
+//            result.put(oneResult);
+//        }
+//        JSONObject parsedResult = new JSONObject();
+//
+//        try {
+//            parsedResult.put("max", max);
+//            parsedResult.put("data", result);
+//        } catch (JSONException e) {
+//            e.printStackTrace();
+//        }
+//        return parsedResult.toString();
+//    }
 
     /**
      * @return 得到按年统计的结果，包含所有字段

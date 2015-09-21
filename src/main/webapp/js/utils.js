@@ -5,7 +5,7 @@
 //地图对象
 var map;
 //谷歌地图与bing地形地图
-var mapLayer,hybridLayer;
+//var mapLayer,hybridLayer;
 //各种叠加图层
 var locationLayer, heatmapLayer, polygonLayer;
 //各种过滤控件
@@ -40,60 +40,50 @@ var pointMap = [
     new OpenLayers.Style({'fillColor': "#00FF00"})];
 
 function initUIs(){
-	mapLayer = new OpenLayers.Layer.Google(
-		"Google Physical", // the default
-		{numZoomLevels: 20}
-	);
-//    hybridLayer = new OpenLayers.Layer.Bing({
-//        name: "Hybrid",
-//        key: apiKey,
-//        type: "AerialWithLabels"
-//    });
+    $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
+    var osm = new OpenLayers.Layer.OSM();
 
-	map = new OpenLayers.Map('map', {
-		projection: new OpenLayers.Projection("EPSG:4326"),
-		displayProjection: new OpenLayers.Projection("EPSG:900913"),
-//        layers: [hybridLayer,mapLayer],
-		layers: [mapLayer],
-		center: new OpenLayers.LonLat(105.6670345, 38.0121105)
-			.transform('EPSG:4326', 'EPSG:900913'),
-		zoom: 4
-	});
+    map = new OpenLayers.Map('map', {allOverlays: true});
+    map.addControl(new OpenLayers.Control.LayerSwitcher());
+    map.addLayers([osm]);
+    map.setCenter(new OpenLayers.LonLat(105.6670345, 38.0121105).
+        transform(new OpenLayers.Projection("EPSG:4326"),
+        map.getProjectionObject()
+    ), 3);
 
-	heatmapLayer = new OpenLayers.Layer.Heatmap( "heatmap", map, mapLayer,
+    heatmapLayer = new OpenLayers.Layer.Heatmap( "heatmap", map, osm,
 		{
 			opacity:80,
 			radius:20,
 			gradient: {0.45: "rgb(0,0,255)", 0.55: "rgb(0,255,255)", 0.65: "rgb(0,255,0)", 0.95: "yellow", 1.0: "rgb(255,0,0)"},
-			projection:"EPSG:900913"
+			projection:"EPSG:4326"
 		}, {
 			visible: true,
 			isBaseLayer: false,
 			alwaysInRange : true,
-			projection:"EPSG:900913"
+			projection:"EPSG:4326"
 		});
-	heatmapLayer.projection = "EPSG:900913";
+    heatmapLayer.projection = "EPSG:4326";
 
-	map.addLayers([heatmapLayer]);
-
-	locationLayer = new OpenLayers.Layer.Vector('location');
-	var features = [];
-	locationLayer.addFeatures(features);
-	var vector_style = new OpenLayers.Style({
+    map.addLayer(heatmapLayer);
+    locationLayer = new OpenLayers.Layer.Vector('location');
+    var features = [];
+    locationLayer.addFeatures(features);
+    var vector_style = new OpenLayers.Style({
 		'fillColor': '#ee0011',
 		'fillOpacity': .8,
 		'strokeColor': '#aaee77',
 		'strokeWidth': 1,
 		'pointRadius': 4
-	});
-	var vector_style_map = new OpenLayers.StyleMap({
+    });
+    var vector_style_map = new OpenLayers.StyleMap({
 		'default': vector_style
-	});
-	locationLayer.styleMap = vector_style_map;
-	map.addLayer(locationLayer);
+    });
+    locationLayer.styleMap = vector_style_map;
+    map.addLayer(locationLayer);
 
-    createProvinceSelControl();
-	createPolygonControl();
+    //createProvinceSelControl();
+    createPolygonControl();
 }
 
 /**
@@ -187,7 +177,7 @@ function featureAddedListener(event){
 			for(i = 0; i < data.length; i ++){
 				//坐标点转换
 				if(event.feature.geometry.containsPoint(
-					new OpenLayers.Geometry.Point(data[i].lon,data[i].lat).transform(epsg4326, projectTo))) {
+					new OpenLayers.Geometry.Point(data[i].longitude,data[i].latitude).transform(epsg4326, projectTo))) {
 					newData.push(data[i]);
 				}
 			}
@@ -197,7 +187,7 @@ function featureAddedListener(event){
 		}
 	});
 	$.ajax({
-		url:"yearAvg.do",
+		url:"yearAvg_v2.do",
 		type:"post",
 		dataType:"json",
 		success:function(data){
@@ -205,11 +195,11 @@ function featureAddedListener(event){
 			newData.max = data.max;
 			newData.data = [];
 			var i;
-			for(i = 0; i < data.data.length; i ++){
+			for(i = 0; i < data.length; i ++){
 				//坐标点转换
 				if(event.feature.geometry.containsPoint(
-					new OpenLayers.Geometry.Point(data.data[i].longitude,data.data[i].latitude).transform(epsg4326, projectTo))) {
-					newData.data.push(data.data[i]);
+					new OpenLayers.Geometry.Point(data[i].longitude,data[i].latitude).transform(epsg4326, projectTo))) {
+					newData.data.push(data[i]);
 				}
 			}
 			temp= newData;
@@ -225,7 +215,7 @@ function featureAddedListener(event){
  */
 function displayHM_Yearly(){
 	$.ajax({
-		url:"yearAvg.do",
+		url:"yearAvg_v2.do",
 		type:"post",
 		dataType:"json",
 		success:function(data){
@@ -235,16 +225,17 @@ function displayHM_Yearly(){
 }
 
 function buildHM(data){
-	if(data.data.length == 0)
+	var maxValue = 150;
+	if(data.length == 0)
 		return;
-	var transformedData = { max: data.max , data: [] };
-	var length = data.data.length;
+	var transformedData = { max: maxValue , data: [] };
+	var length = data.length;
 
 	while(length --){
 		transformedData.data.push({
-			lonlat: new OpenLayers.LonLat(data.data[length].longitude, data.data[length].latitude).
+			lonlat: new OpenLayers.LonLat(data[length].longitude, data[length].latitude).
 			transform(new OpenLayers.Projection("EPSG:4326"),  map.getProjectionObject()),
-			count: data.data[length].pm25_ave
+			count: data[length].pm25
 		});
 	}
 	heatmapLayer.setDataSet(transformedData);
@@ -272,12 +263,12 @@ function displayPoints(){
  * @param data
  */
 function buildLocationLayer(data){
+    console.log("build location layer")
 	locationLayer.removeAllFeatures();
 	var features = [];
 	for ( var i = 0; i < data.length; ++i) {
 		features.push(new OpenLayers.Feature.Vector(
-				new OpenLayers.Geometry.Point(data[i].lon,data[i].lat).
-					transform(new OpenLayers.Projection("EPSG:4326"),  map.getProjectionObject())
+				new OpenLayers.Geometry.Point(data[i].longitude,data[i].latitude).transform('EPSG:4326', 'EPSG:3857')
             )
 		);
 	}
@@ -299,7 +290,7 @@ function linearTime(){
 		height = totalH - margin.top - margin.bottom,
 		height2 = totalH - margin2.top - margin2.bottom;
 
-	var parseDate = d3.time.format("%Y-%m").parse;
+	//var parseDate = d3.time.format("%Y-%m").parse;
     var color = d3.scale.category10();
 
 	var x = d3.time.scale().range([0, width]),
@@ -317,12 +308,12 @@ function linearTime(){
 
 	var line = d3.svg.line()
 		.interpolate("monotone")
-		.x(function(d) {return x(parseDate(d.time_point)); })
+		.x(function(d) {return x(new Date(d.time)); })
         .y(function(d) { return y(d.avg_time); });
 
 	var line2 = d3.svg.line()
 		.interpolate("monotone")
-		.x(function(d) { return x2(parseDate(d.time_point)); })
+		.x(function(d) { return x2(new Date(d.time)); })
 		.y(function(d) { return y2(d.avg_time); });
 
 	var svg = d3.select("#detailTrendsContext").append("svg")
@@ -357,32 +348,26 @@ function linearTime(){
 			}
 		}
 	}
-//    console.log("codes:"+cities);
-
-	d3.json("monthTrends.do"+cities, function(error, data) {
+	d3.json("monthTrends_v2.do"+cities, function(error, data) {
         color.domain(d3.keys(data[0]).filter(function(key) {
-            return key === "avg_time";
+            return key === "pm25";
         }));
         //检测指标
         var attrs = color.domain().map(function(name) {
             return {
                 name: name,
                 values: data.map(function(d) {
-                    return {time_point: d.time_point, avg_time: +d[name]};
+                    return {time: d.time, avg_time: +d[name]};
                 })
             };
         });
 
-		x.domain(d3.extent(data.map(function(d) {  return parseDate(d.time_point); })));
+		x.domain(d3.extent(data.map(function(d) {  return new Date(d.time); })));
         //固定y轴最大数值
 		y.domain([0, d3.max(data.map(function(d) { return 150; }))]);//d.avg_time; }))]);
 		x2.domain(x.domain());
 		y2.domain(y.domain());
 
-//		var temp = focus.append("path")
-//			.datum(data)
-//			.attr("class", "line")
-//			.attr("d", line);
 
 		focus.append("g")
 			.attr("class", "x axis")
@@ -655,6 +640,10 @@ function createMonthAvg(){
 //    d3.select(self.frameElement).style("height", "500px");
 }
 
+/**
+ *
+ * modified by yidu at Purdue
+ */
 function createMonthDetail(){
 	var width = 910,
 		height = 136,
@@ -667,7 +656,8 @@ function createMonthDetail(){
 
 	var color = d3.scale.quantize()
 		.domain([150, 0])
-		.range(d3.range(20).map(function(d) { return "r" + d + "-11"; }));
+		.range(d3.range(20).map(function(d) {
+			return "r" + d + "-11"; }));
 
 	var svg = d3.select("#monthDetail").selectAll("svg")
 		.data(d3.range(2014, 2015))
@@ -684,8 +674,8 @@ function createMonthDetail(){
 		.attr("class", "day")
 		.attr("width", cellSize)
 		.attr("height", cellSize)
-		.attr("x", function(d) { return week(d) * cellSize; })
-		.attr("y", function(d) { return day(d) * cellSize ; })
+		.attr("x", function(d) {return week(d) * cellSize; })
+		.attr("y", function(d) {return day(d) * cellSize ; })
 		.datum(format);
 
 	rect.append("title")
@@ -697,14 +687,14 @@ function createMonthDetail(){
 		.attr("class", "month")
 		.attr("d", monthPath);
 
-	d3.json("dayTrends.do", function(error, json) {
+	d3.json("dayTrendsByCodes_v2.do", function(error, json) {
 		var data = d3.nest()
-			.key(function(d) { return d.time_point; })
-			.rollup(function(d) { return d[0].avg_time; })
+			.key(function(d) { return format(new Date(d.time)); })//TODO 时区的问题
+			.rollup(function(d) { return d[0].pm25; })
 			.map(json);
 
-		rect.filter(function(d) { return d in data; })
-			.attr("class", function(d) { return "day " + color(data[d]); })
+		rect.filter(function(d) {console.log("date:"+d); return d in data; })
+			.attr("class", function(d) {return "day " + color(data[d]); })
 			.select("title")
 			.text(function(d) { return d + ": " + d3.round(data[d]); });
 	});
@@ -719,8 +709,6 @@ function createMonthDetail(){
 			+ "H" + (w1 + 1) * cellSize + "V" + 0
 			+ "H" + (w0 + 1) * cellSize + "Z";
 	}
-
-//    d3.select(self.frameElement).style("height", "500px");
 }
 
 /**

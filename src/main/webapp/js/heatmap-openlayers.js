@@ -36,7 +36,7 @@ OpenLayers.Layer.Heatmap = OpenLayers.Class(OpenLayers.Layer, {
 
             handler = function(){ 
                 if(this.tmpData.max){
-                    this.updateLayer(); 
+                    this.updateLayer();
                 }
             };
 	    // on zoomend and moveend we have to move the canvas element and redraw the datapoints with new positions
