@@ -197,7 +197,7 @@ public class HelloController {
     @RequestMapping("dayTrendsByCodes_v2.do")
     public
     @ResponseBody
-    String getDayTrendsByCodesV2(@RequestParam(value="codes[]", required=false) String[] timeList,
+    String getDayTrendsByCodesV2(@RequestParam(value="timeList[]", required=false) String[] timeList,
                                  @RequestParam(value="codes[]", required=false) String codes) {
         MongoCollection coll = getCollection(COL_AVG_DAY);
 
@@ -245,6 +245,32 @@ public class HelloController {
         return result.toString();
     }
 
+
+    /**
+     * 根据日期、小时、站点代码返回趋势
+     *
+     * @param startTime，格式：2014-01-01 起始时间
+     * @param endTime                 格式：同上 结束时间
+     * @param codes            站点代码
+     * @return
+     */
+    @RequestMapping("hourTrendsv2.do")
+    public
+    @ResponseBody
+    String getHourTrendsByCodesV2(String startTime, String endTime,
+                                  @RequestParam(value="codes[]", required=false) String[] codes) {
+
+        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+        long start = 0L, end = 0L;
+        try {
+            start = df.parse(startTime).getTime();
+            end = df.parse(endTime).getTime();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return "";
+    }
 
     /**
      * @param cities 城市名数组

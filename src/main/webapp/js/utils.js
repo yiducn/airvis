@@ -91,7 +91,7 @@ function initUIs(){
  */
 function activePolygonConrtol(){
 	polygonConrtol.activate();
-	provinceSelectionControl.deactivate();
+	//provinceSelectionControl.deactivate();
 }
 
 function activeProvinceSelectionControl(){
@@ -103,7 +103,7 @@ function activeProvinceSelectionControl(){
  */
 function activeNavControl(){
 	polygonConrtol.deactivate();
-	provinceSelectionControl.deactivate();
+	//provinceSelectionControl.deactivate();
 }
 
 /**
@@ -282,7 +282,7 @@ function buildLocationLayer(data){
  */
 function linearTime(){
 	$("#detailTrendsContext").empty();
-	var totalW = 900, totalH = 400;
+	var totalW = 900, totalH = 200;
 	//1为上面那个 2为下面那个
 	var margin = {top: 10, right: 10, bottom: 100, left: 40},
 		margin2 = {top: totalH-70, right: 10, bottom: 40, left: 40},
@@ -307,7 +307,7 @@ function linearTime(){
 		.on("brush", brushed);
 
 	var line = d3.svg.line()
-		.interpolate("monotone")
+		//.interpolate("monotone")
 		.x(function(d) {return x(new Date(d.time)); })
         .y(function(d) { return y(d.avg_time); });
 
