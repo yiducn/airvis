@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+    <!-- 新 Bootstrap 核心 CSS 文件 -->
+    <link rel="stylesheet" href="js/bootstrap-3.3.0/css/bootstrap.min.css">
+    <!-- 可选的Bootstrap主题文件（一般不用引入） -->
+    <link rel="stylesheet" href="js/bootstrap-3.3.0/css/bootstrap-theme.min.css">
+    <link rel="stylesheet" href="js/jquerylayout/source/stable/layout-default.css">
+    <link rel="stylesheet" href="js/trends.css">
+    <link rel="stylesheet" href="js/jqueryui1114/jquery-ui.css">
+    <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet/v0.7.7/leaflet.css" />
+
+    <!-- jQuery文件。务必在bootstrap.min.js 之前引入 -->
+    <script src="js/jquery-2.1.3/jquery-2.1.3.js"></script>
+    <!-- 最新的 Bootstrap 核心 JavaScript 文件 -->
+    <script src="js/bootstrap-3.3.0/js/bootstrap.min.js"></script>
+    <script src="http://cdn.leafletjs.com/leaflet/v0.7.7/leaflet.js"></script>
+    <script src="js/leaflet-google.js"></script>
+    <script src="http://maps.google.com/maps/api/js?v=3&sensor=false&key=AIzaSyAjck3hEqhffZkaLqetTdt6yrNv2amYOMk"></script>
+    <script src="js/d3.js/d3.js"></script>
+    <script src="js/d3.tip.v0.6.3.js"></script>
+    <script src="js/jquerylayout/source/stable/jquery.layout_and_plugins.js"></script>
+    <script src="js/jqueryui1114/jquery-ui.js"></script>
+    <script src="js/leafletutils.js"></script>
+    <script>
+        $(function() {
+            $( "#detailTrends" ).draggable();
+            $( "#detailTrendsCycle" ).draggable();
+        });
+    </script>
+</head>
+
+<body>
+<div id="map"></div>
+<script>
+    initUIs();
+</script>
+<div id="controller" style="position:fixed;left:10px;top:100px;width:200px;height:0px;z-index: 20000;">
+    <input type="button" onclick="displayPoints();" value="showPoints">
+    <input type="button" onclick="displayHM_Yearly();" value="showHeatmap"><br>
+    <input type="button" onclick="activePolygonConrtol();" value="polygonselection">
+    <input type="button" onclick="activeNavControl();" value="navigation"><br>
+    <input id="displayTrends" name="trendcontrol" type="radio" onclick="$('#detailTrends').show();"><label for="displayTrends">displayTrends</label>
+    <input id="hideTrends" name="trendcontrol" type="radio" checked="true" onclick="$('#detailTrends').hide();"><label for="hideTrends">hideTrends</label><br>
+    <input id="displayCycle" name="cyclecontrol" type="radio" onclick="$('#detailTrendsCycle').show();"><label for="displayCycle">displayCycle</label>
+    <input id="hideCycle" name="cyclecontrol" type="radio" checked="true" onclick="$('#detailTrendsCycle').hide();"><label for="hideCycle">hideCycle</label>
+
+</div>
+
+<div id="detailTrends" style="position:fixed;top:200px;left:0px;right:0px;width:1900px;height:300px;z-index: 20000;display:none;">
+    <div id="detailTrendsFocus" style="width:1900px; height:100px"></div>
+    <div id="detailTrendsContext" style="width:1900px; height:200px"></div>
+</div>
+<div id="detailTrendsCycle" style="position:fixed;left:0px;right: 0px;top: 600px;bottom: 0px;width:1000px;height:100px;z-index: 20001;display:none;"></div>
+<script>
+    linearTime();
+    cycleTime();
+</script>
+</body>
+</html>
