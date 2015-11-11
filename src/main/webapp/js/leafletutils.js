@@ -1,171 +1,104 @@
 /**
  * Created by yidu on 11/10/15.
  */
-/**
- * Created by cnic on 2015/1/9.
- */
 
 //地图对象
 var map;
 //谷歌地图与bing地形地图
 //var mapLayer,hybridLayer;
 //各种叠加图层
-var locationLayer, heatmapLayer, polygonLayer;
+var locationLayer, heatmapLayer, freedrawLayer;
 //各种过滤控件
 var polygonConrtol, navControl,provinceSelectionControl;
 
 var temp;
 var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
-var apiKey = "AqTGBsziZHIJYYxgivLBf0hVdrAk9mWO5cQcb8Yux8sW5M8c8opEC2lZqKR1ZZXf";
-OpenLayers.ProxyHost = "proxy.jsp?url=";
 
-var pointMap = [
-    new OpenLayers.Style({'fillColor': "#FF0000"}),
-    new OpenLayers.Style({'fillColor': "#FF1A00"}),
-    new OpenLayers.Style({'fillColor': "#FF3300"}),
-    new OpenLayers.Style({'fillColor': "#FF4C00"}),
-    new OpenLayers.Style({'fillColor': "#FF6600"}),
-    new OpenLayers.Style({'fillColor': "#FF8000"}),
-    new OpenLayers.Style({'fillColor': "#FF9900"}),
-    new OpenLayers.Style({'fillColor': "#FFB200"}),
-    new OpenLayers.Style({'fillColor': "#FFCC00"}),
-    new OpenLayers.Style({'fillColor': "#FFE600"}),
-    new OpenLayers.Style({'fillColor': "#FFFF00"}),
-    new OpenLayers.Style({'fillColor': "#E6FF00"}),
-    new OpenLayers.Style({'fillColor': "#CCFF00"}),
-    new OpenLayers.Style({'fillColor': "#B2FF00"}),
-    new OpenLayers.Style({'fillColor': "#99FF00"}),
-    new OpenLayers.Style({'fillColor': "#80FF00"}),
-    new OpenLayers.Style({'fillColor': "#66FF00"}),
-    new OpenLayers.Style({'fillColor': "#4DFF00"}),
-    new OpenLayers.Style({'fillColor': "#33FF00"}),
-    new OpenLayers.Style({'fillColor': "#19FF00"}),
-    new OpenLayers.Style({'fillColor': "#00FF00"})];
+//option of points
+var optPoint = {fillColor:'#ee0011', fill:true, color:'#aaee77'};
+
+//var pointMap = [
+//    new OpenLayers.Style({'fillColor': "#FF0000"}),
+//    new OpenLayers.Style({'fillColor': "#FF1A00"}),
+//    new OpenLayers.Style({'fillColor': "#FF3300"}),
+//    new OpenLayers.Style({'fillColor': "#FF4C00"}),
+//    new OpenLayers.Style({'fillColor': "#FF6600"}),
+//    new OpenLayers.Style({'fillColor': "#FF8000"}),
+//    new OpenLayers.Style({'fillColor': "#FF9900"}),
+//    new OpenLayers.Style({'fillColor': "#FFB200"}),
+//    new OpenLayers.Style({'fillColor': "#FFCC00"}),
+//    new OpenLayers.Style({'fillColor': "#FFE600"}),
+//    new OpenLayers.Style({'fillColor': "#FFFF00"}),
+//    new OpenLayers.Style({'fillColor': "#E6FF00"}),
+//    new OpenLayers.Style({'fillColor': "#CCFF00"}),
+//    new OpenLayers.Style({'fillColor': "#B2FF00"}),
+//    new OpenLayers.Style({'fillColor': "#99FF00"}),
+//    new OpenLayers.Style({'fillColor': "#80FF00"}),
+//    new OpenLayers.Style({'fillColor': "#66FF00"}),
+//    new OpenLayers.Style({'fillColor': "#4DFF00"}),
+//    new OpenLayers.Style({'fillColor': "#33FF00"}),
+//    new OpenLayers.Style({'fillColor': "#19FF00"}),
+//    new OpenLayers.Style({'fillColor': "#00FF00"})];
+
+//configuration of heatmap
+var cfg = {
+    // radius should be small ONLY if scaleRadius is true (or small radius is intended)
+    "radius": 1,
+    "maxOpacity": .8,
+    // scales the radius based on map zoom
+    "scaleRadius": true,
+    // if set to false the heatmap uses the global maximum for colorization
+    // if activated: uses the data maximum within the current map boundaries
+    //   (there will always be a red spot with useLocalExtremas true)
+    "useLocalExtrema": true,
+    // which field name in your data represents the latitude - default "lat"
+    latField: 'lat',
+    // which field name in your data represents the longitude - default "lng"
+    lngField: 'lng',
+    // which field name in your data represents the data value - default "value"
+    valueField: 'count'
+};
 
 function initUIs(){
     $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
-    var map = L.map('map').setView([38.0121105, 105.6670345], 5);
-    // Possible types: SATELLITE, ROADMAP, HYBRID
-    var googleLayer = new L.Google('ROADMAP');
-    map.addLayer(googleLayer);
+    L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
+    map = L.mapbox.map('map', 'mapbox.streets')
+        .setView([38.0121105, 105.6670345], 5);
 
-    //heatmapLayer = new OpenLayers.Layer.Heatmap( "heatmap", map, osm,
-    //    {
-    //        opacity:80,
-    //        radius:20,
-    //        gradient: {0.45: "rgb(0,0,255)", 0.55: "rgb(0,255,255)", 0.65: "rgb(0,255,0)", 0.95: "yellow", 1.0: "rgb(255,0,0)"},
-    //        projection:"EPSG:4326"
-    //    }, {
-    //        visible: true,
-    //        isBaseLayer: false,
-    //        alwaysInRange : true,
-    //        projection:"EPSG:4326"
-    //    });
-    //heatmapLayer.projection = "EPSG:4326";
-    //
-    //map.addLayer(heatmapLayer);
+    //add location layer
+    locationLayer = L.layerGroup();
+    locationLayer.addTo(map);
 
-    locationLayer = new OpenLayers.Layer.Vector('location');
-    //var features = [];
-    //locationLayer.addFeatures(features);
-    //var vector_style = new OpenLayers.Style({
-    //    'fillColor': '#ee0011',
-    //    'fillOpacity': .8,
-    //    'strokeColor': '#aaee77',
-    //    'strokeWidth': 1,
-    //    'pointRadius': 4
-    //});
-    //var vector_style_map = new OpenLayers.StyleMap({
-    //    'default': vector_style
-    //});
-    //locationLayer.styleMap = vector_style_map;
-    //map.addLayer(locationLayer);
-    //
-    ////createProvinceSelControl();
-    //createPolygonControl();
+    //TODO createProvinceSelControl();
 }
 
 /**
- * 激活多边形选择控件
+ * active free draw function
  */
-function activePolygonConrtol(){
-    polygonConrtol.activate();
-    //provinceSelectionControl.deactivate();
-}
-
-function activeProvinceSelectionControl(){
-    provinceSelectionControl.activate();
-    polygonConrtol.deactivate();
-}
-/**
- * 取消激活多边形选择控件
- */
-function activeNavControl(){
-    polygonConrtol.deactivate();
-    //provinceSelectionControl.deactivate();
-}
-
-/**
- * 创建省份选择控件
- */
-function createProvinceSelControl(){
-    var base = new OpenLayers.Layer.WMS('base',
-        'http://www.ms.dviz.cn/cgi/c',
-        {
-            layers:'shp_cn_province',
-            transparent:true,
-            projection:"EPSG:4326"
-        },{
-            isBaseLayer:true,
-            singleTile:true
-        });
-    map.addLayer(base);
-//    var vecLyr = map.getLayersByName('base')[0];
-//    map.raiseLayer(vecLyr, map.layers.length);
-//    map.setLayerIndex(base, 99);
-
-    provinceSelectionControl = new OpenLayers.Control.WMSGetFeatureInfo({
-        url: 'http://www.ms.dviz.cn/cgi/c',
-        layers : [base],
-        queryVisible: true,
-        infoFormat :'text/plain',
-        eventListeners: {
-            getfeatureinfo: function (event) {
-                console.log(event)
-                var prcode_re = /\d{6}/;
-                var prcodes = event.text.match(prcode_re);
-//                console.log(prcodes[0])
-                base.mergeNewParams({code:prcodes[0],_:new Date().getTime()});
-            }
-        }
+function activeFreeDraw(){
+    freedrawLayer = new L.FreeDraw();
+    freedrawLayer.setMode(L.FreeDraw.MODES.ALL);
+    map.addLayer(freedrawLayer);
+    freedrawLayer.on('markers', function getMarkers(eventData) {
+        if(eventData == null || eventData.latLngs.length == 0)
+            return;
+            featureAddedListener(eventData);
     });
-    map.addControl(provinceSelectionControl);
-}
-function createPolygonControl(){
-    polygonLayer = new OpenLayers.Layer.Vector("Polygon Layer", {
-        eventListeners: {
-            "featureadded": featureAddedListener,
-            "sketchstarted":sketchStartedListener
-        }
-    });
-    map.addLayer(polygonLayer);
-    map.addControl(new OpenLayers.Control.MousePosition());
-    polygonConrtol = new OpenLayers.Control.DrawFeature(polygonLayer,
-        OpenLayers.Handler.Polygon)
-    map.addControl(polygonConrtol);
-}
-function sketchStartedListener(event){
-    polygonLayer.removeAllFeatures();
 }
 
 /**
- * 多边形添加以后的事件处理
+ * deactive free draw function
+ */
+function deactiveFreeDraw(){
+    map.removeLayer(freedrawLayer);
+}
+
+/**
+ * freedraw以后的事件处理
  * @param event
  */
 function featureAddedListener(event){
-    var epsg4326 = new OpenLayers.Projection("EPSG:4326"); //WGS 1984 projection
-    var projectTo = map.getProjectionObject(); //The map projection (Spherical Mercator)
-    var epsg900913 = new OpenLayers.Projection("EPSG:900913");
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(event.latLngs));
     $.ajax({
         url:"cities.do",
         type:"post",
@@ -173,10 +106,11 @@ function featureAddedListener(event){
         success:function(data){
             var newData = [];
             var i;
+            var result;
             for(i = 0; i < data.length; i ++){
-                //坐标点转换
-                if(event.feature.geometry.containsPoint(
-                        new OpenLayers.Geometry.Point(data[i].longitude,data[i].latitude).transform(epsg4326, projectTo))) {
+                //use leafletpip to calculate whether points are in the bounds
+                result = leafletPip.pointInLayer([data[i].longitude, data[i].latitude], bounds, true);
+                if(result.length > 0){
                     newData.push(data[i]);
                 }
             }
@@ -190,24 +124,25 @@ function featureAddedListener(event){
         type:"post",
         dataType:"json",
         success:function(data){
-            var newData = {};
-            newData.max = data.max;
-            newData.data = [];
+            var resultData = [];
             var i;
             for(i = 0; i < data.length; i ++){
-                //坐标点转换
-                if(event.feature.geometry.containsPoint(
-                        new OpenLayers.Geometry.Point(data[i].longitude,data[i].latitude).transform(epsg4326, projectTo))) {
-                    newData.data.push(data[i]);
+                //use leafletpip to calculate whether points are in the bounds
+                result = leafletPip.pointInLayer([data[i].longitude, data[i].latitude], bounds, true);
+                if(result.length > 0){
+                    resultData.push(data[i]);
                 }
             }
-            temp= newData;
-            buildHM(newData);
+            buildHM(resultData);
             //调整中心点
-            map.zoomToExtent(event.feature.geometry.getBounds(), true);
+            map.fitBounds(L.latLngBounds(event.latLngs));
         }
     });
 
+}
+
+function hideHM_Yearly(){
+    map.removeLayer(heatmapLayer);
 }
 /**
  * 创建热力图
@@ -232,14 +167,24 @@ function buildHM(data){
 
     while(length --){
         transformedData.data.push({
-            lonlat: new OpenLayers.LonLat(data[length].longitude, data[length].latitude).
-                transform(new OpenLayers.Projection("EPSG:4326"),  map.getProjectionObject()),
+            lat: data[length].latitude,
+            lng: data[length].longitude,
             count: data[length].pm25
         });
     }
-    heatmapLayer.setDataSet(transformedData);
+
+    if(heatmapLayer != null)
+        map.removeLayer(heatmapLayer);
+    heatmapLayer = new HeatmapOverlay(cfg);
+    map.addLayer(heatmapLayer);
+    heatmapLayer.setData(transformedData);
+
 }
 
+
+function hidePoints(){
+    locationLayer.clearLayers();
+}
 /**
  * 显示所有监测点
  */
@@ -255,23 +200,16 @@ function displayPoints(){
     });
 }
 
-
-
 /**
  * 创建层
  * @param data
  */
 function buildLocationLayer(data){
-    console.log("build location layer")
-    locationLayer.removeAllFeatures();
-    var features = [];
+    console.log("build location layer");
+    locationLayer.clearLayers();
     for ( var i = 0; i < data.length; ++i) {
-        features.push(new OpenLayers.Feature.Vector(
-                new OpenLayers.Geometry.Point(data[i].longitude,data[i].latitude).transform('EPSG:4326', 'EPSG:3857')
-            )
-        );
+        locationLayer.addLayer(L.circle([data[i].latitude, data[i].longitude], 500, optPoint));
     }
-    locationLayer.addFeatures(features);
 
 }
 
