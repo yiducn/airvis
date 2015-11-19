@@ -13,6 +13,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
@@ -65,6 +66,8 @@ public class HelloController {
         return result.toString();
     }
 
+
+
     /**
      * generate all stations info
      */
@@ -87,8 +90,6 @@ public class HelloController {
             stations.put(oneStation.getCode(), oneStation);
         }
     }
-
-
 
 
     private MongoCollection getCollection(String collName){
@@ -191,14 +192,16 @@ public class HelloController {
     /**
      * 根据时间区间、城市代码返回日趋势
      *
-     * @param timeList 时间，格式：2014-01-01
+     * @param
      * @param codes    城市代码，即城市名称
+     *                 created at Purdue
      */
     @RequestMapping("dayTrendsByCodes_v2.do")
     public
     @ResponseBody
-    String getDayTrendsByCodesV2(@RequestParam(value="timeList[]", required=false) String[] timeList,
-                                 @RequestParam(value="codes[]", required=false) String codes) {
+    String getDayTrendsByCodesV2(@RequestParam(value="startTime", required=false) String startTime,
+                                 @RequestParam(value="endTime", required=false) String endTime,
+                                 @RequestParam(value="codes[]", required=false) String[] codes) {
         MongoCollection coll = getCollection(COL_AVG_DAY);
 
         Document match;
@@ -221,17 +224,17 @@ public class HelloController {
         MongoCursor cur;
         JSONArray result = new JSONArray();
 
-        if(timeList == null && codes == null){
+        if(startTime == null && endTime == null && codes == null){
             query.add(group);
             query.add(sort);
             cur = coll.aggregate(query).iterator();
-        }else if(timeList == null  && codes != null){
+        }else if(startTime == null && endTime == null  && codes != null){
             match = new Document("$match",new Document("code", new Document("$in", Arrays.asList(codes))));
             query.add(match);
             query.add(group);
             query.add(sort);
             cur = coll.aggregate(query).iterator();
-        }else if(timeList != null  && codes == null){
+        }else if(startTime == null && endTime != null  && codes == null){
             //TODO
             cur = null;
         }else{
@@ -494,6 +497,15 @@ public class HelloController {
 //        return parsedResult.toString();
 //    }
 
+    @RequestMapping(value = "hourOfWeekAverage.do", method = RequestMethod.POST)
+    public @ResponseBody String getHourOfWeekAverage(String[] cities,String startTime, String endTime){
+//TODO
+        return "";
+    }
+
+
+
+
     /**
      * @return 得到按年统计的结果，包含所有字段
      *
@@ -558,6 +570,7 @@ public class HelloController {
         }
         return parsedResult.toString();
     }
+
     /**
      * @return 得到按年统计的结果，包含所有字段
      * 所有站点平均

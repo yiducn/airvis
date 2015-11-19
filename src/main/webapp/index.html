@@ -49,6 +49,9 @@
     <script src="js/leafletutils.js"></script>
     <script src="js/heatmap.js/build/heatmap.js"></script>
     <script src="js/heatmap.js/plugins/leaflet-heatmap.js"></script>
+    <script src="js/raphael.js"></script>
+    <script src="js/raphael.icons.min.js"></script>
+    <script src="js/wheelnav.js-1.6.1.core/wheelnav.js"></script>
     <script>
         $(function() {
             $( "#detailTrends" ).draggable();
@@ -58,6 +61,8 @@
 </head>
 
 <body>
+<div id="piemenu" style="position:fixed; visibility: hidden; z-index:2000; width:300px; height:300px;left:0px;top:0px;"></div>
+
 <div id="map"></div>
 <script>
     initUIs();
@@ -76,14 +81,20 @@
 
 </div>
 
-<div id="detailTrends" style="position:fixed;top:200px;left:0px;right:0px;width:1900px;height:300px;z-index: 20000;display:none;">
-    <div id="detailTrendsFocus" style="width:1900px; height:100px"></div>
-    <div id="detailTrendsContext" style="width:1900px; height:200px"></div>
-</div>
+<!--<div id="detailTrends" style="position:fixed;top:0px;left:800px;right:0px;z-index: 20000;display:none;">-->
+    <!--<div id="detailTrendsFocus" style="width:1900px; height:100px"></div>-->
+    <!--<div id="detailTrendsContext" style="width:1900px; height:200px"></div>-->
+<!--</div>-->
+<div id="calendar" style="position:fixed; top:0px; left: 800px; width:800px; height:600px;"></div>
 <div id="detailTrendsCycle" style="position:fixed;left:0px;right: 0px;top: 600px;bottom: 0px;width:1000px;height:100px;z-index: 20001;display:none;"></div>
+
+
+
+
 <script>
     linearTime();
     cycleTime();
+    initCalendarView(2);
 </script>
 </body>
 </html>

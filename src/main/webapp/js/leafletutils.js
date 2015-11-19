@@ -15,7 +15,7 @@ var temp;
 var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 
 //option of points
-var optPoint = {fillColor:'#ee0011', fill:true, color:'#aaee77'};
+var optPoint = {fillColor:'#ee0011', fill:true, color:'#FF0000'};
 
 //var pointMap = [
 //    new OpenLayers.Style({'fillColor': "#FF0000"}),
@@ -59,8 +59,18 @@ var cfg = {
     valueField: 'count'
 };
 
+var cursorX;
+var cursorY;
+document.onmousemove = function(e){
+    cursorX = e.pageX;
+    cursorY = e.pageY;
+}
+var piemenu;
+
+
 function initUIs(){
-    $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
+    //$('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
+    $('#map').css("width", "800").css("height", "600px");
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
     map = L.mapbox.map('map', 'mapbox.streets')
         .setView([38.0121105, 105.6670345], 5);
@@ -70,19 +80,141 @@ function initUIs(){
     locationLayer.addTo(map);
 
     //TODO createProvinceSelControl();
+    L.control.layers(map).addTo(map);
+
+    piemenu = new wheelnav('piemenu');
+    //piemenu.slicePathFunction = slicePath().DonutSlice;
+    //操作-> group、ungroup(divided by province/county)
+    //Analysis->trends, factors, factors with wind,  nearby
+
+    piemenu.createWheel(['zoom', 'group', 'ungroup', 'factors', 'factors with wind', 'nearby']);
+    piemenu.navItems[0].navigateFunction = zoomAndCenter;
+    //TODO
+    piemenu.wheelRadius = 50;
+
+
+}
+
+/**
+ * init calendar view
+ * @param type 1 means hour of week; 2 means day of month
+ */
+function initCalendarView(type){
+
+    if(type == 2){
+        createDayOfMonthCalendarView();
+    }else if(type == 1){
+        //TODO
+    }
+
+}
+
+function createDayOfMonthCalendarView(){
+    var margin = { top: 50, right: 0, bottom: 100, left: 30 },
+        width = 800 - margin.left - margin.right,
+        height = 600 - margin.top - margin.bottom,
+        gridWidth = Math.floor(width / 30),
+        gridHeight = Math.floor(height / 12),
+        //legendElementWidth = gridSize*2,
+        buckets = 9,
+        colors = ["#FF0000","#FF1A00","#FF3300","#FF4C00","#FF6600","#FF8000","#FF9900","#FFB200","#FFCC00","#FFE600","#FFFF00","#E6FF00","#CCFF00","#B2FF00"],
+        rows = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+        cols = [];
+        //days = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+        //times = ["1a", "2a", "3a", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a", "12a", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p", "12p"];
+    for(var i = 1; i <= 30; i ++){
+        cols.push(i);
+    }
+    d3.select("#calendar").selectAll("svg").remove();
+    var svg = d3.select("#calendar").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    var rowLabels = svg.selectAll(".rowLabel")
+        .data(rows)
+        .enter().append("text")
+        .text(function (d) { return d; })
+        .attr("x", 0)
+        .attr("y", function (d, i) { return i * gridHeight; })
+        .style("text-anchor", "end")
+        .attr("transform", "translate(-6," + gridHeight / 1.5 + ")")
+        .attr("class", function (d, i) {return "rowLabel mono axis axis-workweek";});
+
+    var colLabels = svg.selectAll(".colLabel")
+        .data(cols)
+        .enter().append("text")
+        .text(function(d) { return d; })
+        .attr("x", function(d, i) { return i * gridWidth; })
+        .attr("y", 0)
+        .style("text-anchor", "middle")
+        .attr("transform", "translate(" + gridWidth / 2 + ", -6)")
+        .attr("class", function(d, i) { return "colLabel mono axis axis-worktime"; });
+
+    var cities = "";
+    if(filteredData.length != 0){
+        cities += ("?codes[]="+filteredData[0].code);
+        if(filteredData.length > 1){
+            var i;
+            for(i = 1; i < filteredData.length; i ++){
+                cities += ("&codes[]="+filteredData[i].code);
+            }
+        }
+    }
+
+    d3.json("dayTrendsByCodes_v2.do"+cities,//TODO filter and post
+        function(error, data) {
+            var colorScale = d3.scale.quantile()
+                .domain([0, buckets - 1, d3.max(data, function (d) { return d.pm25; })])
+                .range(colors);
+
+            var cards = svg.selectAll(".col")
+                .data(data, function(d) {
+                    return d._id.day+':'+d._id.month;});
+
+            cards.append("title");
+
+            cards.enter()
+                .append("rect")
+                .attr("x", function(d) {return (d._id.day - 1) * gridWidth; })
+                .attr("y", function(d) { return (d._id.month - 1) * gridHeight; })
+                .attr("rx", 3)
+                .attr("ry", 3)
+                .attr("class", "col bordered")
+                .attr("width", gridWidth)
+                .attr("height", gridHeight)
+                .style("fill", colors[0]);
+
+            cards.transition().duration(1000)
+                .style("fill", function(d) { return colorScale(d.pm25); });
+
+            cards.select("title").text(function(d) { return d.pm25; });
+            cards.exit().remove();
+            //only preserve the first 30 days
+            svg.selectAll(".col").filter(function(d){return d._id.day > 30;}).remove();
+
+
+        });
 }
 
 /**
  * active free draw function
  */
+var freedrawEvent = {latLngs:[]};
+
 function activeFreeDraw(){
     freedrawLayer = new L.FreeDraw();
     freedrawLayer.setMode(L.FreeDraw.MODES.ALL);
     map.addLayer(freedrawLayer);
+    freedrawLayer.on('mouseup', function recodeMouse(event){
+
+    });
     freedrawLayer.on('markers', function getMarkers(eventData) {
         if(eventData == null || eventData.latLngs.length == 0)
             return;
-            featureAddedListener(eventData);
+        freedrawEvent = eventData;
+        featureAddedListener();
     });
 }
 
@@ -97,7 +229,17 @@ function deactiveFreeDraw(){
  * freedraw以后的事件处理
  * @param event
  */
-function featureAddedListener(event){
+
+function featureAddedListener() {
+    $("#piemenu").css("visibility", "visible");
+    $("#piemenu").css("left", cursorX - 150);
+    $("#piemenu").css("top", cursorY - 150);
+}
+
+function zoomAndCenter(){
+    if(freedrawEvent == null || freedrawEvent.latLngs == null)
+        return;//TODO ??
+    var event = freedrawEvent;
     var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(event.latLngs));
     $.ajax({
         url:"cities.do",
@@ -138,7 +280,10 @@ function featureAddedListener(event){
             map.fitBounds(L.latLngBounds(event.latLngs));
         }
     });
-
+    $("#piemenu").css("visibility", "hidden");
+    createDayOfMonthCalendarView();//TODO ugly structure
+    deactiveFreeDraw();//TODO ugly structure
+    hideHM_Yearly();//TODO ugly structure
 }
 
 function hideHM_Yearly(){
@@ -630,7 +775,7 @@ function createMonthDetail(){
             .rollup(function(d) { return d[0].pm25; })
             .map(json);
 
-        rect.filter(function(d) {console.log("date:"+d); return d in data; })
+        rect.filter(function(d) {return d in data; })
             .attr("class", function(d) {return "day " + color(data[d]); })
             .select("title")
             .text(function(d) { return d + ": " + d3.round(data[d]); });
