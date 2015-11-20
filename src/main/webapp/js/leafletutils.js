@@ -67,7 +67,6 @@ document.onmousemove = function(e){
 }
 var piemenu;
 
-
 function initUIs(){
     //$('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
     $('#map').css("width", "800").css("height", "600px");
@@ -97,34 +96,31 @@ function initUIs(){
 
 /**
  * init calendar view
- * @param type 1 means hour of week; 2 means day of month
  */
-function initCalendarView(type){
+function createCalendarView(){
+    var rows, cols, gridWidth, gridHeight;
 
-    if(type == 2){
-        createDayOfMonthCalendarView();
-    }else if(type == 1){
-        //TODO
-    }
-
-}
-
-function createDayOfMonthCalendarView(){
     var margin = { top: 50, right: 0, bottom: 100, left: 30 },
         width = 800 - margin.left - margin.right,
         height = 600 - margin.top - margin.bottom,
-        gridWidth = Math.floor(width / 30),
-        gridHeight = Math.floor(height / 12),
-        //legendElementWidth = gridSize*2,
-        buckets = 9,
-        colors = ["#FF0000","#FF1A00","#FF3300","#FF4C00","#FF6600","#FF8000","#FF9900","#FFB200","#FFCC00","#FFE600","#FFFF00","#E6FF00","#CCFF00","#B2FF00"],
-        rows = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+        colors = ["#FF0000","#FFFF00","00FF00"];
+
+    if($("#showHourOfWeek" ).is( ':checked' )){
+        rows = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+        cols = ["1a", "2a", "3a", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a", "12a", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p", "12p"];
+        gridWidth = Math.floor(width / 24);
+        gridHeight = Math.floor(height / 7);
+    }else if($("#showDayOfMonth" ).is( ':checked' )){
+        gridWidth = Math.floor(width / 30);
+        gridHeight = Math.floor(height / 12);
+        rows = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         cols = [];
-        //days = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-        //times = ["1a", "2a", "3a", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a", "12a", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p", "12p"];
-    for(var i = 1; i <= 30; i ++){
-        cols.push(i);
+
+        for(var i = 1; i <= 30; i ++){
+            cols.push(i);
+        }
     }
+
     d3.select("#calendar").selectAll("svg").remove();
     var svg = d3.select("#calendar").append("svg")
         .attr("width", width + margin.left + margin.right)
@@ -132,7 +128,8 @@ function createDayOfMonthCalendarView(){
         .append("g")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-    var rowLabels = svg.selectAll(".rowLabel")
+    var rowLabels = svg.append("g")
+        .selectAll(".rowLabel")
         .data(rows)
         .enter().append("text")
         .text(function (d) { return d; })
@@ -140,9 +137,10 @@ function createDayOfMonthCalendarView(){
         .attr("y", function (d, i) { return i * gridHeight; })
         .style("text-anchor", "end")
         .attr("transform", "translate(-6," + gridHeight / 1.5 + ")")
-        .attr("class", function (d, i) {return "rowLabel mono axis axis-workweek";});
+        .attr("class", function () {return "rowLabel mono axis axis-workweek";});
 
-    var colLabels = svg.selectAll(".colLabel")
+    var colLabels = svg.append("g")
+        .selectAll(".colLabel")
         .data(cols)
         .enter().append("text")
         .text(function(d) { return d; })
@@ -150,11 +148,11 @@ function createDayOfMonthCalendarView(){
         .attr("y", 0)
         .style("text-anchor", "middle")
         .attr("transform", "translate(" + gridWidth / 2 + ", -6)")
-        .attr("class", function(d, i) { return "colLabel mono axis axis-worktime"; });
+        .attr("class", function() { return "colLabel mono axis axis-worktime"; });
 
     var cities = "";
     if(filteredData.length != 0){
-        cities += ("?codes[]="+filteredData[0].code);
+        cities += ("codes[]="+filteredData[0].code);
         if(filteredData.length > 1){
             var i;
             for(i = 1; i < filteredData.length; i ++){
@@ -163,39 +161,88 @@ function createDayOfMonthCalendarView(){
         }
     }
 
-    d3.json("dayTrendsByCodes_v2.do"+cities,//TODO filter and post
-        function(error, data) {
-            var colorScale = d3.scale.quantile()
-                .domain([0, buckets - 1, d3.max(data, function (d) { return d.pm25; })])
-                .range(colors);
+    if($("#showHourOfWeek" ).is( ':checked' )){
+        $.ajax({
+            url: "hourOfWeekTrend.do",
+            type: "post",
+            data: cities,
+            success: function (returnData) {
+                var data = JSON.parse(returnData);
+                var colorScale = d3.scale.linear()
+                    .domain([150, 0]).range(colors);
 
-            var cards = svg.selectAll(".col")
-                .data(data, function(d) {
-                    return d._id.day+':'+d._id.month;});
+                var cards = svg.append("g")
+                    .selectAll(".col")
+                    .data(data, function (d) {
+                        return d._id.hourofdayjb + ':' + d._id.dayofweekbj;
+                    });
 
-            cards.append("title");
+                cards.append("title");
 
-            cards.enter()
-                .append("rect")
-                .attr("x", function(d) {return (d._id.day - 1) * gridWidth; })
-                .attr("y", function(d) { return (d._id.month - 1) * gridHeight; })
-                .attr("rx", 3)
-                .attr("ry", 3)
-                .attr("class", "col bordered")
-                .attr("width", gridWidth)
-                .attr("height", gridHeight)
-                .style("fill", colors[0]);
+                cards.enter()
+                    .append("rect")
+                    .attr("x", function (d) {
+                        return (d._id.hourofdayjb) * gridWidth;
+                    })
+                    .attr("y", function (d) {
+                        return (d._id.dayofweekbj + 5) % 7 * gridHeight;
+                    })
+                    .attr("rx", 3)
+                    .attr("ry", 3)
+                    .attr("class", "col bordered")
+                    .attr("width", gridWidth)
+                    .attr("height", gridHeight)
+                    .style("fill", colors[0]);
 
-            cards.transition().duration(1000)
-                .style("fill", function(d) { return colorScale(d.pm25); });
+                cards.transition().duration(1000)
+                    .style("fill", function (d) {
+                        return colorScale(d.pm25);
+                    });
 
-            cards.select("title").text(function(d) { return d.pm25; });
-            cards.exit().remove();
-            //only preserve the first 30 days
-            svg.selectAll(".col").filter(function(d){return d._id.day > 30;}).remove();
-
-
+                cards.select("title").text(function (d) {
+                    return d.pm25;
+                });
+                cards.exit().remove();
+            }
         });
+    }else if($("#showDayOfMonth" ).is( ':checked' )){
+        $.ajax({
+            url:"dayTrendsByCodes_v2.do",
+            type:"post",
+            data: cities,
+            success:function(returnData){
+                var data = JSON.parse(returnData);
+                var colorScale = d3.scale.linear()
+                    .domain([150, 0]).range(colors);
+
+                var cards = svg.append("g")
+                    .selectAll(".col")
+                    .data(data, function(d) {
+                        return d._id.day+':'+d._id.month;});
+
+                cards.append("title");
+
+                cards.enter()
+                    .append("rect")
+                    .attr("x", function(d) {return (d._id.day - 1) * gridWidth; })
+                    .attr("y", function(d) { return (d._id.month - 1) * gridHeight; })
+                    .attr("rx", 3)
+                    .attr("ry", 3)
+                    .attr("class", "col bordered")
+                    .attr("width", gridWidth)
+                    .attr("height", gridHeight)
+                    .style("fill", colors[0]);
+
+                cards.transition().duration(1000)
+                    .style("fill", function(d) { return colorScale(d.pm25); });
+
+                cards.select("title").text(function(d) { return d.pm25; });
+                cards.exit().remove();
+                //only preserve the first 30 days
+                svg.selectAll(".col").filter(function(d){return d._id.day > 30;}).remove();
+            }
+        });
+    }
 }
 
 /**
@@ -275,19 +322,28 @@ function zoomAndCenter(){
                     resultData.push(data[i]);
                 }
             }
-            buildHM(resultData);
+            if($("#hidehm" ).is( ':checked' ))
+                buildHM(resultData);
             //调整中心点
             map.fitBounds(L.latLngBounds(event.latLngs));
         }
     });
     $("#piemenu").css("visibility", "hidden");
-    createDayOfMonthCalendarView();//TODO ugly structure
-    deactiveFreeDraw();//TODO ugly structure
     hideHM_Yearly();//TODO ugly structure
+    deactiveFreeDraw();//TODO ugly structure
+    createCalendarView();//TODO ugly structure
 }
 
 function hideHM_Yearly(){
     map.removeLayer(heatmapLayer);
+}
+
+function hmControl(){
+    if($("#hmcontrol").is( ':checked' )){
+        displayHM_Yearly();
+    }else{
+        hideHM_Yearly();
+    }
 }
 /**
  * 创建热力图
@@ -326,6 +382,13 @@ function buildHM(data){
 
 }
 
+function pointControl(){
+    if($("#pointcontrol").is( ':checked' )){
+        displayPoints();
+    }else{
+        hidePoints();
+    }
+}
 
 function hidePoints(){
     locationLayer.clearLayers();
@@ -363,179 +426,14 @@ function buildLocationLayer(data){
  * 创建线性选择
  */
 function linearTime(){
-    $("#detailTrendsContext").empty();
-    var totalW = 900, totalH = 200;
+    $("#trend").empty();
+    var totalW = 800, totalH = 200;
     //1为上面那个 2为下面那个
     var margin = {top: 10, right: 10, bottom: 100, left: 40},
-        margin2 = {top: totalH-70, right: 10, bottom: 40, left: 40},
-        width = totalW - margin.left - margin.right,
-        height = totalH - margin.top - margin.bottom,
-        height2 = totalH - margin2.top - margin2.bottom;
-
-    //var parseDate = d3.time.format("%Y-%m").parse;
-    var color = d3.scale.category10();
-
-    var x = d3.time.scale().range([0, width]),
-        x2 = d3.time.scale().range([0, width]),
-        y = d3.scale.linear().range([height, 0]),
-        y2 = d3.scale.linear().range([height2, 0]);
-
-    var xAxis = d3.svg.axis().scale(x).orient("bottom"),
-        xAxis2 = d3.svg.axis().scale(x2).orient("bottom"),
-        yAxis = d3.svg.axis().scale(y).orient("left");
-
-    var brush = d3.svg.brush()
-        .x(x2)
-        .on("brush", brushed);
-
-    var line = d3.svg.line()
-        //.interpolate("monotone")
-        .x(function(d) {return x(new Date(d.time)); })
-        .y(function(d) { return y(d.avg_time); });
-
-    var line2 = d3.svg.line()
-        .interpolate("monotone")
-        .x(function(d) { return x2(new Date(d.time)); })
-        .y(function(d) { return y2(d.avg_time); });
-
-    var svg = d3.select("#detailTrendsContext").append("svg")
-        .attr("width", width + margin.left + margin.right)
-        .attr("height", height + margin.top + margin.bottom);
-
-    svg.append("defs").append("clipPath")
-        .attr("id", "clip")
-        .append("rect")
-        .attr("width", width)
-        .attr("height", height);
-
-    var focus = svg.append("g")
-        .attr("class", "focus")
-        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-    var context = svg.append("g")
-        .attr("class", "context")
-        .attr("transform", "translate(" + margin2.left + "," + margin2.top + ")");
-
-    var legend = svg.append("g")
-        .attr("class", "legend")
-        .attr("transform", "translate(" + margin2.left + "," + 0 + ")");
-
-    var cities = "";
-    if(filteredData.length != 0){
-        cities += ("?codes="+filteredData[0].code);
-        if(filteredData.length > 1){
-            var i;
-            for(i = 1; i < filteredData.length; i ++){
-                cities += ("&codes="+filteredData[i].code);
-            }
-        }
-    }
-    d3.json("monthTrends_v2.do"+cities, function(error, data) {
-        color.domain(d3.keys(data[0]).filter(function(key) {
-            return key === "pm25";
-        }));
-        //检测指标
-        var attrs = color.domain().map(function(name) {
-            return {
-                name: name,
-                values: data.map(function(d) {
-                    return {time: d.time, avg_time: +d[name]};
-                })
-            };
-        });
-
-        x.domain(d3.extent(data.map(function(d) {  return new Date(d.time); })));
-        //固定y轴最大数值
-        y.domain([0, d3.max(data.map(function(d) { return 150; }))]);//d.avg_time; }))]);
-        x2.domain(x.domain());
-        y2.domain(y.domain());
-
-
-        focus.append("g")
-            .attr("class", "x axis")
-            .attr("transform", "translate(0," + height + ")")
-            .call(xAxis);
-
-        focus.append("g")
-            .attr("class", "y axis")
-            .call(yAxis);
-
-        var attr1 = focus.selectAll(".attr")
-            .data(attrs)
-            .enter().append("g")
-            .attr("class", "attr");
-
-        attr1.append("path")
-            .attr("class", "line")
-            .attr("clip-path", "url(#clip)")
-            .attr("d", function(d) {return line(d.values); })
-            .style("stroke", function(d) {return color(d.name); });
-
-        context.append("g")
-            .attr("class", "x axis")
-            .attr("transform", "translate(0," + height2 + ")")
-            .call(xAxis2)
-            .append("text")
-            .attr("x", 450)
-            .attr("y", 25)
-            .style("text-anchor", "middle")
-            .text("Date");
-
-        context.append("g")
-            .attr("class", "x brush")
-            .call(brush)
-            .selectAll("rect")
-            .attr("y", -6)
-            .attr("height", height2 + 7);
-
-        var attr2 = context.selectAll(".attr")
-            .data(attrs)
-            .enter().append("g")
-            .attr("class", "attr");
-
-        attr2.append("path")
-            .attr("class", "line")
-            .attr("d", function(d) { return line2(d.values); })
-            .style("stroke", function(d) { return color(d.name); });
-
-        var legendItem = legend.selectAll('.attr')
-            .data(attrs.map(function(d) { return d.name; }))
-            .enter().append("g")
-            .attr("transform", function(d, i) { return "translate(0," + i*18 + ")"; })
-            .attr("class", "attr legend");
-
-        legendItem.append("rect")
-            .attr("width", 13)
-            .attr("height", 13)
-            .attr("fill", function(d) { return color(d); });
-
-        legendItem.append("text")
-            .attr("x", 15)
-            .attr("y", 10.5)
-            .text(function(d) { return d; });
-    });
-
-    function brushed() {
-        x.domain(brush.empty() ? x2.domain() : brush.extent());
-        focus.selectAll(".attr").selectAll("path")
-            .transition()
-            .attr("d", function(d) {return line(d.values); });
-        focus.select(".x.axis").call(xAxis);
-    }
-}
-
-/**
- * 根据brush的粒度，呈现detail
- */
-function linearTimeDetail(){
-    $("#detailTrendsFocus").empty();
-    var totalW = 900, totalH = 300;
-    //1为上面那个 2为下面那个
-    var margin = {top: 10, right: 10, bottom: 10, left: 10},
         width = totalW - margin.left - margin.right,
         height = totalH - margin.top - margin.bottom;
 
-    var parseDate = d3.time.format("%Y-%m").parse;
+    //var parseDate = d3.time.format("%Y-%m").parse;
     var color = d3.scale.category10();
 
     var x = d3.time.scale().range([0, width]),
@@ -544,12 +442,16 @@ function linearTimeDetail(){
     var xAxis = d3.svg.axis().scale(x).orient("bottom"),
         yAxis = d3.svg.axis().scale(y).orient("left");
 
+    var brush = d3.svg.brush()
+        .x(x)
+        .on("brush", brushed);
+
     var line = d3.svg.line()
         .interpolate("monotone")
-        .x(function(d) {return x(parseDate(d.time_point)); })
-        .y(function(d) { return y(d.avg_time); });
+        .x(function(d) {return x(new Date(d.time)); })
+        .y(function(d) { return y(d.pm25); });
 
-    var svg = d3.select("#detailTrendsFocus").append("svg")
+    var svg = d3.select("#trend").append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom);
 
@@ -559,74 +461,85 @@ function linearTimeDetail(){
         .attr("width", width)
         .attr("height", height);
 
-    var focus = svg.append("g")
-        .attr("class", "focus")
+    var context = svg.append("g")
+        .attr("class", "context")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
     var cities = "";
     if(filteredData.length != 0){
-        cities += ("?codes="+filteredData[0].code);
+        cities += ("codes[]="+filteredData[0].code);
         if(filteredData.length > 1){
             var i;
             for(i = 1; i < filteredData.length; i ++){
-                cities += ("&codes="+filteredData[i].code);
+                cities += ("&codes[]="+filteredData[i].code);
             }
         }
     }
+    $.ajax({
+        url:"monthTrends_v2.do",
+        type:"post",
+        data: cities,
+        success: function (returnData) {
+            var data = JSON.parse(returnData);
 
-    d3.json("monthTrends.do"+cities, function(error, data) {
-        color.domain(d3.keys(data[0]).filter(function(key) {
-            return key === "avg_time";
-        }));
-        //检测指标
-        var attrs = color.domain().map(function(name) {
-            return {
-                name: name,
-                values: data.map(function(d) {
-                    return {time_point: d.time_point, avg_time: +d[name]};
+            color.domain(d3.keys(data[0]).filter(function (key) {
+                return key === "pm25";
+            }));
+            //检测指标
+            var attrs = color.domain().map(function (name) {
+                return {
+                    name: name,
+                    values: data.map(function (d) {
+                        return {time: d.time, pm25: +d[name]};
+                    })
+                };
+            });
+
+            x.domain(d3.extent(data.map(function (d) {
+                return new Date(d.time);
+            })));
+            //固定y轴最大数值
+            y.domain([0, d3.max(data.map(function (d) {
+                return 150;
+            }))]);//d.avg_time; }))]);
+
+            context.append("g")
+                .attr("class", "x axis")
+                .attr("transform", "translate(0," + height + ")")
+                .call(xAxis)
+                .append("text")
+                .attr("x", 450)
+                .attr("y", 25)
+                .style("text-anchor", "middle")
+                .text("Date");
+
+            context.append("g")
+                .attr("class", "x brush")
+                .call(brush)
+                .selectAll("rect")
+                .attr("y", -6)
+                .attr("height", height + 7);
+
+            var attr = context.selectAll(".attr")
+                .data(attrs)
+                .enter().append("g")
+                .attr("class", "attr");
+
+            attr.append("path")
+                .attr("class", "line")
+                .attr("d", function (d) {
+                    return line(d.values);
                 })
-            };
-        });
-
-        x.domain(d3.extent(data.map(function(d) {  return parseDate(d.time_point); })));
-        //固定y轴最大数值
-        y.domain([0, d3.max(data.map(function(d) { return 150; }))]);//d.avg_time; }))]);
-        focus.append("g")
-            .attr("class", "x axis")
-            .attr("transform", "translate(0," + height + ")")
-            .call(xAxis);
-
-        focus.append("g")
-            .attr("class", "y axis")
-            .call(yAxis);
-
-        var attr1 = focus.selectAll(".attr")
-            .data(attrs)
-            .enter().append("g")
-            .attr("class", "attr");
-
-        attr1.append("path")
-            .attr("class", "line")
-            .attr("clip-path", "url(#clip)")
-            .attr("d", function(d) {return line(d.values); })
-            .style("stroke", function(d) {return color(d.name); });
-
-        var legendItem = legend.selectAll('.attr')
-            .data(attrs.map(function(d) { return d.name; }))
-            .enter().append("g")
-            .attr("transform", function(d, i) { return "translate(0," + i*18 + ")"; })
-            .attr("class", "attr legend");
-
-        legendItem.append("rect")
-            .attr("width", 13)
-            .attr("height", 13)
-            .attr("fill", function(d) { return color(d); });
-
-        legendItem.append("text")
-            .attr("x", 15)
-            .attr("y", 10.5)
-            .text(function(d) { return d; });
+                .style("stroke", function (d) {
+                    return color(d.name);
+                });
+        }
     });
+
+    function brushed() {
+        x.domain(brush.empty() ? x.domain() : brush.extent());
+        console.log(brush.extent());
+    }
 }
 
 /**

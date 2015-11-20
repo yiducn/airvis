@@ -32,9 +32,11 @@ public class HelloController {
 
     private static final String DB_NAME = "pm";
     private static final String COL_LOCATION_BAIDU = "loc_ll_g_b";
+    private static final String COL_LOCATION_GOOGLE = "loc_ll_google";
     private static final String COL_AVG_YEAR = "pmdata_year";
     private static final String COL_AVG_MONTH = "pmdata_month";
     private static final String COL_AVG_DAY = "pmdata_day";
+    private static final String COL_PM = "pmProcess";//"pm_preProcess";
 
     /**
      * 返回所有城市列表
@@ -43,7 +45,7 @@ public class HelloController {
      */
     @RequestMapping("cities.do")
     public @ResponseBody String getAllCities() {
-        MongoCollection coll = getCollection(COL_LOCATION_BAIDU);
+        MongoCollection coll = getCollection(COL_LOCATION_GOOGLE);
         MongoCursor cur = coll.find().iterator();
         JSONObject onecity;
         JSONArray result = new JSONArray();
@@ -74,7 +76,7 @@ public class HelloController {
     private void generateStations(){
         if(stations != null)
             return;
-        MongoCollection coll = getCollection(COL_LOCATION_BAIDU);
+        MongoCollection coll = getCollection(COL_LOCATION_GOOGLE);
         MongoCursor cur = coll.find().iterator();
         Document d;
         stations = new HashMap<String, StationInfo>();
@@ -146,7 +148,7 @@ public class HelloController {
      * @param codes 站点代码
      * @return
      */
-    @RequestMapping("monthTrends_v2.do")
+    @RequestMapping(value = "monthTrends_v2.do", method = RequestMethod.POST)
     public
     @ResponseBody
     String getMonthTrendsV2(@RequestParam(value="codes[]", required=false)String[] codes) {
@@ -196,7 +198,7 @@ public class HelloController {
      * @param codes    城市代码，即城市名称
      *                 created at Purdue
      */
-    @RequestMapping("dayTrendsByCodes_v2.do")
+    @RequestMapping(value="dayTrendsByCodes_v2.do", method = RequestMethod.POST)
     public
     @ResponseBody
     String getDayTrendsByCodesV2(@RequestParam(value="startTime", required=false) String startTime,
@@ -248,6 +250,63 @@ public class HelloController {
         return result.toString();
     }
 
+    /**
+     * 根据时间区间、城市代码返回hourOfWeek的趋势
+     *
+     * @param
+     * @param codes    城市代码，即城市名称
+     *                 created at Purdue
+     */
+    @RequestMapping(value = "hourOfWeekTrend.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    String getHourOfWeekTrend(@RequestParam(value="startTime", required=false) String startTime,
+                                 @RequestParam(value="endTime", required=false) String endTime,
+                                 @RequestParam(value="codes[]", required=false) String[] codes) {
+        MongoCollection coll = getCollection(COL_PM);
+
+        Document match;
+        Document sort = new Document("$sort", new Document("time", 1));
+        Document group = new Document().append("$group",
+                new Document().append("_id",
+                        new Document().append("hourofdayjb", "$hourofdayjb")
+                                .append("dayofweekbj", "$dayofweekbj"))
+//                        .append("time", new Document("$first", "$time"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("co", new Document("$avg", "$co"))
+//                        .append("no2", new Document("$avg", "$no2"))
+//                        .append("o3", new Document("$avg", "$o3"))
+//                        .append("pm10", new Document("$avg", "$pm10"))
+                        .append("pm25", new Document("$avg", "$pm25")));
+//                        .append("so2", new Document("$avg", "$so2")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+
+        if(startTime == null && endTime == null && codes == null){
+            query.add(group);
+//            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }else if(startTime == null && endTime == null  && codes != null){
+            match = new Document("$match",new Document("code", new Document("$in", Arrays.asList(codes))));
+            query.add(match);
+            query.add(group);
+//            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }else if(startTime == null && endTime != null  && codes == null){
+            //TODO
+            cur = null;
+        }else{
+            //TODO
+            cur = null;
+        }
+
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+        return result.toString();
+    }
 
     /**
      * 根据日期、小时、站点代码返回趋势
@@ -257,7 +316,7 @@ public class HelloController {
      * @param codes            站点代码
      * @return
      */
-    @RequestMapping("hourTrendsv2.do")
+    @RequestMapping(value="hourTrendsv2.do", method = RequestMethod.POST)
     public
     @ResponseBody
     String getHourTrendsByCodesV2(String startTime, String endTime,
@@ -496,14 +555,6 @@ public class HelloController {
 //        }
 //        return parsedResult.toString();
 //    }
-
-    @RequestMapping(value = "hourOfWeekAverage.do", method = RequestMethod.POST)
-    public @ResponseBody String getHourOfWeekAverage(String[] cities,String startTime, String endTime){
-//TODO
-        return "";
-    }
-
-
 
 
     /**

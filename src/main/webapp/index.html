@@ -68,17 +68,12 @@
     initUIs();
 </script>
 <div id="controller" style="position:fixed;left:10px;top:100px;width:200px;height:0px;z-index: 20000;">
-    <input type="button" onclick="displayPoints();" value="showPoints">
-    <input type="button" onclick="displayHM_Yearly();" value="showHeatmap"><br>
-    <input type="button" onclick="hidePoints();" value="hidePoints">
-    <input type="button" onclick="hideHM_Yearly();" value="hideHeatmap"><br>
+    <input id="pointcontrol" type="checkbox" onchange="pointControl();" checked>displayPoint<br>
+    <input id="hmcontrol" type="checkbox" onchange="hmControl();">displayHeatmap<br>
     <input type="button" onclick="activeFreeDraw();" value="polygonselection">
     <input type="button" onclick="deactiveFreeDraw();" value="navigation"><br>
-    <input id="displayTrends" name="trendcontrol" type="radio" onclick="$('#detailTrends').show();"><label for="displayTrends">displayTrends</label>
-    <input id="hideTrends" name="trendcontrol" type="radio" checked="true" onclick="$('#detailTrends').hide();"><label for="hideTrends">hideTrends</label><br>
-    <input id="displayCycle" name="cyclecontrol" type="radio" onclick="$('#detailTrendsCycle').show();"><label for="displayCycle">displayCycle</label>
-    <input id="hideCycle" name="cyclecontrol" type="radio" checked="true" onclick="$('#detailTrendsCycle').hide();"><label for="hideCycle">hideCycle</label>
-
+    <input id="showDayOfMonth" name="calendarcontrol" type="radio" checked onclick="createCalendarView();"><label for="showDayOfMonth">showDayOfMonth</label>
+    <input id="showHourOfWeek" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeek">showHourOfWeek</label>
 </div>
 
 <!--<div id="detailTrends" style="position:fixed;top:0px;left:800px;right:0px;z-index: 20000;display:none;">-->
@@ -86,15 +81,15 @@
     <!--<div id="detailTrendsContext" style="width:1900px; height:200px"></div>-->
 <!--</div>-->
 <div id="calendar" style="position:fixed; top:0px; left: 800px; width:800px; height:600px;"></div>
-<div id="detailTrendsCycle" style="position:fixed;left:0px;right: 0px;top: 600px;bottom: 0px;width:1000px;height:100px;z-index: 20001;display:none;"></div>
-
+<!--<div id="detailTrendsCycle" style="position:fixed;left:0px;right: 0px;top: 600px;bottom: 0px;width:1000px;height:100px;z-index: 20001;display:none;"></div>-->
+<div id="trend" style="position:fixed; top:600px; left:0px;width:800px;height:200px;"></div>
 
 
 
 <script>
     linearTime();
     cycleTime();
-    initCalendarView(2);
+    createCalendarView();
 </script>
 </body>
 </html>
