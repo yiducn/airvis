@@ -190,6 +190,67 @@ public class HelloController {
         return result.toString();
     }
 
+    /**
+     * 根据时间区间、城市代码返回日趋势
+     * 但是不同的站点分别返回
+     *
+     * @param
+     * @param codes    城市代码，即城市名称
+     *                 created at Purdue
+     */
+    @RequestMapping(value="dayTrendsByCodesSeparately.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    String getDayTrendsByCodesSeparately(@RequestParam(value="startTime", required=false) String startTime,
+                                 @RequestParam(value="endTime", required=false) String endTime,
+                                 @RequestParam(value="codes[]", required=false) String[] codes) {
+        MongoCollection coll = getCollection(COL_AVG_DAY);
+
+        Document match;
+        Document sort = new Document("$sort", new Document("time", 1));
+        Document group = new Document().append("$group",
+                new Document().append("_id",
+                        new Document().append("day", new Document("$dayOfMonth", "$time"))
+                                .append("month", new Document("$month", "$time"))
+                                .append("year", new Document("$year","$time"))
+                                .append("code","$code"))
+                        .append("time", new Document("$first", "$time"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("co", new Document("$avg", "$co"))
+//                        .append("no2", new Document("$avg", "$no2"))
+//                        .append("o3", new Document("$avg", "$o3"))
+//                        .append("pm10", new Document("$avg", "$pm10"))
+                        .append("pm25", new Document("$avg", "$pm25")));
+//                        .append("so2", new Document("$avg", "$so2")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+
+        if(startTime == null && endTime == null && codes == null){
+            query.add(group);
+//            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }else if(startTime == null && endTime == null  && codes != null){
+            match = new Document("$match",new Document("code", new Document("$in", Arrays.asList(codes))));
+            query.add(match);
+            query.add(group);
+//            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }else if(startTime == null && endTime != null  && codes == null){
+            //TODO
+            cur = null;
+        }else{
+            //TODO
+            cur = null;
+        }
+
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+        return result.toString();
+    }
+
 
     /**
      * 根据时间区间、城市代码返回日趋势
