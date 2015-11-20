@@ -52,6 +52,7 @@
     <script src="js/raphael.js"></script>
     <script src="js/raphael.icons.min.js"></script>
     <script src="js/wheelnav.js-1.6.1.core/wheelnav.js"></script>
+    <script src="js/kriging.js"></script>
     <script>
         $(function() {
             $( "#detailTrends" ).draggable();
@@ -74,6 +75,7 @@
     <input type="button" onclick="deactiveFreeDraw();" value="navigation"><br>
     <input id="showDayOfMonth" name="calendarcontrol" type="radio" checked onclick="createCalendarView();"><label for="showDayOfMonth">showDayOfMonth</label>
     <input id="showHourOfWeek" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeek">showHourOfWeek</label>
+    <input id="showDayOfMonthSeparately" name="calendarcontrol" type="radio" onclick="createKrigingCalendar();"><label for="showDayOfMonthSeparately">showDayOfMonthSeparately</label>
 </div>
 
 <!--<div id="detailTrends" style="position:fixed;top:0px;left:800px;right:0px;z-index: 20000;display:none;">-->
@@ -83,7 +85,7 @@
 <div id="calendar" style="position:fixed; top:0px; left: 800px; width:800px; height:600px;"></div>
 <!--<div id="detailTrendsCycle" style="position:fixed;left:0px;right: 0px;top: 600px;bottom: 0px;width:1000px;height:100px;z-index: 20001;display:none;"></div>-->
 <div id="trend" style="position:fixed; top:600px; left:0px;width:800px;height:200px;"></div>
-
+<div id="kriging" style="position:fixed; top: 600px; left: 0px; width: 100px; height: 100px;"></div>
 
 
 <script>
