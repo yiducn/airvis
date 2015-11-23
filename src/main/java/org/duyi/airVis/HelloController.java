@@ -230,13 +230,13 @@ public class HelloController {
         if(startTime == null && endTime == null && codes == null){
             query.add(group);
 //            query.add(sort);
-            cur = coll.aggregate(query).iterator();
+            cur = coll.aggregate(query).allowDiskUse(true).iterator();
         }else if(startTime == null && endTime == null  && codes != null){
             match = new Document("$match",new Document("code", new Document("$in", Arrays.asList(codes))));
             query.add(match);
             query.add(group);
 //            query.add(sort);
-            cur = coll.aggregate(query).iterator();
+            cur = coll.aggregate(query).allowDiskUse(true).iterator();
         }else if(startTime == null && endTime != null  && codes == null){
             //TODO
             cur = null;

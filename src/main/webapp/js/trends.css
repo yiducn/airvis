@@ -147,7 +147,10 @@ text.axis-worktime {
       stroke: #E6E6E6;
       stroke-width:2px;
   }
-
+g.bordered {
+    stroke: #E6E6E6;
+    stroke-width:2px;
+}
 text.mono {
     font-size: 9pt;
     font-family: Consolas, courier;
