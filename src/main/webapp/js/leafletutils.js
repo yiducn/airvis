@@ -17,29 +17,6 @@ var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 //option of points
 var optPoint = {fillColor:'#ee0011', fill:true, color:'#FF0000'};
 
-//var pointMap = [
-//    new OpenLayers.Style({'fillColor': "#FF0000"}),
-//    new OpenLayers.Style({'fillColor': "#FF1A00"}),
-//    new OpenLayers.Style({'fillColor': "#FF3300"}),
-//    new OpenLayers.Style({'fillColor': "#FF4C00"}),
-//    new OpenLayers.Style({'fillColor': "#FF6600"}),
-//    new OpenLayers.Style({'fillColor': "#FF8000"}),
-//    new OpenLayers.Style({'fillColor': "#FF9900"}),
-//    new OpenLayers.Style({'fillColor': "#FFB200"}),
-//    new OpenLayers.Style({'fillColor': "#FFCC00"}),
-//    new OpenLayers.Style({'fillColor': "#FFE600"}),
-//    new OpenLayers.Style({'fillColor': "#FFFF00"}),
-//    new OpenLayers.Style({'fillColor': "#E6FF00"}),
-//    new OpenLayers.Style({'fillColor': "#CCFF00"}),
-//    new OpenLayers.Style({'fillColor': "#B2FF00"}),
-//    new OpenLayers.Style({'fillColor': "#99FF00"}),
-//    new OpenLayers.Style({'fillColor': "#80FF00"}),
-//    new OpenLayers.Style({'fillColor': "#66FF00"}),
-//    new OpenLayers.Style({'fillColor': "#4DFF00"}),
-//    new OpenLayers.Style({'fillColor': "#33FF00"}),
-//    new OpenLayers.Style({'fillColor': "#19FF00"}),
-//    new OpenLayers.Style({'fillColor': "#00FF00"})];
-
 //configuration of heatmap
 var cfg = {
     // radius should be small ONLY if scaleRadius is true (or small radius is intended)
@@ -68,8 +45,8 @@ document.onmousemove = function(e){
 var piemenu;
 
 function initUIs(){
-    //$('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
-    $('#map').css("width", "800").css("height", "600px");
+    $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
+    //$('#map').css("width", "800").css("height", "600px");
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
     map = L.mapbox.map('map', 'mapbox.streets')
         .setView([38.0121105, 105.6670345], 5);
@@ -91,18 +68,59 @@ function initUIs(){
     //TODO
     piemenu.wheelRadius = 50;
 
+    createChinamap();
+
+}
+
+function createChinamap(){
+    var countries = [];
+    var countriesOverlay = L.d3SvgOverlay(function(sel, proj) {
+
+        var upd = sel.selectAll('path').data(countries);
+        upd.enter()
+            .append('path')
+            .attr('d', proj.pathFromGeojson)
+            .attr('stroke', 'black')
+            //.attr('fill', function(){ return d3.hsl(Math.random() * 360, 0.9, 0.5) })
+            .attr('fill-opacity', '0');
+        upd.attr('stroke-width', 1 / proj.scale);
+    });
+
+    d3.json("maps/china_provinces.json", function(data) { countries = data.features; countriesOverlay.addTo(map) });
 
 }
 
 /**
+ * control the visiliblity of calendar
+ */
+function controlCalendar(){
+    if($("#controlCalendar").is( ':checked' )){
+        $("#calendar").show();
+        $("#calendar").css("visibility", "visible");
+    }else{
+        $("#calendar").hide();
+    }
+}
+
+function controlTrend(){
+    if($("#controlTrend").is( ':checked' )){
+        $("#trendpanel").show();
+        $("#trendpanel").css("visibility", "visible");
+    }else{
+        $("#trendpanel").hide();
+    }
+}
+
+/**
  * init calendar view
+ * TODO change to canvas
  */
 function createCalendarView(){
     var rows, cols, gridWidth, gridHeight;
 
     var margin = { top: 50, right: 0, bottom: 100, left: 30 },
-        width = 800 - margin.left - margin.right,
-        height = 600 - margin.top - margin.bottom,
+        width = $("#calendar").width() - margin.left - margin.right,
+        height = $("#calendar").height() - margin.top - margin.bottom,
         colors = ["#FF0000","#FFFF00","00FF00"];
 
     if($("#showHourOfWeek" ).is( ':checked' ) || $("#showHourOfWeekSeparately" ).is( ':checked' ) ){
@@ -255,8 +273,12 @@ function createCalendarView(){
                 for(var i = 0; i < groupedData.length; i ++){//day
                     if(groupedData[i].values == null)
                         continue;
+                    var dayIndex = parseInt(groupedData[i].key)-1;
+                    if(dayIndex >= 30)
+                        continue;
                     var length = groupedData[i].values.length;
                     for(var j = 0; j < length; j ++){//month
+                        var monthIndex = parseInt(groupedData[i].values[j].key) -1;
                         var dataOneRect = groupedData[i].values[j];
                         //将经纬度坐标映射到矩形网格中 mapping latlng to the grid
                         var normalized = normalizeToRect(filteredData, gridWidth, gridHeight);
@@ -288,8 +310,7 @@ function createCalendarView(){
                         var id = "onerect"+i+j;
                         var oneRect = svg.append("g")
                             .attr("id", id)
-                            //.attr("class", "col bordered")
-                            .attr("transform", "translate("+ (i * gridWidth+1) + "," + (j * gridHeight+1) + ")")
+                            .attr("transform", "translate("+ (dayIndex * gridWidth+1) + "," + (monthIndex * gridHeight+1) + ")")
                             .attr("width", gridWidth-1)
                             .attr("height", gridHeight-1);
 
@@ -310,17 +331,6 @@ function createCalendarView(){
         });
     }
 }
-
-var timeGranularity = {
-  second : 1,
-    minute : 2,
-    hour : 3,
-    day :   4,
-    week    :   5,
-    month   :   6,
-    season  :   7
-};
-var scaleMatrix = [];
 
 /**
  * customize calendar view by :
@@ -638,9 +648,10 @@ function buildLocationLayer(data){
  */
 function linearTime(){
     $("#trend").empty();
-    var totalW = 800, totalH = 200;
+
+    var totalW = $("#trend").width(), totalH = $("#trend").height();
     //1为上面那个 2为下面那个
-    var margin = {top: 10, right: 10, bottom: 100, left: 40},
+    var margin = {top: 10, right: 10, bottom: 30, left: 40},
         width = totalW - margin.left - margin.right,
         height = totalH - margin.top - margin.bottom;
 
@@ -717,12 +728,7 @@ function linearTime(){
             context.append("g")
                 .attr("class", "x axis")
                 .attr("transform", "translate(0," + height + ")")
-                .call(xAxis)
-                .append("text")
-                .attr("x", 450)
-                .attr("y", 25)
-                .style("text-anchor", "middle")
-                .text("Date");
+                .call(xAxis);
 
             context.append("g")
                 .attr("class", "x brush")
@@ -751,220 +757,4 @@ function linearTime(){
         x.domain(brush.empty() ? x.domain() : brush.extent());
         console.log(brush.extent());
     }
-}
-
-/**
- * 日历详细趋势图
- * 周期性选择
- */
-function cycleTime(){
-    $("#detailTrendsCycle").empty();
-    $("#detailTrendsCycle").html("<div id=\"monthAvg\"></div><div id=\"monthDetail\"></div>");
-//    createMonthAvg();
-    createMonthDetail();
-
-}
-
-/**
- * 创建月平均图
- */
-function createMonthAvg(){
-    var width = 900,
-        height = 17,
-        cellSize = 17; // cell size
-
-    var day = d3.time.format("%w"),
-        week = d3.time.format("%U"),
-        monthd = d3.time.format("%m"),
-        format = d3.time.format("%Y-%m-%d");
-
-    var color = d3.scale.quantize()
-        .domain([150, 0])
-        .range(d3.range(20).map(function(d) { return "r" + d + "-11"; }));
-
-    var svg = d3.select("#monthAvg").selectAll("svg")
-        .data(d3.range(2014, 2015))
-        .enter().append("svg")
-        .attr("width", width)
-        .attr("height", height)
-        .attr("class", "RdYlGn")
-        .append("g")
-        .attr("transform", "translate(" + 1 + "," + 0 + ")");
-
-//    var px = 0;
-//    //绘制月平均
-//    svg.selectAll(".day")
-//        .data(function(d) { return d3.time.months(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
-//        .enter().append("rect")
-//        .attr("class", "monthAvg")
-//        .attr("width", function(t0) {
-//            var  t1 = new Date(t0.getFullYear(), t0.getMonth() + 1, 0),
-//                w0 = +week(t0), w1 = +week(t1);
-//            return (w1-w0)* cellSize; })
-//        .attr("height", cellSize)
-//        .attr("x", function(t0) {
-//            var  w0 = +week(t0);
-//            return (w0)* cellSize; })
-//        .attr("y", 0)
-//        .datum(format);
-    var month = svg.selectAll(".monthAvg")
-        .data(function(d) { return d3.time.months(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
-        .enter().append("path")
-        .attr("class", "monthAvg")
-        .attr("d", monthPath);
-//        .attr("fill",monthAvgColor);
-
-    d3.json("monthTrends.do", function(error, json) {
-        var data = d3.nest()
-            .key(function(d) { return d.time_point; })
-            .rollup(function(d) { return d[0].avg_time; })
-            .map(json);
-
-        month.filter(function(d) { return d in json; })
-            .attr("fill", function(d) {
-//                console.log(d+":"+monthd(d.time_point));
-                return color2[monthd(d.time_point)];
-            })
-            .select("title")
-            .text(function(d) { return d + ": " + d3.round(data[d]); });
-    });
-
-    function monthPath(t0) {
-        var t1 = new Date(t0.getFullYear(), t0.getMonth() + 1, 0),
-            d0 = +day(t0), w0 = +week(t0),
-            d1 = +day(t1), w1 = +week(t1);
-//        console.log("t:"+t0+"\n"+t1);
-//        console.log("d:"+d0+"\n"+d1);
-//        console.log("w:"+w0+"\n"+w1);
-        return "M" + (w0 + 1) * cellSize + "," + d0 * cellSize
-            + "H" + w0 * cellSize + "V" + cellSize
-            + "H" + w1 * cellSize + "V" + cellSize
-            + "H" + (w1 + 1) * cellSize + "V" + 0
-            + "H" + (w0 + 1) * cellSize + "Z";
-    }
-
-//    d3.select(self.frameElement).style("height", "500px");
-}
-
-/**
- *
- * modified by yidu at Purdue
- */
-function createMonthDetail(){
-    var width = 910,
-        height = 136,
-        cellSize = 17; // cell size
-
-    var day = d3.time.format("%w"),
-        week = d3.time.format("%U"),
-//        percent = d3.format("4d"),
-        format = d3.time.format("%Y-%m-%d");
-
-    var color = d3.scale.quantize()
-        .domain([150, 0])
-        .range(d3.range(20).map(function(d) {
-            return "r" + d + "-11"; }));
-
-    var svg = d3.select("#monthDetail").selectAll("svg")
-        .data(d3.range(2014, 2015))
-        .enter().append("svg")
-        .attr("width", width)
-        .attr("height", height+cellSize)
-        .attr("class", "RdYlGn")
-        .append("g")
-        .attr("transform", "translate(" + 1 + "," + 0 + ")");
-
-    var rect = svg.selectAll(".day")
-        .data(function(d) { return d3.time.days(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
-        .enter().append("rect")
-        .attr("class", "day")
-        .attr("width", cellSize)
-        .attr("height", cellSize)
-        .attr("x", function(d) {return week(d) * cellSize; })
-        .attr("y", function(d) {return day(d) * cellSize ; })
-        .datum(format);
-
-    rect.append("title")
-        .text(function(d) { return d; });
-
-    svg.selectAll(".month")
-        .data(function(d) { return d3.time.months(new Date(d, 0, 1), new Date(d + 1, 0, 1)); })
-        .enter().append("path")
-        .attr("class", "month")
-        .attr("d", monthPath);
-
-    d3.json("dayTrendsByCodes_v2.do", function(error, json) {
-        var data = d3.nest()
-            .key(function(d) { return format(new Date(d.time)); })//TODO 时区的问题
-            .rollup(function(d) { return d[0].pm25; })
-            .map(json);
-
-        rect.filter(function(d) {return d in data; })
-            .attr("class", function(d) {return "day " + color(data[d]); })
-            .select("title")
-            .text(function(d) { return d + ": " + d3.round(data[d]); });
-    });
-
-    function monthPath(t0) {
-        var t1 = new Date(t0.getFullYear(), t0.getMonth() + 1, 0),
-            d0 = +day(t0), w0 = +week(t0),
-            d1 = +day(t1), w1 = +week(t1);
-        return "M" + (w0 + 1) * cellSize + "," + d0 * cellSize
-            + "H" + w0 * cellSize + "V" + 7 * cellSize
-            + "H" + w1 * cellSize + "V" + (d1 + 1) * cellSize
-            + "H" + (w1 + 1) * cellSize + "V" + 0
-            + "H" + (w0 + 1) * cellSize + "Z";
-    }
-}
-
-/**
- * 经纬度数据归一化
- * @param data
- * @returns {*}
- */
-function nomizedData(data){
-    // var d = [];
-    var i = 0;
-    var minLat = 180, minLon = 180;
-    var maxLat = 0, maxLon = 0;
-    for(i = 0; i < data.length; i++){
-        if(data[i].lat > maxLat)
-            maxLat = data[i].lat;
-        if(data[i].lon > maxLon)
-            maxLon = data[i].lon;
-        if(data[i].lat < minLat)
-            minLat = data[i].lat;
-        if(data[i].lon < minLon)
-            minLon = data[i].lon;
-    }
-    var maxInterval = ((maxLon - minLon) > (maxLat - maxLat)) ? (maxLon - minLon) : (maxLat - minLat);
-    for(i = 0; i < data.length; i ++){
-        data[i].lat = data[i].lat/maxInterval;
-        data[i].lon = data[i].lon/maxInterval;
-    }
-    return data;
-}
-
-/**
- * 计算经纬度的最小间隔
- * @param data
- * @returns {*[]}
- */
-function minInterval(data){
-    var i,j;
-    var minIntervalLat = 100, minIntervalLon = 100;
-    for(i = 0; i < data.length; i ++){
-        for(j = 1; i < data.length; j ++){
-            if(minIntervalLat < Math.abs(data[i].lat - data[j].lat))
-                minIntervalLat = Math.abs(data[i].lat - data[j].lat);
-            if(minIntervalLon < Math.abs(data[i].lon - data[j].lon))
-                minIntervalLon = Math.abs(data[i].lon - data[j].lon);
-        }
-    }
-    return [minIntervalLat, minIntervalLon];
-
-}
-
-//todo：可以通过滑动条控制hm的显示
-function createBasicHMCalenar(){
 }
