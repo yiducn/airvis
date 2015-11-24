@@ -13,7 +13,6 @@
     <!--<link rel="stylesheet" href="js/leaflet/leaflet.css">-->
     <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet/v0.7.7/leaflet.css" />
     <link href='https://api.mapbox.com/mapbox.js/v2.2.3/mapbox.css' rel='stylesheet' />
-    <link rel="stylesheet" href="js/sidebarv2/css/leaflet-sidebar.css">
     <link rel="stylesheet" href="js/airvis.css">
     <!-- https://github.com/Wildhoney/Leaflet.FreeDraw When you're drawing a polygon on the map,
     the path that is being drawn is invisible – this is caused by a handful of missing styles
@@ -76,7 +75,8 @@
     <input id="controlCalendar" type="checkbox" onchange="controlCalendar();"><label>showCalendar</label><br>
     <input id="controlTrend" type="checkbox" onchange="controlTrend();"><label>showTrend</label><br>
     <br>
-    <input id="pointcontrol" type="checkbox" onchange="pointControl();"><label>displayPoint</label><br>
+    <input id="pointcontrol" type="checkbox" onchange="pointControl();"><label>displayStations</label><br>
+    <input id="meteorologicalStationControl" type="checkbox" onchange="meteorologicalStationControl();"><label>displayMeteorologicalStation</label><br>
     <input id="hmcontrol" type="checkbox" onchange="hmControl();">displayHeatmap<br>
     <input type="button" onclick="activeFreeDraw();" value="polygonselection">
     <input type="button" onclick="deactiveFreeDraw();" value="navigation"><br>

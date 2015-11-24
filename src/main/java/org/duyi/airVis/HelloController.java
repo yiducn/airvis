@@ -37,6 +37,7 @@ public class HelloController {
     private static final String COL_AVG_MONTH = "pmdata_month";
     private static final String COL_AVG_DAY = "pmdata_day";
     private static final String COL_PM = "pmProcess";//"pm_preProcess";
+    private static final String COL_M_STATION = "weather_station";
 
     /**
      * 返回所有城市列表
@@ -68,7 +69,34 @@ public class HelloController {
         return result.toString();
     }
 
+    /**
+     * 返回所有气象站位置
+     * @return all meteorological stations
+     */
+    @RequestMapping("meteorologicalStations.do")
+    public @ResponseBody String getMeteorologicalStations(){
+        MongoCollection coll = getCollection(COL_M_STATION);
+        MongoCursor cur = coll.find().iterator();
+        JSONObject onecity;
+        JSONArray result = new JSONArray();
+        Document d;
+        while(cur.hasNext()){
+            d = (Document)cur.next();
+            onecity = new JSONObject();
+            try {
+                onecity.put("province", d.getString("province"));
+                onecity.put("station", d.getString("name"));
+                onecity.put("longitude", d.getDouble("lon"));
+                onecity.put("latitude", d.getDouble("lat"));
+                onecity.put("code", d.getString("id"));
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+            result.put(onecity);
+        }
 
+        return result.toString();
+    }
 
     /**
      * generate all stations info

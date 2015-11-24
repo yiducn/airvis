@@ -8,6 +8,7 @@ var map;
 //var mapLayer,hybridLayer;
 //各种叠加图层
 var locationLayer, heatmapLayer, freedrawLayer;
+var meteorologicalStationLayer;
 //各种过滤控件
 var polygonConrtol, navControl,provinceSelectionControl;
 
@@ -16,6 +17,8 @@ var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 
 //option of points
 var optPoint = {fillColor:'#ee0011', fill:true, color:'#FF0000'};
+//
+var meteorologicalStationOption = {fillColor:'#00ee11', fill:true, color:'#0000FF'};
 
 //configuration of heatmap
 var cfg = {
@@ -54,6 +57,10 @@ function initUIs(){
     //add location layer
     locationLayer = L.layerGroup();
     locationLayer.addTo(map);
+
+    //meteorologicalStationLayer
+    meteorologicalStationLayer = L.layerGroup();
+    meteorologicalStationLayer.addTo(map);
 
     //TODO createProvinceSelControl();
     L.control.layers(map).addTo(map);
@@ -611,6 +618,38 @@ function pointControl(){
     }
 }
 
+
+function meteorologicalStationControl(){
+    if($("#meteorologicalStationControl").is( ':checked' )){
+        displayMeteorologicalStations();
+    }else{
+        hideMeteorologicalStations();
+    }
+}
+
+function displayMeteorologicalStations(){
+    $.ajax({
+        url:"meteorologicalStations.do",
+        type:"post",
+        dataType:"json",
+        success:function(data){
+            buildMeteorologicalStationLayer(data);
+        }
+    });
+}
+
+function buildMeteorologicalStationLayer(data){
+    meteorologicalStationLayer.clearLayers();
+    for ( var i = 0; i < data.length; ++i) {
+        meteorologicalStationLayer.addLayer(L.circle([data[i].latitude, data[i].longitude], 500, meteorologicalStationOption));
+    }
+
+}
+function hideMeteorologicalStations(){
+    meteorologicalStationLayer.clearLayers();
+}
+
+///////////////
 function hidePoints(){
     locationLayer.clearLayers();
 }
@@ -634,7 +673,6 @@ function displayPoints(){
  * @param data
  */
 function buildLocationLayer(data){
-    console.log("build location layer");
     locationLayer.clearLayers();
     for ( var i = 0; i < data.length; ++i) {
         locationLayer.addLayer(L.circle([data[i].latitude, data[i].longitude], 500, optPoint));
