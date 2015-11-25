@@ -233,6 +233,8 @@ public class HelloController {
                                  @RequestParam(value="endTime", required=false) String endTime,
                                  @RequestParam(value="codes[]", required=false) String[] codes) {
         MongoCollection coll = getCollection(COL_AVG_DAY);
+        //TODO time zone problem
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
 
         Document match;
         Document sort = new Document("$sort", new Document("time", 1));
@@ -265,9 +267,26 @@ public class HelloController {
             query.add(group);
 //            query.add(sort);
             cur = coll.aggregate(query).allowDiskUse(true).iterator();
-        }else if(startTime == null && endTime != null  && codes == null){
-            //TODO
-            cur = null;
+        }else if(startTime != null && endTime != null  && codes != null){
+            try {
+                match = new Document("$match", new Document("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))).append("code", new Document("$in", Arrays.asList(codes))));
+                query.add(match);
+                query.add(group);
+//                query.add(sort);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
+        }else if(startTime != null && endTime != null  && codes == null){
+            try {
+                match = new Document("$match", new Document("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))));
+                query.add(match);
+                query.add(group);
+//                query.add(sort);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
         }else{
             //TODO
             cur = null;
@@ -294,6 +313,8 @@ public class HelloController {
                                  @RequestParam(value="endTime", required=false) String endTime,
                                  @RequestParam(value="codes[]", required=false) String[] codes) {
         MongoCollection coll = getCollection(COL_AVG_DAY);
+        //TODO time zone problem
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
 
         Document match;
         Document sort = new Document("$sort", new Document("time", 1));
@@ -325,9 +346,26 @@ public class HelloController {
             query.add(group);
             query.add(sort);
             cur = coll.aggregate(query).iterator();
-        }else if(startTime == null && endTime != null  && codes == null){
-            //TODO
-            cur = null;
+        }else if(startTime != null && endTime != null  && codes != null){
+            try {
+                match = new Document("$match", new Document("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))).append("code", new Document("$in", Arrays.asList(codes))));
+                query.add(match);
+                query.add(group);
+//                query.add(sort);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
+        }else if(startTime != null && endTime != null  && codes == null){
+            try {
+                match = new Document("$match", new Document("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))));
+                query.add(match);
+                query.add(group);
+//                query.add(sort);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
         }else{
             //TODO
             cur = null;
@@ -353,7 +391,8 @@ public class HelloController {
                                  @RequestParam(value="endTime", required=false) String endTime,
                                  @RequestParam(value="codes[]", required=false) String[] codes) {
         MongoCollection coll = getCollection(COL_PM);
-
+        //TODO time zone problem
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
         Document match;
         Document sort = new Document("$sort", new Document("time", 1));
         Document group = new Document().append("$group",
@@ -381,11 +420,27 @@ public class HelloController {
             match = new Document("$match",new Document("code", new Document("$in", Arrays.asList(codes))));
             query.add(match);
             query.add(group);
-//            query.add(sort);
             cur = coll.aggregate(query).iterator();
-        }else if(startTime == null && endTime != null  && codes == null){
-            //TODO
-            cur = null;
+        }else if(startTime != null && endTime != null  && codes != null){
+            try {
+                match = new Document("$match", new Document("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))).append("code", new Document("$in", Arrays.asList(codes))));
+                query.add(match);
+                query.add(group);
+                query.add(sort);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
+        }else if(startTime != null && endTime != null  && codes == null){
+            try {
+                match = new Document("$match", new Document("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))));
+                query.add(match);
+                query.add(group);
+                query.add(sort);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
         }else{
             //TODO
             cur = null;

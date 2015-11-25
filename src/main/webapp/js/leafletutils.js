@@ -9,11 +9,22 @@ var map;
 //各种叠加图层
 var locationLayer, heatmapLayer, freedrawLayer;
 var meteorologicalStationLayer;
+
+var overAllBrush;
+var paintControl = {
+    calendar        :   false,
+    calendarType    :   1,//0dayofmonth
+    trend           :   false,
+    stations        :   false,
+    mstations       :   false,
+    heatmap         :   false,
+};
+var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
+
 //各种过滤控件
 var polygonConrtol, navControl,provinceSelectionControl;
 
 var temp;
-var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 
 //option of points
 var optPoint = {fillColor:'#ee0011', fill:true, color:'#FF0000'};
@@ -101,6 +112,7 @@ function createChinamap(){
  * control the visiliblity of calendar
  */
 function controlCalendar(){
+    paintControl.calendar = $("#controlCalendar").is( ':checked' );
     if($("#controlCalendar").is( ':checked' )){
         $("#calendar").show();
         $("#calendar").css("visibility", "visible");
@@ -110,6 +122,7 @@ function controlCalendar(){
 }
 
 function controlTrend(){
+    paintControl.trend = $("#controlTrend").is( ':checked' );
     if($("#controlTrend").is( ':checked' )){
         $("#trendpanel").show();
         $("#trendpanel").css("visibility", "visible");
@@ -123,6 +136,17 @@ function controlTrend(){
  * TODO change to canvas
  */
 function createCalendarView(){
+    if($("#showHourOfWeek" ).is( ':checked' )){
+        paintControl.calendarType   =   1;
+    }else if($("#showHourOfWeekSeparately" ).is( ':checked' )){
+        paintControl.calendarType   =   2;
+    }else if($("#showDayOfMonth" ).is( ':checked' )){
+        paintControl.calendarType   =   3;
+    }else if($("#showDayOfMonthSeparately" ).is( ':checked' )){
+        paintControl.calendarType   =   4;
+    }
+
+
     var rows, cols, gridWidth, gridHeight;
 
     var margin = { top: 50, right: 0, bottom: 100, left: 30 },
@@ -185,8 +209,12 @@ function createCalendarView(){
             }
         }
     }
+    if(overAllBrush != null){
+        cities += "&startTime="+overAllBrush[0] +"&endTime="+overAllBrush[1];
+    }
 
     if($("#showHourOfWeek" ).is( ':checked' )){
+
         $.ajax({
             url: "hourOfWeekTrend.do",
             type: "post",
@@ -229,6 +257,7 @@ function createCalendarView(){
             }
         });
     }else if($("#showDayOfMonth" ).is( ':checked' )){
+
         $.ajax({
             url:"dayTrendsByCodes_v2.do",
             type:"post",
@@ -611,6 +640,7 @@ function buildHM(data){
 }
 
 function pointControl(){
+    paintControl.stations = $("#pointcontrol").is( ':checked' );
     if($("#pointcontrol").is( ':checked' )){
         displayPoints();
     }else{
@@ -620,6 +650,7 @@ function pointControl(){
 
 
 function meteorologicalStationControl(){
+    paintControl.mstations = $("#meteorologicalStationControl").is( ':checked' );
     if($("#meteorologicalStationControl").is( ':checked' )){
         displayMeteorologicalStations();
     }else{
@@ -688,28 +719,11 @@ function linearTime(){
     $("#trend").empty();
 
     var totalW = $("#trend").width(), totalH = $("#trend").height();
-    //1为上面那个 2为下面那个
     var margin = {top: 10, right: 10, bottom: 30, left: 40},
         width = totalW - margin.left - margin.right,
         height = totalH - margin.top - margin.bottom;
 
-    //var parseDate = d3.time.format("%Y-%m").parse;
     var color = d3.scale.category10();
-
-    var x = d3.time.scale().range([0, width]),
-        y = d3.scale.linear().range([height, 0]);
-
-    var xAxis = d3.svg.axis().scale(x).orient("bottom"),
-        yAxis = d3.svg.axis().scale(y).orient("left");
-
-    var brush = d3.svg.brush()
-        .x(x)
-        .on("brush", brushed);
-
-    var line = d3.svg.line()
-        .interpolate("monotone")
-        .x(function(d) {return x(new Date(d.time)); })
-        .y(function(d) { return y(d.pm25); });
 
     var svg = d3.select("#trend").append("svg")
         .attr("width", width + margin.left + margin.right)
@@ -735,6 +749,7 @@ function linearTime(){
             }
         }
     }
+
     $.ajax({
         url:"monthTrends_v2.do",
         type:"post",
@@ -742,26 +757,44 @@ function linearTime(){
         success: function (returnData) {
             var data = JSON.parse(returnData);
 
+            var x = d3.time.scale().range([0, width]),
+                y = d3.scale.linear().range([height, 0]);
+
+            var xAxis = d3.svg.axis().scale(x).orient("bottom"),
+                yAxis = d3.svg.axis().scale(y).orient("left");
+
+            var brush = d3.svg.brush()
+                .x(x)
+                .on("brush", brushed)
+                .on("brushend", brushend);
+
+            function brushed() {
+                //console.log(brush.extent());
+                //x.domain(brush.empty() ? x.domain() : brush.extent());
+            }
+            function brushend(){
+                //do not paint when brush doesn't change
+                if(overAllBrush != null && overAllBrush[0] == brush.extent()[0] && overAllBrush[1] == brush.extent()[1])
+                    return;
+                overAllBrush = brush.empty() ? x.domain() : brush.extent();
+                repaintAll();
+            }
+
+            var line = d3.svg.line()
+                .interpolate("monotone")
+                .x(function(d) {return x(new Date(d.time)); })
+                .y(function(d) { return y(d.pm25); });
+
             color.domain(d3.keys(data[0]).filter(function (key) {
                 return key === "pm25";
             }));
-            //检测指标
-            var attrs = color.domain().map(function (name) {
-                return {
-                    name: name,
-                    values: data.map(function (d) {
-                        return {time: d.time, pm25: +d[name]};
-                    })
-                };
-            });
 
             x.domain(d3.extent(data.map(function (d) {
                 return new Date(d.time);
             })));
-            //固定y轴最大数值
-            y.domain([0, d3.max(data.map(function (d) {
-                return 150;
-            }))]);//d.avg_time; }))]);
+
+            //TODO 固定y轴最大数值
+            y.domain([0, 150]);
 
             context.append("g")
                 .attr("class", "x axis")
@@ -775,24 +808,20 @@ function linearTime(){
                 .attr("y", -6)
                 .attr("height", height + 7);
 
-            var attr = context.selectAll(".attr")
-                .data(attrs)
-                .enter().append("g")
-                .attr("class", "attr");
-
-            attr.append("path")
+            context.append("path")
+                .datum(data)
                 .attr("class", "line")
-                .attr("d", function (d) {
-                    return line(d.values);
-                })
-                .style("stroke", function (d) {
-                    return color(d.name);
-                });
+                .attr("d", line);
         }
     });
 
-    function brushed() {
-        x.domain(brush.empty() ? x.domain() : brush.extent());
-        console.log(brush.extent());
-    }
+
+}
+
+/**
+ * TODO all repaint should use this function
+ */
+function repaintAll(){
+    //TODO
+    createCalendarView();
 }
