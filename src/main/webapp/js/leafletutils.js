@@ -4,13 +4,12 @@
 
 //地图对象
 var map;
-//谷歌地图与bing地形地图
-//var mapLayer,hybridLayer;
+
 //各种叠加图层
-var locationLayer, heatmapLayer, freedrawLayer;
-var meteorologicalStationLayer;
+var locationLayer, freedrawLayer, meteorologicalStationLayer;
 
 var overAllBrush;
+var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 var paintControl = {
     calendar        :   false,
     calendarType    :   1,//0dayofmonth
@@ -19,36 +18,11 @@ var paintControl = {
     mstations       :   false,
     heatmap         :   false,
 };
-var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
-
-//各种过滤控件
-var polygonConrtol, navControl,provinceSelectionControl;
-
-var temp;
 
 //option of points
 var optPoint = {fillColor:'#ee0011', fill:true, color:'#FF0000'};
-//
+// option of meteorological station
 var meteorologicalStationOption = {fillColor:'#00ee11', fill:true, color:'#0000FF'};
-
-//configuration of heatmap
-var cfg = {
-    // radius should be small ONLY if scaleRadius is true (or small radius is intended)
-    "radius": 1,
-    "maxOpacity": .8,
-    // scales the radius based on map zoom
-    "scaleRadius": true,
-    // if set to false the heatmap uses the global maximum for colorization
-    // if activated: uses the data maximum within the current map boundaries
-    //   (there will always be a red spot with useLocalExtremas true)
-    "useLocalExtrema": true,
-    // which field name in your data represents the latitude - default "lat"
-    latField: 'lat',
-    // which field name in your data represents the longitude - default "lng"
-    lngField: 'lng',
-    // which field name in your data represents the data value - default "value"
-    valueField: 'count'
-};
 
 var cursorX;
 var cursorY;
@@ -58,9 +32,16 @@ document.onmousemove = function(e){
 }
 var piemenu;
 
+/**
+ * active free draw function
+ */
+var freedrawEvent = {latLngs:[]};
+var realRatio = 1;
+var CALENDAR_WIDTH_DEFAULT = 800;
+var CALENDAR_HEIGHT_DEFAULT = 600;
+
 function initUIs(){
     $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
-    //$('#map').css("width", "800").css("height", "600px");
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
     map = L.mapbox.map('map', 'mapbox.streets')
         .setView([38.0121105, 105.6670345], 5);
@@ -109,27 +90,48 @@ function createChinamap(){
 }
 
 /**
- * control the visiliblity of calendar
+ * 创建层
+ * @param data
  */
-function controlCalendar(){
-    paintControl.calendar = $("#controlCalendar").is( ':checked' );
-    if($("#controlCalendar").is( ':checked' )){
-        $("#calendar").show();
-        $("#calendar").css("visibility", "visible");
-    }else{
-        $("#calendar").hide();
+function buildLocationLayer(data){
+    locationLayer.clearLayers();
+    for ( var i = 0; i < data.length; ++i) {
+        locationLayer.addLayer(L.circle([data[i].latitude, data[i].longitude], 500, optPoint));
     }
+
+}
+function buildMeteorologicalStationLayer(data){
+    meteorologicalStationLayer.clearLayers();
+    for ( var i = 0; i < data.length; ++i) {
+        meteorologicalStationLayer.addLayer(L.circle([data[i].latitude, data[i].longitude], 500, meteorologicalStationOption));
+    }
+}
+function displayMeteorologicalStations(){
+    $.ajax({
+        url:"meteorologicalStations.do",
+        type:"post",
+        dataType:"json",
+        success:function(data){
+            buildMeteorologicalStationLayer(data);
+        }
+    });
 }
 
-function controlTrend(){
-    paintControl.trend = $("#controlTrend").is( ':checked' );
-    if($("#controlTrend").is( ':checked' )){
-        $("#trendpanel").show();
-        $("#trendpanel").css("visibility", "visible");
-    }else{
-        $("#trendpanel").hide();
-    }
+/**
+ * 显示所有监测点
+ */
+function displayPoints(){
+    $.ajax({
+        url:"cities.do",
+        type:"post",
+        dataType:"json",
+        success:function(data){
+            filteredData = data;
+            buildLocationLayer(filteredData);
+        }
+    });
 }
+
 
 /**
  * init calendar view
@@ -146,12 +148,10 @@ function createCalendarView(){
         paintControl.calendarType   =   4;
     }
 
-
     var rows, cols, gridWidth, gridHeight;
-
-    var margin = { top: 50, right: 0, bottom: 100, left: 30 },
-        width = $("#calendar").width() - margin.left - margin.right,
-        height = $("#calendar").height() - margin.top - margin.bottom,
+    var marginCalendar = { top: 50, right: 0, bottom: 0, left: 30 };
+    var width = CALENDAR_WIDTH_DEFAULT - marginCalendar.left - marginCalendar.right,
+        height = CALENDAR_HEIGHT_DEFAULT - marginCalendar.top - marginCalendar.bottom,
         colors = ["#FF0000","#FFFF00","00FF00"];
 
     if($("#showHourOfWeek" ).is( ':checked' ) || $("#showHourOfWeekSeparately" ).is( ':checked' ) ){
@@ -159,8 +159,7 @@ function createCalendarView(){
         cols = ["1a", "2a", "3a", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a", "12a", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p", "12p"];
         gridWidth = Math.floor(width / 24);
         gridHeight = Math.floor(height / 7);
-    }else if($("#showDayOfMonth" ).is( ':checked' ) || $("#showDayOfMonthSeparately" ).is( ':checked' )
-        || $("#showDayOfMonthSeparately2").is( ':checked' )){
+    }else if($("#showDayOfMonth" ).is( ':checked' )){
         gridWidth = Math.floor(width / 30);
         gridHeight = Math.floor(height / 12);
         rows = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -169,14 +168,51 @@ function createCalendarView(){
         for(var i = 1; i <= 30; i ++){
             cols.push(i);
         }
+    }else if($("#showDayOfMonthSeparately" ).is( ':checked' )){
+        if(overAllBrush == null){
+            //TODO overall Brush is null
+        }else{
+            var startMonth = overAllBrush[0].getMonth();
+            var endMonth = overAllBrush[1].getMonth();
+            var rowCount = endMonth - startMonth + 1;
+            var colCount = 30;
+            //自适应计算宽度高度
+            var t1 = width / (colCount * realRatio);
+            var t2 = height / (rowCount);
+            if(t1 < t2){
+                width = width;
+                height = (width / realRatio)*rowCount/30 ;
+                $("#calendar").width(width + marginCalendar.left + marginCalendar.right);
+                $("#calendar").height(height + marginCalendar.top + marginCalendar.bottom);
+                gridWidth = width / 30 ;
+                gridHeight = gridWidth / realRatio;
+            }else {
+                height = CALENDAR_HEIGHT_DEFAULT - marginCalendar.top - marginCalendar.bottom;
+                width = (height * realRatio) * 30 / rowCount ;
+                $("#calendar").width(width + marginCalendar.left + marginCalendar.right);
+                $("#calendar").height(height + marginCalendar.top + marginCalendar.bottom);
+                gridHeight = height / rowCount;
+                gridWidth = gridHeight * realRatio;
+            }
+            var rowsTotal = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            cols = [];
+            rows = [];
+            for(var i = 0 ; i < rowCount; i ++){
+                rows.push(rowsTotal[(overAllBrush[0].getMonth() + i) % 12]);
+            }
+            for(var i = 1; i <= 30; i ++){
+                cols.push(i);
+            }
+        }
+
     }
 
     d3.select("#calendar").selectAll("svg").remove();
     var svg = d3.select("#calendar").append("svg")
-        .attr("width", width + margin.left + margin.right)
-        .attr("height", height + margin.top + margin.bottom)
+        .attr("width", width + marginCalendar.left + marginCalendar.right)
+        .attr("height", height + marginCalendar.top + marginCalendar.bottom)
         .append("g")
-        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+        .attr("transform", "translate(" + marginCalendar.left + "," + marginCalendar.top + ")");
 
     var rowLabels = svg.append("g")
         .selectAll(".rowLabel")
@@ -347,7 +383,7 @@ function createCalendarView(){
                         var id = "onerect"+i+j;
                         var oneRect = svg.append("g")
                             .attr("id", id)
-                            .attr("transform", "translate("+ (dayIndex * gridWidth+1) + "," + (monthIndex * gridHeight+1) + ")")
+                            .attr("transform", "translate("+ (dayIndex * gridWidth+1) + "," + ((monthIndex - overAllBrush[0].getMonth()) * gridHeight+1) + ")")
                             .attr("width", gridWidth-1)
                             .attr("height", gridHeight-1);
 
@@ -487,122 +523,9 @@ function createCalendarView(){
     }
 }
 
-/**
- * customize calendar view by :
- * @param width
- * @param height
- * @param unit1x of x
- * @param unit2x of x
- * @param unit1y of y
- * @param unit2y
- * TODO
- */
-function customizeCalendarView(){
-    var rows, cols, gridWidth, gridHeight;
-
-    var margin = { top: 50, right: 0, bottom: 100, left: 30 },
-        width = 800 - margin.left - margin.right,
-        height = 600 - margin.top - margin.bottom,
-        colors = ["#FF0000","#FFFF00","00FF00"];
-
-    if($("#showHourOfWeek" ).is( ':checked' )){
-        rows = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-        cols = ["1a", "2a", "3a", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a", "12a", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p", "12p"];
-        gridWidth = Math.floor(width / 24);
-        gridHeight = Math.floor(height / 7);
-    }
-
-    d3.select("#calendar").selectAll("svg").remove();
-    var svg = d3.select("#calendar").append("svg")
-        .attr("width", width + margin.left + margin.right)
-        .attr("height", height + margin.top + margin.bottom)
-        .append("g")
-        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-    var rowLabels = svg.append("g")
-        .selectAll(".rowLabel")
-        .data(rows)
-        .enter().append("text")
-        .text(function (d) { return d; })
-        .attr("x", 0)
-        .attr("y", function (d, i) { return i * gridHeight; })
-        .style("text-anchor", "end")
-        .attr("transform", "translate(-6," + gridHeight / 1.5 + ")")
-        .attr("class", function () {return "rowLabel mono axis axis-workweek";});
-
-    var colLabels = svg.append("g")
-        .selectAll(".colLabel")
-        .data(cols)
-        .enter().append("text")
-        .text(function(d) { return d; })
-        .attr("x", function(d, i) { return i * gridWidth; })
-        .attr("y", 0)
-        .style("text-anchor", "middle")
-        .attr("transform", "translate(" + gridWidth / 2 + ", -6)")
-        .attr("class", function() { return "colLabel mono axis axis-worktime"; });
-
-    var cities = "";
-    if(filteredData.length != 0){
-        cities += ("codes[]="+filteredData[0].code);
-        if(filteredData.length > 1){
-            var i;
-            for(i = 1; i < filteredData.length; i ++){
-                cities += ("&codes[]="+filteredData[i].code);
-            }
-        }
-    }
-
-    if($("#showHourOfWeek" ).is( ':checked' )){
-        $.ajax({
-            url: "hourOfWeekTrend.do",
-            type: "post",
-            data: cities,
-            success: function (returnData) {
-                var data = JSON.parse(returnData);
-                var colorScale = d3.scale.linear()
-                    .domain([150, 0]).range(colors);
-
-                var cards = svg.append("g")
-                    .selectAll(".col")
-                    .data(data, function (d) {
-                        return d._id.hourofdayjb + ':' + d._id.dayofweekbj;
-                    });
-
-                cards.append("title");
-
-                cards.enter()
-                    .append("rect")
-                    .attr("x", function (d) {
-                        return (d._id.hourofdayjb) * gridWidth;
-                    })
-                    .attr("y", function (d) {
-                        return (d._id.dayofweekbj + 5) % 7 * gridHeight;
-                    })
-                    .attr("class", "col bordered")
-                    .attr("width", gridWidth)
-                    .attr("height", gridHeight)
-                    .style("fill", colors[0]);
-
-                cards.transition().duration(1000)
-                    .style("fill", function (d) {
-                        return colorScale(d.pm25);
-                    });
-
-                cards.select("title").text(function (d) {
-                    return d.pm25;
-                });
-                cards.exit().remove();
-            }
-        });
-    }
-}
-
-/**
- * active free draw function
- */
-var freedrawEvent = {latLngs:[]};
 
 function activeFreeDraw(){
+    deactiveFreeDraw();
     freedrawLayer = new L.FreeDraw();
     freedrawLayer.setMode(L.FreeDraw.MODES.ALL);
     map.addLayer(freedrawLayer);
@@ -616,6 +539,7 @@ function activeFreeDraw(){
         featureAddedListener();
     });
 }
+
 
 /**
  * deactive free draw function
@@ -640,6 +564,11 @@ function zoomAndCenter(){
         return;//TODO ??
     var event = freedrawEvent;
     var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(event.latLngs));
+
+    var width = bounds.getBounds().getNorthWest().distanceTo(bounds.getBounds().getNorthEast());
+    var height = bounds.getBounds().getNorthWest().distanceTo(bounds.getBounds().getSouthWest());
+    realRatio = width / height;
+
     $.ajax({
         url:"cities.do",
         type:"post",
@@ -674,15 +603,12 @@ function zoomAndCenter(){
                     resultData.push(data[i]);
                 }
             }
-            if($("#hidehm" ).is( ':checked' ))
-                buildHM(resultData);
             //调整中心点
             map.fitBounds(L.latLngBounds(event.latLngs));
         }
     });
     $("#piemenu").css("visibility", "hidden");
-    //hideHM_Yearly();//TODO ugly structure
-    deactiveFreeDraw();//TODO ugly structure
+    //deactiveFreeDraw();//TODO ugly structure
     createCalendarView();//TODO ugly structure
 }
 
@@ -691,6 +617,8 @@ function zoomAndCenter(){
  * function
  */
 function normalizeToRect(filtered, width, height){
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+
     var result = {x:[], y:[], code:[]};
     var parsed = {x:[], y:[], code:[]};
     filtered.forEach(function forEach(latLng) {
@@ -698,136 +626,19 @@ function normalizeToRect(filtered, width, height){
         parsed.y.push(latLng.latitude);
         parsed.code.push(latLng.code);
     });
-    var maxX = d3.max(parsed.x);
-    var maxY = d3.max(parsed.y);
-    var minX = d3.min(parsed.x);
-    var minY = d3.min(parsed.y);
+
+    var maxX = bounds.getBounds().getNorthEast().lng;
+    var maxY = bounds.getBounds().getNorthEast().lat;
+    var minX = bounds.getBounds().getNorthWest().lng;
+    var minY = bounds.getBounds().getSouthEast().lat;
+
+
     for(var i = 0; i < parsed.x.length; i ++){
         result.x.push(width * (parsed.x[i] - minX) / (maxX - minX));
         result.y.push(height * (parsed.y[i] - minY) / (maxY - minY));
         result.code.push(parsed.code[i]);
     }
     return result;
-}
-
-function hideHM_Yearly(){
-    map.removeLayer(heatmapLayer);
-}
-
-function hmControl(){
-    if($("#hmcontrol").is( ':checked' )){
-        displayHM_Yearly();
-    }else{
-        hideHM_Yearly();
-    }
-}
-/**
- * 创建热力图
- */
-function displayHM_Yearly(){
-    $.ajax({
-        url:"yearAvg_v2.do",
-        type:"post",
-        dataType:"json",
-        success:function(data){
-            buildHM(data);
-        }
-    });
-}
-
-function buildHM(data){
-    var maxValue = 150;
-    if(data.length == 0)
-        return;
-    var transformedData = { max: maxValue , data: [] };
-    var length = data.length;
-
-    while(length --){
-        transformedData.data.push({
-            lat: data[length].latitude,
-            lng: data[length].longitude,
-            count: data[length].pm25
-        });
-    }
-
-    if(heatmapLayer != null)
-        map.removeLayer(heatmapLayer);
-    heatmapLayer = new HeatmapOverlay(cfg);
-    map.addLayer(heatmapLayer);
-    heatmapLayer.setData(transformedData);
-
-}
-
-function pointControl(){
-    paintControl.stations = $("#pointcontrol").is( ':checked' );
-    if($("#pointcontrol").is( ':checked' )){
-        displayPoints();
-    }else{
-        hidePoints();
-    }
-}
-
-
-function meteorologicalStationControl(){
-    paintControl.mstations = $("#meteorologicalStationControl").is( ':checked' );
-    if($("#meteorologicalStationControl").is( ':checked' )){
-        displayMeteorologicalStations();
-    }else{
-        hideMeteorologicalStations();
-    }
-}
-
-function displayMeteorologicalStations(){
-    $.ajax({
-        url:"meteorologicalStations.do",
-        type:"post",
-        dataType:"json",
-        success:function(data){
-            buildMeteorologicalStationLayer(data);
-        }
-    });
-}
-
-function buildMeteorologicalStationLayer(data){
-    meteorologicalStationLayer.clearLayers();
-    for ( var i = 0; i < data.length; ++i) {
-        meteorologicalStationLayer.addLayer(L.circle([data[i].latitude, data[i].longitude], 500, meteorologicalStationOption));
-    }
-
-}
-function hideMeteorologicalStations(){
-    meteorologicalStationLayer.clearLayers();
-}
-
-///////////////
-function hidePoints(){
-    locationLayer.clearLayers();
-}
-/**
- * 显示所有监测点
- */
-function displayPoints(){
-    $.ajax({
-        url:"cities.do",
-        type:"post",
-        dataType:"json",
-        success:function(data){
-            filteredData = data;
-            buildLocationLayer(filteredData);
-        }
-    });
-}
-
-/**
- * 创建层
- * @param data
- */
-function buildLocationLayer(data){
-    locationLayer.clearLayers();
-    for ( var i = 0; i < data.length; ++i) {
-        locationLayer.addLayer(L.circle([data[i].latitude, data[i].longitude], 500, optPoint));
-    }
-
 }
 
 
@@ -945,266 +756,61 @@ function repaintAll(){
     createCalendarView();
 }
 
-function adaptCalendar(){
-    var start = overAllBrush[0];
-    var end = overAllBrush[1];
-    var height = $("#calendar").height();
-    var width = $("#calendar").width();
-    var countHours = Math.floor((end - start)/(1000 * 3600));
-    if(countHours < 24 * 7 ){
-        //TODO show hour of week
-        createAdaptiveCalendarView();
-    }else if(countHours < 30 * 12){
-        //TODO show day of month
-    }else {
-        //TODO
+/////////Followings are controller to control the visibility of layers//////
+//下面是控制各种层显示与否的方法
+
+
+/**
+ * control the visiliblity of calendar
+ */
+function controlCalendar(){
+    paintControl.calendar = $("#controlCalendar").is( ':checked' );
+    if($("#controlCalendar").is( ':checked' )){
+        $("#calendar").show();
+        $("#calendar").css("visibility", "visible");
+    }else{
+        $("#calendar").hide();
     }
 }
 
 /**
- * init calendar view
- * TODO change to canvas
+ * control the visibility of trends
  */
-function createAdaptiveCalendarView(){
-    if($("#showHourOfWeek" ).is( ':checked' )){
-        paintControl.calendarType   =   1;
-    }else if($("#showHourOfWeekSeparately" ).is( ':checked' )){
-        paintControl.calendarType   =   2;
-    }else if($("#showDayOfMonth" ).is( ':checked' )){
-        paintControl.calendarType   =   3;
-    }else if($("#showDayOfMonthSeparately" ).is( ':checked' )){
-        paintControl.calendarType   =   4;
-    }
-
-
-    var rows, cols, gridWidth, gridHeight;
-
-    var margin = { top: 50, right: 0, bottom: 100, left: 30 },
-        width = $("#calendar").width() - margin.left - margin.right,
-        height = $("#calendar").height() - margin.top - margin.bottom,
-        colors = ["#FF0000","#FFFF00","00FF00"];
-
-    if($("#showHourOfWeek" ).is( ':checked' ) || $("#showHourOfWeekSeparately" ).is( ':checked' ) ){
-        rows = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-        cols = ["1a", "2a", "3a", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a", "12a", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p", "12p"];
-        gridWidth = Math.floor(width / 24);
-        gridHeight = Math.floor(height / 7);
-    }else if($("#showDayOfMonth" ).is( ':checked' ) || $("#showDayOfMonthSeparately" ).is( ':checked' )
-        || $("#showDayOfMonthSeparately2").is( ':checked' )){
-        gridWidth = Math.floor(width / 30);
-        gridHeight = Math.floor(height / 12);
-        rows = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        cols = [];
-
-        for(var i = 1; i <= 30; i ++){
-            cols.push(i);
-        }
-    }
-
-    d3.select("#calendar").selectAll("svg").remove();
-    var svg = d3.select("#calendar").append("svg")
-        .attr("width", width + margin.left + margin.right)
-        .attr("height", height + margin.top + margin.bottom)
-        .append("g")
-        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-    var rowLabels = svg.append("g")
-        .selectAll(".rowLabel")
-        .data(rows)
-        .enter().append("text")
-        .text(function (d) { return d; })
-        .attr("x", 0)
-        .attr("y", function (d, i) { return i * gridHeight; })
-        .style("text-anchor", "end")
-        .attr("transform", "translate(-6," + gridHeight / 1.5 + ")")
-        .attr("class", function () {return "rowLabel mono axis axis-workweek";});
-
-    var colLabels = svg.append("g")
-        .selectAll(".colLabel")
-        .data(cols)
-        .enter().append("text")
-        .text(function(d) { return d; })
-        .attr("x", function(d, i) { return i * gridWidth; })
-        .attr("y", 0)
-        .style("text-anchor", "middle")
-        .attr("transform", "translate(" + gridWidth / 2 + ", -6)")
-        .attr("class", function() { return "colLabel mono axis axis-worktime"; });
-
-    var cities = "";
-    if(filteredData.length != 0){
-        cities += ("codes[]="+filteredData[0].code);
-        if(filteredData.length > 1){
-            var i;
-            for(i = 1; i < filteredData.length; i ++){
-                cities += ("&codes[]="+filteredData[i].code);
-            }
-        }
-    }
-    if(overAllBrush != null){
-        cities += "&startTime="+overAllBrush[0] +"&endTime="+overAllBrush[1];
-    }
-
-    if($("#showHourOfWeek" ).is( ':checked' )){
-
-        $.ajax({
-            url: "hourOfWeekTrend.do",
-            type: "post",
-            data: cities,
-            success: function (returnData) {
-                var data = JSON.parse(returnData);
-                var colorScale = d3.scale.linear()
-                    .domain([150, 0]).range(colors);
-
-                var cards = svg.append("g")
-                    .selectAll(".col")
-                    .data(data, function (d) {
-                        return d._id.hourofdayjb + ':' + d._id.dayofweekbj;
-                    });
-
-                cards.append("title");
-
-                cards.enter()
-                    .append("rect")
-                    .attr("x", function (d) {
-                        return (d._id.hourofdayjb) * gridWidth;
-                    })
-                    .attr("y", function (d) {
-                        return (d._id.dayofweekbj + 5) % 7 * gridHeight;
-                    })
-                    .attr("class", "col bordered")
-                    .attr("width", gridWidth)
-                    .attr("height", gridHeight)
-                    .style("fill", colors[0]);
-
-                cards.transition().duration(1000)
-                    .style("fill", function (d) {
-                        return colorScale(d.pm25);
-                    });
-
-                cards.select("title").text(function (d) {
-                    return d.pm25;
-                });
-                cards.exit().remove();
-            }
-        });
-    }else if($("#showDayOfMonth" ).is( ':checked' )){
-
-        $.ajax({
-            url:"dayTrendsByCodes_v2.do",
-            type:"post",
-            data: cities,
-            success:function(returnData){
-                var data = JSON.parse(returnData);
-                var colorScale = d3.scale.linear()
-                    .domain([150, 0]).range(colors);
-
-                var cards = svg.append("g")
-                    .selectAll(".col")
-                    .data(data, function(d) {
-                        return d._id.day+':'+d._id.month;});
-
-                cards.append("title");
-
-                cards.enter()
-                    .append("rect")
-                    .attr("x", function(d) {return (d._id.day - 1) * gridWidth; })
-                    .attr("y", function(d) { return (d._id.month - 1) * gridHeight; })
-                    .attr("class", "col bordered")
-                    .attr("width", gridWidth)
-                    .attr("height", gridHeight)
-                    .style("fill", colors[0]);
-
-                cards.transition().duration(1000)
-                    .style("fill", function(d) { return colorScale(d.pm25); });
-
-                cards.select("title").text(function(d) { return d.pm25; });
-                cards.exit().remove();
-                //only preserve the first 30 days
-                svg.selectAll(".col").filter(function(d){return d._id.day > 30;}).remove();
-            }
-        });
-    } else if ($("#showDayOfMonthSeparately").is(':checked')) {
-        $.ajax({
-            url: "dayTrendsByCodesSeparately.do",
-            type: "post",
-            data: cities,
-            success: function (returnData) {
-                var data = JSON.parse(returnData);
-                var minTime = d3.min(data, function (d) {
-                    return d.time;
-                });
-                var maxTime = d3.max(data, function (d) {
-                    return d.time;
-                });
-                var colorScale = d3.scale.linear()
-                    .domain([150, 0]).range(colors);
-                var groupedData = d3.nest()
-                    .key(function (d) {
-                        return d._id.day;
-                    })
-                    .key(function (d) {
-                        return d._id.month;
-                    })
-                    .entries(data);
-
-                for (var i = 0; i < groupedData.length; i++) {//day
-                    if (groupedData[i].values == null)
-                        continue;
-                    var dayIndex = parseInt(groupedData[i].key) - 1;
-                    if (dayIndex >= 30)
-                        continue;
-                    var length = groupedData[i].values.length;
-                    for (var j = 0; j < length; j++) {//month
-                        var monthIndex = parseInt(groupedData[i].values[j].key) - 1;
-                        var dataOneRect = groupedData[i].values[j];
-                        //将经纬度坐标映射到矩形网格中 mapping latlng to the grid
-                        var normalized = normalizeToRect(filteredData, gridWidth, gridHeight);
-
-                        var m = function (code) {
-                            for (var k = 0; k < dataOneRect.values.length; k++) {
-                                if (dataOneRect.values[k]._id.code == code)
-                                    return dataOneRect.values[k].pm25;
-                            }
-                        };
-                        //d3.map(dataOneRect, function(d) { return d.code; });
-
-                        var t = [/* Target variable */];
-                        var x = normalized.x;
-                        var y = normalized.y;
-                        for (var k = 0; k < normalized.code.length; k++) {
-                            if (m(normalized.code[k]) == null) {
-                                t.push(0);//TODO
-                            } else {
-                                t.push(m(normalized.code[k]));
-                            }
-                        }
-
-                        var model = "exponential";
-                        var sigma2 = 0, alpha = 100;
-                        var variogram = kriging.train(t, x, y, model, sigma2, alpha);
-                        var newValue = [];
-
-                        var id = "onerect" + i + j;
-                        var oneRect = svg.append("g")
-                            .attr("id", id)
-                            .attr("transform", "translate(" + (dayIndex * gridWidth + 1) + "," + (monthIndex * gridHeight + 1) + ")")
-                            .attr("width", gridWidth - 1)
-                            .attr("height", gridHeight - 1);
-
-                        for (var l = 0; l < gridHeight - 1; l++) {
-                            newValue[l] = [];
-                            for (var m = 0; m < gridWidth - 1; m++) {
-                                newValue[l][m] = kriging.predict(m, l, variogram);
-                                oneRect.append("rect")
-                                    .attr("width", 1)
-                                    .attr("height", 1)
-                                    .attr("fill", colorScale(newValue[l][m]))
-                                    .attr("transform", "translate(" + m + "," + l + ")");
-                            }
-                        }
-                    }
-                }
-            }
-        });
+function controlTrend(){
+    paintControl.trend = $("#controlTrend").is( ':checked' );
+    if($("#controlTrend").is( ':checked' )){
+        $("#trendpanel").show();
+        $("#trendpanel").css("visibility", "visible");
+    }else{
+        $("#trendpanel").hide();
     }
 }
+
+function pointControl(){
+    paintControl.stations = $("#pointcontrol").is( ':checked' );
+    if($("#pointcontrol").is( ':checked' )){
+        displayPoints();
+    }else{
+        hidePoints();
+    }
+}
+
+
+function meteorologicalStationControl(){
+    paintControl.mstations = $("#meteorologicalStationControl").is( ':checked' );
+    if($("#meteorologicalStationControl").is( ':checked' )){
+        displayMeteorologicalStations();
+    }else{
+        hideMeteorologicalStations();
+    }
+}
+
+
+function hideMeteorologicalStations(){
+    meteorologicalStationLayer.clearLayers();
+}
+
+function hidePoints(){
+    locationLayer.clearLayers();
+}
+

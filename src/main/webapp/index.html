@@ -25,7 +25,7 @@
             width: 100%;
             height: 100%;
         }
-
+        .ui-resizable-helper { border: 2px dotted #ff9553; }
     </style>
 
 
@@ -58,6 +58,10 @@
     <script>
         $(function() {
             $( "#calendar" ).draggable();
+            $( "#calendar" ).resizable({
+                animate: true,
+                helper: "ui-resizable-helper"
+            });
 //            $( "#trendpanel" ).draggable();
         });
     </script>
@@ -73,6 +77,7 @@
 <div id="controller" class="viscomponentbg" style="position:fixed;left:5px;top:100px;width:200px;height:600px;z-index: 200;padding-left: 10px;">
     <div>
     <div style="text-align: center;"><input id="controlCalendar" type="checkbox" onchange="controlCalendar();" style=""><label>showCalendar</label></div>
+    <div style="text-align: left;"><input id="adaptiveControlCalendar" type="checkbox" onchange="alert('adaptive');" style=""><label>adaptive</label></div>
     <input id="showDayOfMonth" name="calendarcontrol" type="radio" checked onclick="createCalendarView();"><label for="showDayOfMonth">showDayOfMonth</label><br>
     <input id="showHourOfWeek" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeek">showHourOfWeek</label><br>
     <input id="showDayOfMonthSeparately" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showDayOfMonthSeparately">showDayOfMonthSeparately</label><br>
