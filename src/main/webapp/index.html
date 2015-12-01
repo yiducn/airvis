@@ -71,18 +71,23 @@
     initUIs();
 </script>
 <div id="controller" class="viscomponentbg" style="position:fixed;left:5px;top:100px;width:200px;height:600px;z-index: 200;padding-left: 10px;">
-    <input id="controlCalendar" type="checkbox" onchange="controlCalendar();"><label>showCalendar</label><br>
-    <input id="controlTrend" type="checkbox" onchange="controlTrend();"><label>showTrend</label><br>
-    <br>
-    <input id="pointcontrol" type="checkbox" onchange="pointControl();"><label>displayStations</label><br>
-    <input id="meteorologicalStationControl" type="checkbox" onchange="meteorologicalStationControl();"><label>displayMeteorologicalStation</label><br>
-    <input id="hmcontrol" type="checkbox" onchange="hmControl();">displayHeatmap<br>
-    <input type="button" onclick="activeFreeDraw();" value="polygonselection">
-    <input type="button" onclick="deactiveFreeDraw();" value="navigation"><br>
+    <div>
+    <div style="text-align: center;"><input id="controlCalendar" type="checkbox" onchange="controlCalendar();" style=""><label>showCalendar</label></div>
     <input id="showDayOfMonth" name="calendarcontrol" type="radio" checked onclick="createCalendarView();"><label for="showDayOfMonth">showDayOfMonth</label><br>
     <input id="showHourOfWeek" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeek">showHourOfWeek</label><br>
     <input id="showDayOfMonthSeparately" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showDayOfMonthSeparately">showDayOfMonthSeparately</label><br>
-    <input id="showHourOfWeekSeparately" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeekSeparately">showHourOfWeekSeparately</label>
+    <input id="showHourOfWeekSeparately" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeekSeparately">showHourOfWeekSeparately</label><br>
+    <input id="showDayOfMonthSeparately2" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showDayOfMonthSeparately2">showDayOfMonthSeparately2</label>
+    </div>
+
+    <div style="text-align: center;"><input id="controlTrend" type="checkbox" onchange="controlTrend();"><label>showTrend</label></div>
+
+    <div style="text-align: center;"><input id="pointcontrol" type="checkbox" onchange="pointControl();"><label>displayStations</label><br></div>
+    <div style="text-align: center;"><input id="meteorologicalStationControl" type="checkbox" onchange="meteorologicalStationControl();"><label>displayMeteorologicalStation</label></div>
+    <!--<input id="hmcontrol" type="checkbox" onchange="hmControl();">displayHeatmap<br>-->
+    <input type="button" onclick="activeFreeDraw();" value="polygonselection">
+    <input type="button" onclick="deactiveFreeDraw();" value="navigation"><br>
+
 </div>
 
 <!--<div id="detailTrends" style="position:fixed;top:0px;left:800px;right:0px;z-index: 20000;display:none;">-->

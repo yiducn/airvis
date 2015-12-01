@@ -159,7 +159,8 @@ function createCalendarView(){
         cols = ["1a", "2a", "3a", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a", "12a", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p", "12p"];
         gridWidth = Math.floor(width / 24);
         gridHeight = Math.floor(height / 7);
-    }else if($("#showDayOfMonth" ).is( ':checked' ) || $("#showDayOfMonthSeparately" ).is( ':checked' )){
+    }else if($("#showDayOfMonth" ).is( ':checked' ) || $("#showDayOfMonthSeparately" ).is( ':checked' )
+        || $("#showDayOfMonthSeparately2").is( ':checked' )){
         gridWidth = Math.floor(width / 30);
         gridHeight = Math.floor(height / 12);
         rows = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -363,6 +364,124 @@ function createCalendarView(){
                         }
                     }
                 }
+            }
+        });
+    }else if($("#showDayOfMonthSeparately2" ).is( ':checked' )){
+        var dailyHeight = 5;
+        $.ajax({
+            url:"dayTrendsByCodesSeparately.do",
+            type:"post",
+            data: cities,
+            success:function(returnData) {
+                var data = JSON.parse(returnData);
+                $.ajax({
+                    url: "dayTrendsByCodes_v2.do",
+                    type: "post",
+                    data: cities,
+                    success: function (unseparatedData) {
+                        var dailyData = JSON.parse(unseparatedData);
+                        var colorScale = d3.scale.linear()
+                            .domain([150, 0]).range(colors);
+
+                        var cards = svg.append("g")
+                            .selectAll(".col")
+                            .data(dailyData, function(d) {
+                                return d._id.day+':'+d._id.month;});
+
+                        cards.enter()
+                            .append("rect")
+                            .attr("x", function(d) {return (d._id.day - 1) * gridWidth; })
+                            .attr("y", function(d) { return (d._id.month - 1) * gridHeight; })
+                            .attr("class", "col")
+                            .attr("width", gridWidth)
+                            .attr("height", dailyHeight)
+                            .style("fill", colors[0]);
+
+                        cards.transition().duration(1000)
+                            .style("fill", function(d) { return colorScale(d.pm25); });
+
+                        cards.select("title").text(function(d) { return d.pm25; });
+                        cards.exit().remove();
+                        //only preserve the first 30 days
+                        svg.selectAll(".col").filter(function(d){return d._id.day > 30;}).remove();
+                        ///////////////
+
+                        var oneRectHeight = gridHeight - dailyHeight;
+                        var minTime = d3.min(data, function (d) {
+                            return d.time;
+                        });
+                        var maxTime = d3.max(data, function (d) {
+                            return d.time;
+                        });
+
+                        var groupedData = d3.nest()
+                            .key(function (d) {
+                                return d._id.day;
+                            })
+                            .key(function (d) {
+                                return d._id.month;
+                            })
+                            .entries(data);
+
+                        for (var i = 0; i < groupedData.length; i++) {//day
+                            if (groupedData[i].values == null)
+                                continue;
+                            var dayIndex = parseInt(groupedData[i].key) - 1;
+                            if (dayIndex >= 30)
+                                continue;
+                            var length = groupedData[i].values.length;
+                            for (var j = 0; j < length; j++) {//month
+                                var monthIndex = parseInt(groupedData[i].values[j].key) - 1;
+                                var dataOneRect = groupedData[i].values[j];
+                                //将经纬度坐标映射到矩形网格中 mapping latlng to the grid
+                                var normalized = normalizeToRect(filteredData, gridWidth, oneRectHeight);
+
+                                var m = function (code) {
+                                    for (var k = 0; k < dataOneRect.values.length; k++) {
+                                        if (dataOneRect.values[k]._id.code == code)
+                                            return dataOneRect.values[k].pm25;
+                                    }
+                                };
+                                //d3.map(dataOneRect, function(d) { return d.code; });
+
+                                var t = [/* Target variable */];
+                                var x = normalized.x;
+                                var y = normalized.y;
+                                for (var k = 0; k < normalized.code.length; k++) {
+                                    if (m(normalized.code[k]) == null) {
+                                        t.push(0);//TODO
+                                    } else {
+                                        t.push(m(normalized.code[k]));
+                                    }
+                                }
+
+                                var model = "exponential";
+                                var sigma2 = 0, alpha = 100;
+                                var variogram = kriging.train(t, x, y, model, sigma2, alpha);
+                                var newValue = [];
+
+                                var id = "onerect" + i + j;
+                                var oneRect = svg.append("g")
+                                    .attr("id", id)
+                                    .attr("transform", "translate(" + (dayIndex * gridWidth + 1) + "," + (monthIndex * gridHeight + 1 + dailyHeight) + ")")
+                                    .attr("width", gridWidth - 1)
+                                    .attr("height", oneRectHeight - 1);
+
+                                for (var l = 0; l < oneRectHeight - 1; l++) {
+                                    newValue[l] = [];
+                                    for (var m = 0; m < gridWidth - 1; m++) {
+                                        newValue[l][m] = kriging.predict(m, l, variogram);
+                                        oneRect.append("rect")
+                                            .attr("width", 1)
+                                            .attr("height", 1)
+                                            .attr("fill", colorScale(newValue[l][m]))
+                                            .attr("transform", "translate(" + m + "," + l + ")");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
             }
         });
     }
@@ -824,4 +943,268 @@ function linearTime(){
 function repaintAll(){
     //TODO
     createCalendarView();
+}
+
+function adaptCalendar(){
+    var start = overAllBrush[0];
+    var end = overAllBrush[1];
+    var height = $("#calendar").height();
+    var width = $("#calendar").width();
+    var countHours = Math.floor((end - start)/(1000 * 3600));
+    if(countHours < 24 * 7 ){
+        //TODO show hour of week
+        createAdaptiveCalendarView();
+    }else if(countHours < 30 * 12){
+        //TODO show day of month
+    }else {
+        //TODO
+    }
+}
+
+/**
+ * init calendar view
+ * TODO change to canvas
+ */
+function createAdaptiveCalendarView(){
+    if($("#showHourOfWeek" ).is( ':checked' )){
+        paintControl.calendarType   =   1;
+    }else if($("#showHourOfWeekSeparately" ).is( ':checked' )){
+        paintControl.calendarType   =   2;
+    }else if($("#showDayOfMonth" ).is( ':checked' )){
+        paintControl.calendarType   =   3;
+    }else if($("#showDayOfMonthSeparately" ).is( ':checked' )){
+        paintControl.calendarType   =   4;
+    }
+
+
+    var rows, cols, gridWidth, gridHeight;
+
+    var margin = { top: 50, right: 0, bottom: 100, left: 30 },
+        width = $("#calendar").width() - margin.left - margin.right,
+        height = $("#calendar").height() - margin.top - margin.bottom,
+        colors = ["#FF0000","#FFFF00","00FF00"];
+
+    if($("#showHourOfWeek" ).is( ':checked' ) || $("#showHourOfWeekSeparately" ).is( ':checked' ) ){
+        rows = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+        cols = ["1a", "2a", "3a", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a", "12a", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p", "12p"];
+        gridWidth = Math.floor(width / 24);
+        gridHeight = Math.floor(height / 7);
+    }else if($("#showDayOfMonth" ).is( ':checked' ) || $("#showDayOfMonthSeparately" ).is( ':checked' )
+        || $("#showDayOfMonthSeparately2").is( ':checked' )){
+        gridWidth = Math.floor(width / 30);
+        gridHeight = Math.floor(height / 12);
+        rows = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        cols = [];
+
+        for(var i = 1; i <= 30; i ++){
+            cols.push(i);
+        }
+    }
+
+    d3.select("#calendar").selectAll("svg").remove();
+    var svg = d3.select("#calendar").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    var rowLabels = svg.append("g")
+        .selectAll(".rowLabel")
+        .data(rows)
+        .enter().append("text")
+        .text(function (d) { return d; })
+        .attr("x", 0)
+        .attr("y", function (d, i) { return i * gridHeight; })
+        .style("text-anchor", "end")
+        .attr("transform", "translate(-6," + gridHeight / 1.5 + ")")
+        .attr("class", function () {return "rowLabel mono axis axis-workweek";});
+
+    var colLabels = svg.append("g")
+        .selectAll(".colLabel")
+        .data(cols)
+        .enter().append("text")
+        .text(function(d) { return d; })
+        .attr("x", function(d, i) { return i * gridWidth; })
+        .attr("y", 0)
+        .style("text-anchor", "middle")
+        .attr("transform", "translate(" + gridWidth / 2 + ", -6)")
+        .attr("class", function() { return "colLabel mono axis axis-worktime"; });
+
+    var cities = "";
+    if(filteredData.length != 0){
+        cities += ("codes[]="+filteredData[0].code);
+        if(filteredData.length > 1){
+            var i;
+            for(i = 1; i < filteredData.length; i ++){
+                cities += ("&codes[]="+filteredData[i].code);
+            }
+        }
+    }
+    if(overAllBrush != null){
+        cities += "&startTime="+overAllBrush[0] +"&endTime="+overAllBrush[1];
+    }
+
+    if($("#showHourOfWeek" ).is( ':checked' )){
+
+        $.ajax({
+            url: "hourOfWeekTrend.do",
+            type: "post",
+            data: cities,
+            success: function (returnData) {
+                var data = JSON.parse(returnData);
+                var colorScale = d3.scale.linear()
+                    .domain([150, 0]).range(colors);
+
+                var cards = svg.append("g")
+                    .selectAll(".col")
+                    .data(data, function (d) {
+                        return d._id.hourofdayjb + ':' + d._id.dayofweekbj;
+                    });
+
+                cards.append("title");
+
+                cards.enter()
+                    .append("rect")
+                    .attr("x", function (d) {
+                        return (d._id.hourofdayjb) * gridWidth;
+                    })
+                    .attr("y", function (d) {
+                        return (d._id.dayofweekbj + 5) % 7 * gridHeight;
+                    })
+                    .attr("class", "col bordered")
+                    .attr("width", gridWidth)
+                    .attr("height", gridHeight)
+                    .style("fill", colors[0]);
+
+                cards.transition().duration(1000)
+                    .style("fill", function (d) {
+                        return colorScale(d.pm25);
+                    });
+
+                cards.select("title").text(function (d) {
+                    return d.pm25;
+                });
+                cards.exit().remove();
+            }
+        });
+    }else if($("#showDayOfMonth" ).is( ':checked' )){
+
+        $.ajax({
+            url:"dayTrendsByCodes_v2.do",
+            type:"post",
+            data: cities,
+            success:function(returnData){
+                var data = JSON.parse(returnData);
+                var colorScale = d3.scale.linear()
+                    .domain([150, 0]).range(colors);
+
+                var cards = svg.append("g")
+                    .selectAll(".col")
+                    .data(data, function(d) {
+                        return d._id.day+':'+d._id.month;});
+
+                cards.append("title");
+
+                cards.enter()
+                    .append("rect")
+                    .attr("x", function(d) {return (d._id.day - 1) * gridWidth; })
+                    .attr("y", function(d) { return (d._id.month - 1) * gridHeight; })
+                    .attr("class", "col bordered")
+                    .attr("width", gridWidth)
+                    .attr("height", gridHeight)
+                    .style("fill", colors[0]);
+
+                cards.transition().duration(1000)
+                    .style("fill", function(d) { return colorScale(d.pm25); });
+
+                cards.select("title").text(function(d) { return d.pm25; });
+                cards.exit().remove();
+                //only preserve the first 30 days
+                svg.selectAll(".col").filter(function(d){return d._id.day > 30;}).remove();
+            }
+        });
+    } else if ($("#showDayOfMonthSeparately").is(':checked')) {
+        $.ajax({
+            url: "dayTrendsByCodesSeparately.do",
+            type: "post",
+            data: cities,
+            success: function (returnData) {
+                var data = JSON.parse(returnData);
+                var minTime = d3.min(data, function (d) {
+                    return d.time;
+                });
+                var maxTime = d3.max(data, function (d) {
+                    return d.time;
+                });
+                var colorScale = d3.scale.linear()
+                    .domain([150, 0]).range(colors);
+                var groupedData = d3.nest()
+                    .key(function (d) {
+                        return d._id.day;
+                    })
+                    .key(function (d) {
+                        return d._id.month;
+                    })
+                    .entries(data);
+
+                for (var i = 0; i < groupedData.length; i++) {//day
+                    if (groupedData[i].values == null)
+                        continue;
+                    var dayIndex = parseInt(groupedData[i].key) - 1;
+                    if (dayIndex >= 30)
+                        continue;
+                    var length = groupedData[i].values.length;
+                    for (var j = 0; j < length; j++) {//month
+                        var monthIndex = parseInt(groupedData[i].values[j].key) - 1;
+                        var dataOneRect = groupedData[i].values[j];
+                        //将经纬度坐标映射到矩形网格中 mapping latlng to the grid
+                        var normalized = normalizeToRect(filteredData, gridWidth, gridHeight);
+
+                        var m = function (code) {
+                            for (var k = 0; k < dataOneRect.values.length; k++) {
+                                if (dataOneRect.values[k]._id.code == code)
+                                    return dataOneRect.values[k].pm25;
+                            }
+                        };
+                        //d3.map(dataOneRect, function(d) { return d.code; });
+
+                        var t = [/* Target variable */];
+                        var x = normalized.x;
+                        var y = normalized.y;
+                        for (var k = 0; k < normalized.code.length; k++) {
+                            if (m(normalized.code[k]) == null) {
+                                t.push(0);//TODO
+                            } else {
+                                t.push(m(normalized.code[k]));
+                            }
+                        }
+
+                        var model = "exponential";
+                        var sigma2 = 0, alpha = 100;
+                        var variogram = kriging.train(t, x, y, model, sigma2, alpha);
+                        var newValue = [];
+
+                        var id = "onerect" + i + j;
+                        var oneRect = svg.append("g")
+                            .attr("id", id)
+                            .attr("transform", "translate(" + (dayIndex * gridWidth + 1) + "," + (monthIndex * gridHeight + 1) + ")")
+                            .attr("width", gridWidth - 1)
+                            .attr("height", gridHeight - 1);
+
+                        for (var l = 0; l < gridHeight - 1; l++) {
+                            newValue[l] = [];
+                            for (var m = 0; m < gridWidth - 1; m++) {
+                                newValue[l][m] = kriging.predict(m, l, variogram);
+                                oneRect.append("rect")
+                                    .attr("width", 1)
+                                    .attr("height", 1)
+                                    .attr("fill", colorScale(newValue[l][m]))
+                                    .attr("transform", "translate(" + m + "," + l + ")");
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
 }
