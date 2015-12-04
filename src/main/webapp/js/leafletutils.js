@@ -357,93 +357,12 @@ function createCalendarView(){
             }
         });
     }else if($("#showDayOfMonthSeparately" ).is( ':checked' )){
-        $.ajax({
-            url:"dayTrendsByCodesSeparately.do",
-            type:"post",
-            data: cities,
-            success:function(returnData){
-                var data = JSON.parse(returnData);
-                var colorScale = d3.scale.linear()
-                    .domain([150, 0]).range(colors);
-                var groupedData = d3.nest()
-                    .key(function(d){return d._id.day;})
-                    .key(function(d){return d._id.month;})
-                    .entries(data);
-
-                for(var i = 0; i < groupedData.length; i ++){//day
-                    if(groupedData[i].values == null)
-                        continue;
-                    var dayIndex = parseInt(groupedData[i].key)-1;
-                    if(dayIndex >= 30)
-                        continue;
-                    var length = groupedData[i].values.length;
-                    for(var j = 0; j < length; j ++){//month
-                        var monthIndex = parseInt(groupedData[i].values[j].key) -1;
-                        var dataOneRect = groupedData[i].values[j];
-                        //将经纬度坐标映射到矩形网格中 mapping latlng to the grid
-                        var normalized = normalizeToRect(filteredData, gridWidth, gridHeight);
-
-                        var m = function(code){
-                            for(var k = 0; k < dataOneRect.values.length; k ++){
-                                if(dataOneRect.values[k]._id.code == code)
-                                    return dataOneRect.values[k].pm25;
-                            }
-                        };
-                        //d3.map(dataOneRect, function(d) { return d.code; });
-
-                        var t = [ /* Target variable */ ];
-                        var x = normalized.x;
-                        var y = normalized.y;
-                        for(var k = 0; k < normalized.code.length; k ++){
-                            if(m(normalized.code[k]) == null){
-                                t.push(0);//TODO
-                            }else{
-                                t.push(m(normalized.code[k]));
-                            }
-                        }
-
-                        var model = "exponential";
-                        var sigma2 = 0, alpha = 100;
-                        var variogram = kriging.train(t, x, y, model, sigma2, alpha);
-                        var newValue = [];
-
-                        var id = "onerect"+i+j;
-                        var oneRect;
-                        if(overAllBrush[1].getMonth() == overAllBrush[0].getMonth()){
-                            oneRect = svg.append("g")
-                                .attr("id", id)
-                                .attr("transform", "translate("+ ((dayIndex - overAllBrush[0].getDate()) * gridWidth+1) + "," + ((monthIndex - overAllBrush[0].getMonth()) * gridHeight+1) + ")")
-                                .attr("width", gridWidth-1)
-                                .attr("height", gridHeight-1);
-                        }else{
-                            oneRect = svg.append("g")
-                            .attr("id", id)
-                            .attr("transform", "translate("+ (dayIndex * gridWidth+1) + "," + ((monthIndex - overAllBrush[0].getMonth()) * gridHeight+1) + ")")
-                            .attr("width", gridWidth-1)
-                            .attr("height", gridHeight-1);
-                        }
-                        for(var l = 0; l < gridHeight-1; l ++){
-                            newValue[l] = [];
-                            for(var m = 0; m < gridWidth-1; m ++){
-                                newValue[l][m] = kriging.predict(m, l, variogram);
-                                oneRect.append("rect")
-                                    .attr("width", 1)
-                                    .attr("height", 1)
-                                    .attr("fill", colorScale(newValue[l][m]))
-                                    .attr("transform", "translate(" + m + "," + l + ")");
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }else if($("#showDayOfMonthSeparately2" ).is( ':checked' )){
         var dailyHeight = 5;
         $.ajax({
             url:"dayTrendsByCodesSeparately.do",
             type:"post",
             data: cities,
-            success:function(returnData) {
+            success:function(returnData){
                 var data = JSON.parse(returnData);
                 $.ajax({
                     url: "dayTrendsByCodes_v2.do",
@@ -459,14 +378,34 @@ function createCalendarView(){
                             .data(dailyData, function(d) {
                                 return d._id.day+':'+d._id.month;});
 
-                        cards.enter()
-                            .append("rect")
-                            .attr("x", function(d) {return (d._id.day - 1) * gridWidth; })
-                            .attr("y", function(d) { return (d._id.month - 1) * gridHeight; })
-                            .attr("class", "col")
-                            .attr("width", gridWidth)
-                            .attr("height", dailyHeight)
-                            .style("fill", colors[0]);
+                        //如果为一个月,则x的偏移变化不同于多个月
+                        if(overAllBrush[1].getMonth() == overAllBrush[0].getMonth()){
+                            cards.enter()
+                                .append("rect")
+                                .attr("x", function (d) {
+                                    return (d._id.day - overAllBrush[0].getDate() - 1) * gridWidth;
+                                })
+                                .attr("y", function (d) {
+                                    return (d._id.month - overAllBrush[0].getMonth() - 1) * gridHeight;
+                                })
+                                .attr("class", "col")
+                                .attr("width", gridWidth)
+                                .attr("height", dailyHeight)
+                                .style("fill", colors[0]);
+                        }else {
+                            cards.enter()
+                                .append("rect")
+                                .attr("x", function (d) {
+                                    return (d._id.day - 1) * gridWidth;
+                                })
+                                .attr("y", function (d) {
+                                    return (d._id.month - overAllBrush[0].getMonth() - 1) * gridHeight;
+                                })
+                                .attr("class", "col")
+                                .attr("width", gridWidth)
+                                .attr("height", dailyHeight)
+                                .style("fill", colors[0]);
+                        }
 
                         cards.transition().duration(1000)
                             .style("fill", function(d) { return colorScale(d.pm25); });
@@ -486,42 +425,38 @@ function createCalendarView(){
                         });
 
                         var groupedData = d3.nest()
-                            .key(function (d) {
-                                return d._id.day;
-                            })
-                            .key(function (d) {
-                                return d._id.month;
-                            })
+                            .key(function(d){return d._id.day;})
+                            .key(function(d){return d._id.month;})
                             .entries(data);
 
-                        for (var i = 0; i < groupedData.length; i++) {//day
-                            if (groupedData[i].values == null)
+                        for(var i = 0; i < groupedData.length; i ++){//day
+                            if(groupedData[i].values == null)
                                 continue;
-                            var dayIndex = parseInt(groupedData[i].key) - 1;
-                            if (dayIndex >= 30)
+                            var dayIndex = parseInt(groupedData[i].key)-1;
+                            if(dayIndex >= 30)
                                 continue;
                             var length = groupedData[i].values.length;
-                            for (var j = 0; j < length; j++) {//month
-                                var monthIndex = parseInt(groupedData[i].values[j].key) - 1;
+                            for(var j = 0; j < length; j ++){//month
+                                var monthIndex = parseInt(groupedData[i].values[j].key) -1;
                                 var dataOneRect = groupedData[i].values[j];
                                 //将经纬度坐标映射到矩形网格中 mapping latlng to the grid
                                 var normalized = normalizeToRect(filteredData, gridWidth, oneRectHeight);
 
-                                var m = function (code) {
-                                    for (var k = 0; k < dataOneRect.values.length; k++) {
-                                        if (dataOneRect.values[k]._id.code == code)
+                                var m = function(code){
+                                    for(var k = 0; k < dataOneRect.values.length; k ++){
+                                        if(dataOneRect.values[k]._id.code == code)
                                             return dataOneRect.values[k].pm25;
                                     }
                                 };
                                 //d3.map(dataOneRect, function(d) { return d.code; });
 
-                                var t = [/* Target variable */];
+                                var t = [ /* Target variable */ ];
                                 var x = normalized.x;
                                 var y = normalized.y;
-                                for (var k = 0; k < normalized.code.length; k++) {
-                                    if (m(normalized.code[k]) == null) {
+                                for(var k = 0; k < normalized.code.length; k ++){
+                                    if(m(normalized.code[k]) == null){
                                         t.push(0);//TODO
-                                    } else {
+                                    }else{
                                         t.push(m(normalized.code[k]));
                                     }
                                 }
@@ -531,16 +466,24 @@ function createCalendarView(){
                                 var variogram = kriging.train(t, x, y, model, sigma2, alpha);
                                 var newValue = [];
 
-                                var id = "onerect" + i + j;
-                                var oneRect = svg.append("g")
+                                var id = "onerect"+i+j;
+                                var oneRect;
+                                if(overAllBrush[1].getMonth() == overAllBrush[0].getMonth()){
+                                    oneRect = svg.append("g")
+                                        .attr("id", id)
+                                        .attr("transform", "translate("+ ((dayIndex - overAllBrush[0].getDate()) * gridWidth+1) + "," + ((monthIndex - overAllBrush[0].getMonth()) * gridHeight+1+dailyHeight) + ")")
+                                        .attr("width", gridWidth-1)
+                                        .attr("height", oneRectHeight-1);
+                                }else{
+                                    oneRect = svg.append("g")
                                     .attr("id", id)
-                                    .attr("transform", "translate(" + (dayIndex * gridWidth + 1) + "," + (monthIndex * gridHeight + 1 + dailyHeight) + ")")
-                                    .attr("width", gridWidth - 1)
-                                    .attr("height", oneRectHeight - 1);
-
-                                for (var l = 0; l < oneRectHeight - 1; l++) {
+                                    .attr("transform", "translate("+ (dayIndex * gridWidth+1) + "," + ((monthIndex - overAllBrush[0].getMonth()) * gridHeight+1+dailyHeight) + ")")
+                                    .attr("width", gridWidth-1)
+                                    .attr("height", oneRectHeight-1);
+                                }
+                                for(var l = 0; l < oneRectHeight-1; l ++){
                                     newValue[l] = [];
-                                    for (var m = 0; m < gridWidth - 1; m++) {
+                                    for(var m = 0; m < gridWidth-1; m ++){
                                         newValue[l][m] = kriging.predict(m, l, variogram);
                                         oneRect.append("rect")
                                             .attr("width", 1)
@@ -555,6 +498,7 @@ function createCalendarView(){
                 });
             }
         });
+
     }
 }
 
