@@ -7,6 +7,7 @@ var map;
 
 //各种叠加图层
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
+var provinceBoundaryOverlay, cityBoundaryOverlay;
 
 var overAllBrush;
 var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
@@ -15,8 +16,7 @@ var paintControl = {
     calendarType    :   1,//0dayofmonth
     trend           :   false,
     stations        :   false,
-    mstations       :   false,
-    heatmap         :   false,
+    mstations       :   false
 };
 
 //option of points
@@ -44,7 +44,8 @@ function initUIs(){
     $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
     map = L.mapbox.map('map', 'mapbox.streets')
-        .setView([38.0121105, 105.6670345], 5);
+        .setView([38.0121105, 105.6670345], 4);
+    map.options.minZoom = 4;
 
     //add location layer
     locationLayer = L.layerGroup();
@@ -62,30 +63,47 @@ function initUIs(){
     //操作-> group、ungroup(divided by province/county)
     //Analysis->trends, factors, factors with wind,  nearby
 
-    piemenu.createWheel(['zoom', 'group', 'ungroup', 'factors', 'factors with wind', 'nearby']);
+    piemenu.createWheel(['zoom']);//, 'group', 'ungroup', 'factors', 'factors with wind', 'nearby']);
     piemenu.navItems[0].navigateFunction = zoomAndCenter;
     //TODO
     piemenu.wheelRadius = 50;
-
-    createChinamap();
-
 }
 
 function createChinamap(){
-    var countries = [];
-    var countriesOverlay = L.d3SvgOverlay(function(sel, proj) {
+    var provinces = [];
+    provinceBoundaryOverlay = L.d3SvgOverlay(function(sel, proj) {
 
-        var upd = sel.selectAll('path').data(countries);
+        var upd = sel.selectAll('path').data(provinces);
         upd.enter()
             .append('path')
             .attr('d', proj.pathFromGeojson)
             .attr('stroke', 'black')
-            //.attr('fill', function(){ return d3.hsl(Math.random() * 360, 0.9, 0.5) })
             .attr('fill-opacity', '0');
         upd.attr('stroke-width', 1 / proj.scale);
     });
 
-    d3.json("maps/china_provinces.json", function(data) { countries = data.features; countriesOverlay.addTo(map) });
+    d3.json("maps/china_provinces.json", function(data) { provinces = data.features; provinceBoundaryOverlay.addTo(map) });
+
+}
+
+function createCityMap(){
+    var cities = [];
+    cityBoundaryOverlay = L.d3SvgOverlay(function(sel, proj) {
+
+        var upd = sel.selectAll('path').data(cities);
+        upd.enter()
+            .append('path')
+            .attr('d', proj.pathFromGeojson)
+            .attr('stroke', 'black')
+            .attr('fill', function(d){
+                console.log(d);
+                return d3.hsl(Math.random() * 360, 0.9, 0.5)
+            })
+            .attr('fill-opacity', '0');
+        upd.attr('stroke-width', 0.5 / proj.scale);
+    });
+
+    d3.json("maps/china_cities.json", function(data) { cities = data.features; cityBoundaryOverlay.addTo(map) });
 
 }
 
@@ -176,19 +194,22 @@ function createCalendarView(){
             var endMonth = overAllBrush[1].getMonth();
             var rowCount = endMonth - startMonth + 1;
             var colCount = 30;
+            if(startMonth == endMonth){
+                colCount = overAllBrush[1].getDate() - overAllBrush[0].getDate() + 1;
+            }
             //自适应计算宽度高度
             var t1 = width / (colCount * realRatio);
             var t2 = height / (rowCount);
             if(t1 < t2){
                 width = width;
-                height = (width / realRatio)*rowCount/30 ;
+                height = (width / realRatio)*rowCount/colCount ;
                 $("#calendar").width(width + marginCalendar.left + marginCalendar.right);
                 $("#calendar").height(height + marginCalendar.top + marginCalendar.bottom);
-                gridWidth = width / 30 ;
+                gridWidth = width / colCount ;
                 gridHeight = gridWidth / realRatio;
             }else {
                 height = CALENDAR_HEIGHT_DEFAULT - marginCalendar.top - marginCalendar.bottom;
-                width = (height * realRatio) * 30 / rowCount ;
+                width = (height * realRatio) * colCount / rowCount ;
                 $("#calendar").width(width + marginCalendar.left + marginCalendar.right);
                 $("#calendar").height(height + marginCalendar.top + marginCalendar.bottom);
                 gridHeight = height / rowCount;
@@ -200,8 +221,14 @@ function createCalendarView(){
             for(var i = 0 ; i < rowCount; i ++){
                 rows.push(rowsTotal[(overAllBrush[0].getMonth() + i) % 12]);
             }
-            for(var i = 1; i <= 30; i ++){
-                cols.push(i);
+            if(rowCount == 1){
+                for (var i = overAllBrush[0].getDate(); i <= overAllBrush[1].getDate(); i++) {
+                    cols.push(i);
+                }
+            }else {
+                for (var i = 1; i <= 30; i++) {
+                    cols.push(i);
+                }
             }
         }
 
@@ -381,12 +408,20 @@ function createCalendarView(){
                         var newValue = [];
 
                         var id = "onerect"+i+j;
-                        var oneRect = svg.append("g")
+                        var oneRect;
+                        if(overAllBrush[1].getMonth() == overAllBrush[0].getMonth()){
+                            oneRect = svg.append("g")
+                                .attr("id", id)
+                                .attr("transform", "translate("+ ((dayIndex - overAllBrush[0].getDate()) * gridWidth+1) + "," + ((monthIndex - overAllBrush[0].getMonth()) * gridHeight+1) + ")")
+                                .attr("width", gridWidth-1)
+                                .attr("height", gridHeight-1);
+                        }else{
+                            oneRect = svg.append("g")
                             .attr("id", id)
                             .attr("transform", "translate("+ (dayIndex * gridWidth+1) + "," + ((monthIndex - overAllBrush[0].getMonth()) * gridHeight+1) + ")")
                             .attr("width", gridWidth-1)
                             .attr("height", gridHeight-1);
-
+                        }
                         for(var l = 0; l < gridHeight-1; l ++){
                             newValue[l] = [];
                             for(var m = 0; m < gridWidth-1; m ++){
@@ -525,7 +560,6 @@ function createCalendarView(){
 
 
 function activeFreeDraw(){
-    deactiveFreeDraw();
     freedrawLayer = new L.FreeDraw();
     freedrawLayer.setMode(L.FreeDraw.MODES.ALL);
     map.addLayer(freedrawLayer);
@@ -647,7 +681,7 @@ function normalizeToRect(filtered, width, height){
  */
 function linearTime(){
     $("#trend").empty();
-
+    $("#trend").width(window.screen.availWidth);
     var totalW = $("#trend").width(), totalH = $("#trend").height();
     var margin = {top: 10, right: 10, bottom: 30, left: 40},
         width = totalW - margin.left - margin.right,
@@ -764,13 +798,24 @@ function repaintAll(){
  * control the visiliblity of calendar
  */
 function controlCalendar(){
+
     paintControl.calendar = $("#controlCalendar").is( ':checked' );
     if($("#controlCalendar").is( ':checked' )){
+        disableCalendarView();
         $("#calendar").show();
         $("#calendar").css("visibility", "visible");
     }else{
+        enableCalendarView();
         $("#calendar").hide();
     }
+}
+//TODO
+function disableCalendarView(){
+
+}
+//TODO
+function enableCalendarView(){
+
 }
 
 /**
@@ -805,6 +850,21 @@ function meteorologicalStationControl(){
     }
 }
 
+function provinceBoundaryControl(){
+    if($("#provinceBoundary").is( ':checked' )){
+        createChinamap();
+    }else{
+        map.removeLayer(provinceBoundaryOverlay);
+    }
+}
+
+function cityBoundaryControl(){
+    if($("#cityBoundary").is( ':checked' )){
+        createCityMap();
+    }else{
+        map.removeLayer(cityBoundaryOverlay);
+    }
+}
 
 function hideMeteorologicalStations(){
     meteorologicalStationLayer.clearLayers();
