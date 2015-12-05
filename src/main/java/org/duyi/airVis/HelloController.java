@@ -11,6 +11,7 @@ import org.bson.Document;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.omg.PortableServer.REQUEST_PROCESSING_POLICY_ID;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -170,6 +171,57 @@ public class HelloController {
         return result.toString();
     }
 
+    /**
+     * 根据pmdata_month的月平均数据,返回各省份平均数
+     * @param startTime
+     * @param endTime
+     * @return
+     * 20151204
+     */
+    @RequestMapping(value = "valueByProvinces.do", method = RequestMethod.POST)
+    public @ResponseBody String getValueByProvinces(@RequestParam(value="startTime", required=false) String startTime,
+                                                    @RequestParam(value="endTime", required=false) String endTime){
+        MongoCollection coll = getCollection(COL_AVG_MONTH);
+        //TODO time zone problem
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
+
+        Document match;
+        Document group = new Document().append("$group",
+                new Document().append("_id","$province")
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("co", new Document("$avg", "$co"))
+//                        .append("no2", new Document("$avg", "$no2"))
+//                        .append("o3", new Document("$avg", "$o3"))
+//                        .append("pm10", new Document("$avg", "$pm10"))
+                        .append("pm25", new Document("$avg", "$pm25")));
+//                        .append("so2", new Document("$avg", "$so2")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+
+        if(startTime == null && endTime == null){
+            query.add(group);
+            cur = coll.aggregate(query).allowDiskUse(true).iterator();
+        }else if(startTime != null && endTime != null){
+            try {
+                match = new Document("$match", new Document("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))));
+                query.add(match);
+                query.add(group);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
+        }else{
+            //TODO
+            cur = null;
+        }
+
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+        return result.toString();
+    }
     /**
      * 根据城市约束返回按月的趋势
      * http://localhost:8081/monthTrends_v2.do?codes[]=1010A&codes[]=1011A
