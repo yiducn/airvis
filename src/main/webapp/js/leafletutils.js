@@ -8,6 +8,7 @@ var map;
 //各种叠加图层
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
 var provinceBoundaryOverlay, cityBoundaryOverlay;
+var provinceValueOverlay, cityValueOverlay;
 
 var overAllBrush;
 var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
@@ -39,6 +40,10 @@ var freedrawEvent = {latLngs:[]};
 var realRatio = 1;
 var CALENDAR_WIDTH_DEFAULT = 800;
 var CALENDAR_HEIGHT_DEFAULT = 600;
+
+//overall color scale
+var colors = ["#FF0000","#FFFF00","00FF00"]
+var colorScale = d3.scale.linear().domain([150, 0]).range(colors);
 
 function initUIs(){
     $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
@@ -72,7 +77,6 @@ function initUIs(){
 function createChinamap(){
     var provinces = [];
     provinceBoundaryOverlay = L.d3SvgOverlay(function(sel, proj) {
-
         var upd = sel.selectAll('path').data(provinces);
         upd.enter()
             .append('path')
@@ -82,7 +86,60 @@ function createChinamap(){
         upd.attr('stroke-width', 1 / proj.scale);
     });
 
-    d3.json("maps/china_provinces.json", function(data) { provinces = data.features; provinceBoundaryOverlay.addTo(map) });
+    d3.json("maps/china_provinces.json",
+        function (data) {
+            provinces = data.features;
+            provinceBoundaryOverlay.addTo(map)
+        }
+    );
+}
+
+function createProvinceValue(){
+
+    var provinces = [];
+    provinceValueOverlay = L.d3SvgOverlay(function(sel, proj) {
+
+        var upd = sel.selectAll('path').data(provinces);
+        upd.enter()
+            .append('path')
+            .attr('d', proj.pathFromGeojson)
+            //.attr('stroke', 'black')
+            .attr("fill", function(d){
+                return colorScale(d.pm25);
+            })
+            .attr('fill-opacity', '0.7');
+        //upd.attr('stroke-width', 1 / proj.scale);
+
+    });
+
+    var cities = "";
+    if(overAllBrush != null){
+        cities += "startTime="+overAllBrush[0] +"&endTime="+overAllBrush[1];
+    }
+    $.ajax({
+        url: "valueByProvinces.do",
+        type: "post",
+        data: cities,
+        success: function (resultData) {
+            var result = JSON.parse(resultData);
+            var findValue = function(proName){
+                for(var i = 0; i < result.length; i ++){
+                    if(result[i]._id == proName)
+                        return result[i].pm25;
+                }
+            };
+
+            d3.json("maps/china_provinces.json",
+                function (data) {
+                    provinces = data.features;
+                    for(var i = 0; i < provinces.length; i ++){
+                        provinces[i].pm25 = findValue(provinces[i].properties.name);
+                    }
+                    provinceValueOverlay.addTo(map)
+                }
+            );
+        }
+    });
 
 }
 
@@ -169,8 +226,7 @@ function createCalendarView(){
     var rows, cols, gridWidth, gridHeight;
     var marginCalendar = { top: 50, right: 0, bottom: 0, left: 30 };
     var width = CALENDAR_WIDTH_DEFAULT - marginCalendar.left - marginCalendar.right,
-        height = CALENDAR_HEIGHT_DEFAULT - marginCalendar.top - marginCalendar.bottom,
-        colors = ["#FF0000","#FFFF00","00FF00"];
+        height = CALENDAR_HEIGHT_DEFAULT - marginCalendar.top - marginCalendar.bottom;
 
     if($("#showHourOfWeek" ).is( ':checked' ) || $("#showHourOfWeekSeparately" ).is( ':checked' ) ){
         rows = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
@@ -732,6 +788,7 @@ function linearTime(){
 function repaintAll(){
     //TODO
     createCalendarView();
+    provinceValueControl();
 }
 
 /////////Followings are controller to control the visibility of layers//////
@@ -801,6 +858,17 @@ function provinceBoundaryControl(){
         map.removeLayer(provinceBoundaryOverlay);
     }
 }
+
+function provinceValueControl(){
+    if($("#provinceValue").is( ':checked' )){
+        if(provinceValueOverlay != null)
+            map.removeLayer(provinceValueOverlay);
+        createProvinceValue();
+    }else{
+        map.removeLayer(provinceValueOverlay);
+    }
+}
+
 
 function cityBoundaryControl(){
     if($("#cityBoundary").is( ':checked' )){
