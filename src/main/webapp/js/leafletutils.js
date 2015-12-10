@@ -7,11 +7,13 @@ var map;
 
 //各种叠加图层
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
-var provinceBoundaryOverlay, cityBoundaryOverlay;
+var provinceBoundaryOverlay, cityBoundaryOverlay, contextRing;
 var provinceValueOverlay, cityValueOverlay;
 
 var overAllBrush;
 var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
+var unfilteredData = [];//经过过滤后剩下的数据,结构同filteredData
+
 var paintControl = {
     calendar        :   false,
     calendarType    :   1,//0dayofmonth
@@ -33,10 +35,14 @@ document.onmousemove = function(e){
 }
 var piemenu;
 
+//max and min distance of context ring
+var maxDis, minDis;
+
 /**
  * active free draw function
  */
 var freedrawEvent = {latLngs:[]};
+
 var realRatio = 1;
 var CALENDAR_WIDTH_DEFAULT = 800;
 var CALENDAR_HEIGHT_DEFAULT = 600;
@@ -72,6 +78,23 @@ function initUIs(){
     piemenu.navItems[0].navigateFunction = zoomAndCenter;
     //TODO
     piemenu.wheelRadius = 50;
+
+    map.on('zoomend', function() {
+        maxDis = null;
+        minDis = null;
+        createCircleView2();//TODO 测试
+        $( "#slider" ).slider( "option", "min", minDis );
+        $( "#slider" ).slider( "option", "max", maxDis );
+    });
+    $("#slider").slider();
+    $( "#slider" ).on( "slidechange",
+        function( event, ui ) {
+            maxDis = ui.value;
+            $("#maxDistance").text(parseInt(ui.value));
+            createCircleView2();
+        }
+    );
+
 }
 
 function createChinamap(){
@@ -616,9 +639,13 @@ function zoomAndCenter(){
                 result = leafletPip.pointInLayer([data[i].longitude, data[i].latitude], bounds, true);
                 if(result.length > 0){
                     newData.push(data[i]);
+                }else{
+                    //add unfiltered data
+                    unfilteredData.push(data[i]);
                 }
             }
             filteredData = newData;
+
             buildLocationLayer(newData);
             linearTime();
         }
@@ -637,13 +664,17 @@ function zoomAndCenter(){
                     resultData.push(data[i]);
                 }
             }
+
             //调整中心点
             map.fitBounds(L.latLngBounds(event.latLngs));
+
         }
     });
     $("#piemenu").css("visibility", "hidden");
     //deactiveFreeDraw();//TODO ugly structure
     createCalendarView();//TODO ugly structure
+
+
 }
 
 
@@ -789,6 +820,178 @@ function repaintAll(){
     //TODO
     createCalendarView();
     provinceValueControl();
+}
+
+/**
+ * 在屏幕上创建的问题就是div覆盖了地图图层,使得地图不能交互
+ */
+function createCircleView2() {
+    //var direction = [];
+    //var distance = [];
+    if(contextRing != null)
+        map.removeLayer(contextRing);
+
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
+    if(maxDis == null && minDis == null) {
+        maxDis = 0;
+        minDis = Number.MAX_VALUE;
+        for (var i = 0; i < unfilteredData.length; i++) {
+            var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
+            unfilteredData[i].distance = dist;
+            if (dist > maxDis)
+                maxDis = dist;
+            if (dist < minDis)
+                minDis = dist;
+            var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
+            unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
+        }
+    }
+
+
+    contextRing = L.d3SvgOverlay(function(sel, proj) {
+        var sizeScreen = map.getPixelBounds().getSize();
+        var outerRadius = sizeScreen.y / 2;
+        var innerRadius = outerRadius -  100;
+        var centerScreen = proj.latLngToLayerPoint(center);
+        //计算context ring的path
+        var pathContextRing = function(d){
+            //var startAngle = Math.PI * 2 * 15 / 16;
+            var intervalAngle = Math.PI * 2 / 8;
+            var path = "M ";
+            path += centerScreen.x + innerRadius * Math.sin(d.angle) + " ";
+            path += centerScreen.y - innerRadius * Math.cos(d.angle) + " L ";
+            path += centerScreen.x + innerRadius * Math.sin(d.angle + intervalAngle) + " ";
+            path += centerScreen.y - innerRadius * Math.cos(d.angle + intervalAngle) + " L ";
+            path += centerScreen.x + outerRadius * Math.sin(d.angle + intervalAngle) + " ";
+            path += centerScreen.y - outerRadius * Math.cos(d.angle + intervalAngle) + " L ";
+            path += centerScreen.x + outerRadius * Math.sin(d.angle) + " ";
+            path += centerScreen.y - outerRadius * Math.cos(d.angle) + " ";
+            path += " Z ";
+
+            return path;
+        };
+        var contextRingId = function(d){
+            return "contextRing" + d.dir;
+        }
+
+        var parts = [];
+        var startAngle = Math.PI * 2 * 15 / 16;
+        var intervalAngle = Math.PI * 2 / 8;
+        for(var i = 0; i < 8; i ++){
+            var temp = {};
+            temp.dir = i;
+            temp.angle = startAngle + intervalAngle;
+            parts.push(temp);
+            startAngle += intervalAngle;
+        }
+        sel.selectAll("g").data(parts)
+            .enter()
+            .append("g")
+            .attr("id", contextRingId)
+            .append("path")
+            .attr("d", pathContextRing)
+            .attr("fill", "red")
+            .attr('stroke', 'black')
+            .attr('fill-opacity', '0.5');
+
+        var stationX = function(d){
+            var r = (innerRadius + (d.distance - minDis)/(maxDis-minDis) * (outerRadius - innerRadius));
+            //
+            return centerScreen.x + r *
+                (d.longitude - center.lng) /
+                Math.sqrt((d.latitude - center.lat)*(d.latitude - center.lat) + (d.longitude - center.lng)*(d.longitude - center.lng));
+        }
+        var stationY = function(d){
+            var r = (innerRadius + (d.distance - minDis)/(maxDis-minDis) * (outerRadius - innerRadius));
+            return centerScreen.y - r *
+                (d.latitude - center.lat) /
+                Math.sqrt((d.latitude - center.lat)*(d.latitude - center.lat) + (d.longitude - center.lng)*(d.longitude - center.lng));
+        }
+        sel.selectAll(".contextScatter").data(unfilteredData)
+            .enter()
+            .append("circle")
+            .filter(function(d){return d.distance > minDis && d.distance < maxDis;})
+            .attr('r',function(d){return 1;})
+            .attr('cx', stationX)
+            .attr('cy',stationY)
+            .attr('stroke','black')
+            .attr('stroke-width',1);
+
+
+    });
+    contextRing.addTo(map);
+}
+
+
+function createCircleView(){
+    $("#circle").show();
+    var distance = [];
+    var direction = [];
+    var outRadius = 250;
+    var innerRadius = 50;
+    if(contextRing != null)
+        map.removeLayer(contextRing);
+    d3.selectAll("#circlePath").remove();
+    $.ajax({
+        url:"cities.do",
+        type:"post",
+        dataType:"json",
+        success:function(data) {
+            var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+            var center = bounds.getBounds().getCenter();
+
+            for (var i = 0; i < data.length; i++) {
+                distance = L.latLng(data[i].latitude, data[i].longitude).distanceTo(center);
+            }
+
+            var boundsJson = JSON.parse(L.FreeDraw.Utilities.getJsonPolygons(freedrawEvent.latLngs));
+            boundsJson = boundsJson.latLngs;
+            //计算context ring 外部的circle的位置
+            var ringOuterBounds = [];
+            for (var i = 0; i < boundsJson.length; i++) {
+                ringOuterBounds.push(L.latLng(
+                     boundsJson[i][1] + (boundsJson[i][1] - center.lat),
+                     boundsJson[i][0] + (boundsJson[i][0] - center.lng)));
+            }
+
+            contextRing = L.d3SvgOverlay(function(sel, proj) {
+                //计算context ring的path
+                var pathContextRing = function(){
+                    var path = "M ";
+                    for(var i = 0; i < ringOuterBounds.length - 1; i ++){
+                        path +=
+                            proj.latLngToLayerPoint(ringOuterBounds[i]).x + " " +
+                                proj.latLngToLayerPoint(ringOuterBounds[i]).y + " L ";
+                    }
+                    path += proj.latLngToLayerPoint(ringOuterBounds[i]).x + " " +
+                        proj.latLngToLayerPoint(ringOuterBounds[i]).y + " ";
+
+                    path += "M ";
+                    for(var i = 0; i < boundsJson.length - 1; i ++){
+                        path +=
+                            proj.latLngToLayerPoint(L.latLng(boundsJson[i][1], boundsJson[i][0])).x + " " +
+                            proj.latLngToLayerPoint(L.latLng(boundsJson[i][1], boundsJson[i][0])).y + " L ";
+                    }
+                    path += proj.latLngToLayerPoint(L.latLng(boundsJson[boundsJson.length-1][1], boundsJson[boundsJson.length-1][0])).x + " " +
+                        proj.latLngToLayerPoint(L.latLng(boundsJson[boundsJson.length-1][1], boundsJson[boundsJson.length-1][0])).y + " Z " ;
+                    return path;
+                };
+                sel.append("g")
+                    .attr("fill-rule", "nonzero")
+                    .attr("fill", "red")
+                    .attr('fill-opacity', '0.5')
+                    .append("path")
+                    .attr('d', pathContextRing)
+                    .attr("id", "circlePath");
+                    //.attr('stroke', 'black')
+                    //.attr('fill-opacity', '0.5');
+            });
+            map.fitBounds(L.latLngBounds(ringOuterBounds));
+            contextRing.addTo(map);
+
+        }
+    });
 }
 
 /////////Followings are controller to control the visibility of layers//////

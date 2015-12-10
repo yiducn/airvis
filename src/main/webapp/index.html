@@ -65,6 +65,7 @@
             });
 //            $( "#trendpanel" ).draggable();
         });
+
     </script>
 </head>
 
@@ -72,9 +73,7 @@
 <div id="piemenu" style="position:fixed; visibility: hidden; z-index:2000; width:300px; height:300px;left:0px;top:0px;"></div>
 
 <div id="map"></div>
-<script>
-    initUIs();
-</script>
+
 <div id="controller" style="position:fixed;left:5px;top:50px;z-index: 200;padding-left: 10px;">
     <div class="panel panel-default">
         <div class="panel-heading">
@@ -114,6 +113,7 @@
         <div class="panel-body">
             <input type="button" onclick="activeFreeDraw();" value="polygonselection"><br>
             <input type="button" onclick="deactiveFreeDraw();" value="navigation"><br>
+            <label id="minDistance">0</label><div id="slider" style="margin: 10px;"></div><label id="maxDistance">0</label>
         </div>
     </div>
 
@@ -126,6 +126,11 @@
     <input id="showYearTrends" name="trendcontrol" type="radio" checked onclick="trendYear();"><label for="showYearTrends">showYearTrends</label>
     <input id="showMonthTrends" name="trendcontrol" type="radio" onclick="trendMonth();"><label for="showMonthTrends">showMonthTrends</label>
 </div>
+<div id="circle"  style="position:fixed; top:0px; left: 0px; width:0px; height:0px; visibility: hidden"></div>
+
+<script>
+    initUIs();
+</script>
 
 <script>
     linearTime();
