@@ -7,7 +7,7 @@ var map;
 
 //各种叠加图层
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
-var provinceBoundaryOverlay, cityBoundaryOverlay, contextRing;
+var provinceBoundaryOverlay, cityBoundaryOverlay, contextRing, gridsView, windsView;
 var provinceValueOverlay, cityValueOverlay;
 
 var overAllBrush;
@@ -80,21 +80,41 @@ function initUIs(){
     piemenu.wheelRadius = 50;
 
     map.on('zoomend', function() {
+
+    });
+    map.on('moveend', function(){
         maxDis = null;
         minDis = null;
-        createCircleView2();//TODO 测试
-        $( "#slider" ).slider( "option", "min", minDis );
-        $( "#slider" ).slider( "option", "max", maxDis );
+        controlContextRing();//TODO
+        if($("#controlContextRing").is(":checked")){
+            $( "#slider" ).slider( "option", "min", minDis );
+            $( "#slider" ).slider( "option", "max", maxDis );
+            $("#maxDistance").text(parseInt(maxDis/1000) + "km");
+            $("#minDistance").text(parseInt(minDis/1000) + "km");
+        }
+        updateBounds4Grids();
     });
+
     $("#slider").slider();
     $( "#slider" ).on( "slidechange",
         function( event, ui ) {
             maxDis = ui.value;
             $("#maxDistance").text(parseInt(ui.value));
-            createCircleView2();
+            controlContextRing();//TODO
         }
     );
+}
 
+/**
+ * 重置grids
+ */
+function updateBounds4Grids(){
+    //放缩后,grid重置
+    westUsed = (map.getBounds().getWest() > WEST) ? map.getBounds().getWest() : WEST;
+    eastUsed = (map.getBounds().getEast() < EAST) ? map.getBounds().getEast() : EAST;
+    southUsed = (map.getBounds().getSouth() > SOUTH) ? map.getBounds().getSouth() : SOUTH;
+    northUsed = (map.getBounds().getNorth() < NORTH) ? map.getBounds().getNorth() : NORTH;
+    controlGrids();
 }
 
 function createChinamap(){
@@ -833,7 +853,7 @@ function createCircleView2() {
 
     var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
     var center = bounds.getBounds().getCenter();
-    if(maxDis == null && minDis == null) {
+    if(maxDis == null || minDis == null) {
         maxDis = 0;
         minDis = Number.MAX_VALUE;
         for (var i = 0; i < unfilteredData.length; i++) {
@@ -994,6 +1014,92 @@ function createCircleView(){
     });
 }
 
+/**
+ * create the grids view
+ */
+function createGridsView(){
+    initGrids();
+    //构建post参数
+    var para = "";
+    for (var i = 0; i < grids.length; i++) {
+        for (var j = 0; j < grids[0].length; j++) {
+            para += ("latitudes="+(grids[i][j].west + grids[i][j].east)/2 + "&");
+            para +=("longitudes="+(grids[i][j].north + grids[i][j].west)/2+ "&");
+        }
+    }
+    $.ajax({
+        url: "rbfScalar.do",
+        type: "post",
+        dataType: "json",
+        data:para,
+        success: function (data) {
+            //构建grid view的所有grids
+            gridsView = L.d3SvgOverlay(function (sel, proj) {
+                for (var i = 0; i < grids.length; i++) {
+                    for (var j = 0; j < grids[0].length; j++) {
+                        var northernWest = proj.latLngToLayerPoint(L.latLng(grids[i][j].north, grids[i][j].west));
+                        var northernEast = proj.latLngToLayerPoint(L.latLng(grids[i][j].north, grids[i][j].east));
+                        var southernEast = proj.latLngToLayerPoint(L.latLng(grids[i][j].south, grids[i][j].east));
+                        var southernWest = proj.latLngToLayerPoint(L.latLng(grids[i][j].south, grids[i][j].west));
+
+                        var points = northernWest.x + "," + northernWest.y + " " + northernEast.x + "," + northernEast.y +
+                            " " + southernEast.x + "," + southernEast.y + " " + southernWest.x + "," + southernWest.y;
+                        sel.append("polygon")
+                            .attr("points", points)
+                            .attr("fill", colorScale(data[i*grids[0].length+j]))
+                            .attr("stroke", "black")
+                            .attr("stroke-width", "0.5")
+                            .attr('fill-opacity', '0.5');
+                    }
+                }
+            });
+            gridsView.addTo(map);
+        }
+    });
+    controlWinds();
+}
+
+/**
+ * create the wind view
+ * 每个grid里根据数据绘制wind
+ */
+function createWindsView(){
+    initGrids();
+
+    windsView = L.d3SvgOverlay(function (sel, proj) {
+        //风向的箭头
+        sel.append("svg:marker")
+            .attr("id", "triangle")
+            .attr("viewBox", "0 0 10 10")
+            .attr("refX", "0")
+            .attr("refY", "5")
+            .attr("markerWidth", "3")
+            .attr("markerHeight", "3")
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M 0 0 L 10 5 L 0 10 z");
+
+        for (var i = 0; i < grids.length; i++) {
+            for (var j = 0; j < grids[0].length; j++) {
+                var wind = windPath(Math.random() * 360);
+                var start = proj.latLngToLayerPoint(L.latLng(grids[i][j].north - wind.startY, grids[i][j].west + wind.startX));
+                var end = proj.latLngToLayerPoint(L.latLng(grids[i][j].north - wind.endY, grids[i][j].west + wind.endX));
+
+                sel.append("line")
+                    .attr("x1", start.x)
+                    .attr("y1", start.y)
+                    .attr("x2", end.x)
+                    .attr("y2", end.y)
+                    .attr("marker-end", "url(#triangle)")
+                    .attr("stroke", "black")
+                    .attr("stroke-width", function(){return Math.random()*8;})
+                    .attr('fill-opacity', '0.8');
+            }
+        }
+    });
+    windsView.addTo(map);
+}
+
 /////////Followings are controller to control the visibility of layers//////
 //下面是控制各种层显示与否的方法
 
@@ -1072,6 +1178,31 @@ function provinceValueControl(){
     }
 }
 
+function controlContextRing(){
+    if(contextRing != null)
+        map.removeLayer(contextRing);
+    if($("#controlContextRing").is(":checked")){
+        createCircleView2();
+    }
+}
+
+function controlGrids(){
+    if(gridsView != null)
+        map.removeLayer(gridsView);
+    if($("#controlGrids").is(":checked")){
+        createGridsView();
+    }
+}
+
+function controlWinds(){
+    if(windsView != null){
+        map.removeLayer(windsView);
+
+    }
+    if($("#controlWinds").is(":checked")){
+        createWindsView();
+    }
+}
 
 function cityBoundaryControl(){
     if($("#cityBoundary").is( ':checked' )){

@@ -47,6 +47,7 @@
     <script src="http://maps.google.com/maps/api/js?v=3&sensor=false&key=AIzaSyAjck3hEqhffZkaLqetTdt6yrNv2amYOMk"></script>
     <script src="js/jquerylayout/source/stable/jquery.layout_and_plugins.js"></script>
     <script src="js/jqueryui1114/jquery-ui.js"></script>
+    <script src="js/gridsgen.js"></script>
     <script src="js/leafletutils.js"></script>
     <script src="js/heatmap.js/build/heatmap.js"></script>
     <script src="js/heatmap.js/plugins/leaflet-heatmap.js"></script>
@@ -106,6 +107,20 @@
         </div>
         <div class="panel-body"></div>
     </div>
+    <!--<div class="panel panel-default">-->
+        <!--<div class="panel-heading">-->
+            <!--<div style="text-align: center;"><input id="controlContextRing" type="checkbox" onchange="controlContextRing();"><label>Context Ring View</label></div>-->
+        <!--</div>-->
+        <!--<div class="panel-body"></div>-->
+    <!--</div>-->
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <div style="text-align: center;"><input id="controlGrids" type="checkbox" onchange="controlGrids();"><label>Grids View</label></div>
+        </div>
+        <div class="panel-body">
+            <div style="text-align: center;"><input id="controlWinds" type="checkbox" onchange="controlWinds();"><label>Winds View</label></div>
+        </div>
+    </div>
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title">Controls</h3>
@@ -113,7 +128,7 @@
         <div class="panel-body">
             <input type="button" onclick="activeFreeDraw();" value="polygonselection"><br>
             <input type="button" onclick="deactiveFreeDraw();" value="navigation"><br>
-            <label id="minDistance">0</label><div id="slider" style="margin: 10px;"></div><label id="maxDistance">0</label>
+            <label id="minDistance">0</label><div id="slider" style="display:inline-block;width:50px;left:10px;"></div><label id="maxDistance">0</label>
         </div>
     </div>
 
