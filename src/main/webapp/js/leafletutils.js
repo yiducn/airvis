@@ -55,8 +55,9 @@ function initUIs(){
     $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
     map = L.mapbox.map('map', 'mapbox.streets')
-        .setView([38.0121105, 105.6670345], 4);
+        .setView([23, 120], 4);
     map.options.minZoom = 4;
+    map.options.maxZoom = 13;
 
     //add location layer
     locationLayer = L.layerGroup();
@@ -733,8 +734,10 @@ function normalizeToRect(filtered, width, height){
 function linearTime(){
     $("#trend").empty();
     $("#trend").width(window.screen.availWidth);
-    var totalW = $("#trend").width(), totalH = $("#trend").height();
-    var margin = {top: 10, right: 10, bottom: 30, left: 40},
+    //var totalW = $("#trend").width(), totalH = $("#trend").height();
+    //var startTime
+    var totalW = 2500, totalH = $("#trend").height();
+    var margin = {top: 10, right: 40, bottom: 30, left: 40},
         width = totalW - margin.left - margin.right,
         height = totalH - margin.top - margin.bottom;
 
@@ -775,7 +778,7 @@ function linearTime(){
             var x = d3.time.scale().range([0, width]),
                 y = d3.scale.linear().range([height, 0]);
 
-            var xAxis = d3.svg.axis().scale(x).orient("bottom"),
+            var xAxis = d3.svg.axis().scale(x).orient("bottom").ticks(25),
                 yAxis = d3.svg.axis().scale(y).orient("left");
 
             var brush = d3.svg.brush()
@@ -811,6 +814,26 @@ function linearTime(){
             //TODO 固定y轴最大数值
             y.domain([0, 150]);
 
+            //TODO
+            var imageDate = [new Date("2013-12-01"), new Date("2014-01-01"), new Date("2014-02-01")
+                ,new Date("2014-03-01"), new Date("2014-04-01"), new Date("2014-05-01")
+                ,new Date("2014-06-01"), new Date("2014-07-01"), new Date("2014-08-01")
+                ,new Date("2014-09-01"), new Date("2014-10-01"), new Date("2014-11-01")
+                ,new Date("2014-12-01"), new Date("2015-01-01"), new Date("2015-02-01")
+                ,new Date("2015-03-01"), new Date("2015-04-01"), new Date("2015-05-01")
+                ,new Date("2015-06-01"), new Date("2015-07-01"), new Date("2015-08-01")
+                ,new Date("2015-09-01"), new Date("2015-0=10-01")];
+            var imagePanel = context.append("g").attr("id", "image");
+            imagePanel.selectAll("image")
+                .data(imageDate)
+                .enter()
+                .append("image")
+                .attr("x",function(d){return x(d);})
+                .attr("y",0)
+                .attr("width", 100)
+                .attr("height", 100)
+                .attr("xlink:href", "../imgs/201401.png");
+
             context.append("g")
                 .attr("class", "x axis")
                 .attr("transform", "translate(0," + height + ")")
@@ -827,6 +850,7 @@ function linearTime(){
                 .datum(data)
                 .attr("class", "line")
                 .attr("d", line);
+
         }
     });
 
@@ -1047,8 +1071,8 @@ function createGridsView(){
                         sel.append("polygon")
                             .attr("points", points)
                             .attr("fill", colorScale(data[i*grids[0].length+j]))
-                            .attr("stroke", "black")
-                            .attr("stroke-width", "0.5")
+                            //.attr("stroke", "black")
+                            .attr("stroke-width", "0")
                             .attr('fill-opacity', '0.5');
                     }
                 }
@@ -1079,8 +1103,8 @@ function createWindsView(){
             .append("path")
             .attr("d", "M 0 0 L 10 5 L 0 10 z");
 
-        for (var i = 0; i < grids.length; i++) {
-            for (var j = 0; j < grids[0].length; j++) {
+        for (var i = 0; i < grids.length; i=i+gridTimes) {
+            for (var j = 0; j < grids[0].length; j=j+gridTimes) {
                 var wind = windPath(Math.random() * 360);
                 var start = proj.latLngToLayerPoint(L.latLng(grids[i][j].north - wind.startY, grids[i][j].west + wind.startX));
                 var end = proj.latLngToLayerPoint(L.latLng(grids[i][j].north - wind.endY, grids[i][j].west + wind.endX));
@@ -1094,6 +1118,7 @@ function createWindsView(){
                     .attr("stroke", "black")
                     .attr("stroke-width", function(){return Math.random()*8;})
                     .attr('fill-opacity', '0.8');
+                //sel.transition().duration(500)
             }
         }
     });

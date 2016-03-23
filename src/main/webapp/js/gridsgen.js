@@ -9,6 +9,7 @@ var SOUTH   =   4;
 var NORTH   =   54;
 var stepLon =   16;//longitude 经度
 var stepLat =   9;
+var gridTimes = 3;//格子的树木是标准step的倍数
 //var intervalHeri
 
 var westUsed = WEST;
@@ -20,11 +21,11 @@ var northUsed = NORTH;
  * 根据限制条件初始化grids数据
  */
 function initGrids(){
-    var intervalHorizontal = (eastUsed - westUsed) / (stepLon*1.0);
-    var intervalVertical = (northUsed - southUsed) / (stepLat*1.0);
-    for(var i = 0; i < stepLon; i ++){
+    var intervalHorizontal = (eastUsed - westUsed) / (stepLon*gridTimes*1.0);
+    var intervalVertical = (northUsed - southUsed) / (stepLat*gridTimes*1.0);
+    for(var i = 0; i < stepLon*gridTimes; i ++){
         grids[i] = [];
-        for(var j = 0; j < stepLat; j ++){
+        for(var j = 0; j < stepLat*gridTimes; j ++){
             var oneGrid = {};
             oneGrid.west = westUsed + i * intervalHorizontal;
             oneGrid.east = oneGrid.west + intervalHorizontal;
