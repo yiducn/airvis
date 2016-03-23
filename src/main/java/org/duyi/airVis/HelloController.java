@@ -38,7 +38,7 @@ public class HelloController {
     private static final String COL_AVG_MONTH = "pmdata_month";
     private static final String COL_AVG_DAY = "pmdata_day";
     private static final String COL_PM = "pmProcess";//"pm_preProcess";
-    private static final String COL_M_STATION = "weather_station";
+    private static final String COL_M_STATION = "meteo_stations";//"weather_station";
 
     /**
      * 返回所有城市列表
@@ -85,11 +85,11 @@ public class HelloController {
             d = (Document)cur.next();
             onecity = new JSONObject();
             try {
-                onecity.put("province", d.getString("province"));
+//                onecity.put("province", d.getString("province"));
                 onecity.put("station", d.getString("name"));
                 onecity.put("longitude", d.getDouble("lon"));
                 onecity.put("latitude", d.getDouble("lat"));
-                onecity.put("code", d.getString("id"));
+//                onecity.put("code", d.getString("id"));
             } catch (JSONException e) {
                 e.printStackTrace();
             }
