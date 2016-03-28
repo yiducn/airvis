@@ -15,7 +15,6 @@ import java.util.Random;
 public class InterpolationController {
 
     /**
-     * pujuntest nothing
      *
      * @param latitudes 纬度
      * @param longitudes 经度
