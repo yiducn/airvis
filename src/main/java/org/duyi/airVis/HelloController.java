@@ -25,7 +25,6 @@ import java.text.*;
 
 @Controller
 public class HelloController {
-    //test coomit- junpu
     private String SERVER_IP = "127.0.0.1";//192.168.16.71
     private static final String CITY_PATH = "d:\\city.txt";//home/duyi/city.txt;
     private static MongoClient client = new MongoClient("127.0.0.1");
