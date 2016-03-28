@@ -32,8 +32,9 @@ public class HelloController {
     private HashMap<String, StationInfo> stations = null;
 
     private static final String DB_NAME = "pm";
-    private static final String COL_LOCATION_BAIDU = "loc_ll_g_b";
-    private static final String COL_LOCATION_GOOGLE = "loc_ll_google";
+    private static final String NEW_DB_NAME = "airdb";
+//    private static final String COL_LOCATION_BAIDU = "loc_ll_g_b";
+//    private static final String COL_LOCATION_GOOGLE = "loc_ll_google";
     private static final String COL_AVG_YEAR = "pmdata_year";
     private static final String COL_AVG_MONTH = "pmdata_month";
     private static final String COL_AVG_DAY = "pmdata_day";
@@ -47,7 +48,8 @@ public class HelloController {
      */
     @RequestMapping("cities.do")
     public @ResponseBody String getAllCities() {
-        MongoCollection coll = getCollection(COL_LOCATION_GOOGLE);
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection("pm_stations");
         MongoCursor cur = coll.find().iterator();
         JSONObject onecity;
         JSONArray result = new JSONArray();
@@ -76,6 +78,7 @@ public class HelloController {
      */
     @RequestMapping("meteorologicalStations.do")
     public @ResponseBody String getMeteorologicalStations(){
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
         MongoCollection coll = getCollection(COL_M_STATION);
         MongoCursor cur = coll.find().iterator();
         JSONObject onecity;
@@ -105,7 +108,8 @@ public class HelloController {
     private void generateStations(){
         if(stations != null)
             return;
-        MongoCollection coll = getCollection(COL_LOCATION_GOOGLE);
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = getCollection(COL_M_STATION);
         MongoCursor cur = coll.find().iterator();
         Document d;
         stations = new HashMap<String, StationInfo>();
@@ -1674,59 +1678,57 @@ public class HelloController {
      * @param station_code            站点代码
      *                                by yidu 使用second参数过滤
      *                                startTime 与endTime不可为空，station_code可为空，空返回全部的均值
+     *                                20160325 修改
      * @return
      */
-    @RequestMapping("hourTrends2.do")
+    @RequestMapping(value = "hourTrends2.do", method = RequestMethod.GET)
     public
     @ResponseBody
     String getHourTrendsByStationCodes(String startTime, String endTime,
-                                       String[] station_code) {
+                                       String[] codes) {
         MongoClient mongo = null;
         try {
             mongo = new MongoClient(SERVER_IP);
         } catch (Exception e) {
             e.printStackTrace();
         }
-        DB db = mongo.getDB("pmdata_2014");
-        DBCollection collection = db.getCollection("pm");
+        DB db = mongo.getDB(NEW_DB_NAME);
+        DBCollection collection = db.getCollection("pm_data");
 
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-        long start = 0L, end = 0L;
+        Date start = new Date() , end = new Date();
         try {
-            start = df.parse(startTime).getTime();
-            end = df.parse(endTime).getTime();
+            start = df.parse(startTime);
+            end = df.parse(endTime);
         } catch (Exception e) {
             e.printStackTrace();
         }
         DBObject key = new BasicDBObject();
-//        key.put("station_code",true);
-//        key.put("position_name",true);
-        key.put("time_point", true);
-//        key.put("pm2_5",true);
+        key.put("time", true);
 
-        String reduce = "function(obj,out){out.csum += obj.pm2_5;out.ccount++;}";
+        String reduce = "function(obj,out){out.csum += obj.pm25;out.ccount++;}";
         DBObject initial = new BasicDBObject();
         initial.put("csum", 0);
         initial.put("ccount", 0);
-        String finalize = "function(out){out.pm2_5=out.csum/out.ccount;}";
+        String finalize = "function(out){out.pm25=out.csum/out.ccount;}";
         DBObject cond = new BasicDBObject();
         DBObject result;
 
-        if (station_code == null || station_code.length == 0) {
+        if (codes == null || codes.length == 0) {
             DBObject gl = new BasicDBObject();
             gl.put("$gte", start);
             gl.put("$lt", end);
-            cond.put("second", gl);
+            cond.put("time", gl);
             result = collection.group(key, cond, initial, reduce, finalize);
             return result.toString();
         } else {
             DBObject gl = new BasicDBObject();
             gl.put("$gte", start);
             gl.put("$lte", end);
-            cond.put("second", gl);
+            cond.put("time", gl);
             DBObject in = new BasicDBObject();
-            in.put("$in", station_code);
-            cond.put("station_code", in);
+            in.put("$in", codes);
+            cond.put("code", in);
             result = collection.group(key, cond, initial, reduce, finalize);
             return result.toString();
         }

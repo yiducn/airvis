@@ -51,6 +51,9 @@ var CALENDAR_HEIGHT_DEFAULT = 600;
 var colors = ["#FF0000","#FFFF00","00FF00"]
 var colorScale = d3.scale.linear().domain([150, 0]).range(colors);
 
+//当前选择的月份
+var currentSelectedDate = new Date("2015-10-01");
+
 function initUIs(){
     $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
@@ -737,7 +740,7 @@ function linearTime(){
     //var totalW = $("#trend").width(), totalH = $("#trend").height();
     //var startTime
     var totalW = 2500, totalH = $("#trend").height();
-    var margin = {top: 10, right: 40, bottom: 30, left: 40},
+    var margin = {top: 10, right: 20, bottom: 50, left: 40},
         width = totalW - margin.left - margin.right,
         height = totalH - margin.top - margin.bottom;
 
@@ -832,7 +835,12 @@ function linearTime(){
                 .attr("y",0)
                 .attr("width", 100)
                 .attr("height", 100)
-                .attr("xlink:href", "../imgs/201401.png");
+                .attr("xlink:href", "../imgs/201401.png")
+                .on("mouseup", function(){
+                    console.log(this);
+                    console.log(d3.select(this));
+
+                });
 
             context.append("g")
                 .attr("class", "x axis")
@@ -895,8 +903,8 @@ function createCircleView2() {
 
     contextRing = L.d3SvgOverlay(function(sel, proj) {
         var sizeScreen = map.getPixelBounds().getSize();
-        var outerRadius = sizeScreen.y / 2;
-        var innerRadius = outerRadius -  100;
+        var outerRadius = sizeScreen.y / 2-50;
+        var innerRadius = outerRadius -  200;
         var centerScreen = proj.latLngToLayerPoint(center);
         //计算context ring的path
         var pathContextRing = function(d){
@@ -937,7 +945,14 @@ function createCircleView2() {
             .attr("d", pathContextRing)
             .attr("fill", "red")
             .attr('stroke', 'black')
-            .attr('fill-opacity', '0.5');
+            .attr('fill-opacity', '0.2');
+        //var themeRivers = sel.append("g")
+        //    .attr("id", "themeRivers");
+        //themeRivers.selectAll("g").data(parts)
+        //    .enter()
+        //    .append("g")
+        //    .attr("id", themeRiverId)
+        //    .append("")
 
         var stationX = function(d){
             var r = (innerRadius + (d.distance - minDis)/(maxDis-minDis) * (outerRadius - innerRadius));
@@ -952,7 +967,7 @@ function createCircleView2() {
                 (d.latitude - center.lat) /
                 Math.sqrt((d.latitude - center.lat)*(d.latitude - center.lat) + (d.longitude - center.lng)*(d.longitude - center.lng));
         }
-        sel.selectAll(".contextScatter").data(unfilteredData)
+        sel.append("g").selectAll(".contextScatter").data(unfilteredData)
             .enter()
             .append("circle")
             .filter(function(d){return d.distance > minDis && d.distance < maxDis;})
@@ -963,80 +978,143 @@ function createCircleView2() {
             .attr('stroke-width',1);
 
 
+        //绘制中心的趋势图
+        var cities = "";
+        if(filteredData.length != 0){
+            cities += ("codes[]="+filteredData[0].code);
+            if(filteredData.length > 1){
+                var i;
+                for(i = 1; i < filteredData.length; i ++){
+                    cities += ("&codes[]="+filteredData[i].code);
+                }
+            }
+        }
+        var timeRange = "&startTime=2015-01-01&endTime=2015-01-03";
+        $.ajax({
+            url:"hourTrends2.do",
+            type:"get",
+            data: cities+"&"+timeRange,
+            success: function (returnData) {
+                var data = JSON.parse(returnData);
+
+                var trend = sel.append("g").attr("id", "trendsCenter")
+                    .attr("transform", "translate("+(centerScreen.x-150)+"," + centerScreen.y + ")");
+
+                var x = d3.time.scale().range([0, 300]),
+                    y = d3.scale.linear().range([ -50, 0]);
+
+                var xAxis = d3.svg.axis().scale(x).orient("bottom").ticks(4).tickFormat(d3.time.format("%b%d %H")),
+                    yAxis = d3.svg.axis().scale(y).orient("left");
+
+                var line = d3.svg.line()
+                    .interpolate("monotone")
+                    .x(function (d) {
+                        return x(new Date(d.time.$date));
+                    })
+                    .y(function (d) {
+                        return y(d.pm25);
+                    });
+                var color = d3.scale.category10();
+                color.domain(d3.keys(data[0]).filter(function (key) {
+                    return key === "pm25";
+                }));
+
+                x.domain(d3.extent(data.map(function (d) {
+                    return new Date(d.time.$date);
+                })));
+
+                //TODO 固定y轴最大数值
+                y.domain([0, 150]);
+
+                trend.append("g")
+                    .attr("class", "x axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(xAxis);
+
+                trend.append("path")
+                    .datum(data)
+                    .attr("class", "line")
+                    .attr("d", line);
+
+            }});
+
+        //绘制theme river
+
     });
+
     contextRing.addTo(map);
 }
 
 
-function createCircleView(){
-    $("#circle").show();
-    var distance = [];
-    var direction = [];
-    var outRadius = 250;
-    var innerRadius = 50;
-    if(contextRing != null)
-        map.removeLayer(contextRing);
-    d3.selectAll("#circlePath").remove();
-    $.ajax({
-        url:"cities.do",
-        type:"post",
-        dataType:"json",
-        success:function(data) {
-            var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
-            var center = bounds.getBounds().getCenter();
-
-            for (var i = 0; i < data.length; i++) {
-                distance = L.latLng(data[i].latitude, data[i].longitude).distanceTo(center);
-            }
-
-            var boundsJson = JSON.parse(L.FreeDraw.Utilities.getJsonPolygons(freedrawEvent.latLngs));
-            boundsJson = boundsJson.latLngs;
-            //计算context ring 外部的circle的位置
-            var ringOuterBounds = [];
-            for (var i = 0; i < boundsJson.length; i++) {
-                ringOuterBounds.push(L.latLng(
-                     boundsJson[i][1] + (boundsJson[i][1] - center.lat),
-                     boundsJson[i][0] + (boundsJson[i][0] - center.lng)));
-            }
-
-            contextRing = L.d3SvgOverlay(function(sel, proj) {
-                //计算context ring的path
-                var pathContextRing = function(){
-                    var path = "M ";
-                    for(var i = 0; i < ringOuterBounds.length - 1; i ++){
-                        path +=
-                            proj.latLngToLayerPoint(ringOuterBounds[i]).x + " " +
-                                proj.latLngToLayerPoint(ringOuterBounds[i]).y + " L ";
-                    }
-                    path += proj.latLngToLayerPoint(ringOuterBounds[i]).x + " " +
-                        proj.latLngToLayerPoint(ringOuterBounds[i]).y + " ";
-
-                    path += "M ";
-                    for(var i = 0; i < boundsJson.length - 1; i ++){
-                        path +=
-                            proj.latLngToLayerPoint(L.latLng(boundsJson[i][1], boundsJson[i][0])).x + " " +
-                            proj.latLngToLayerPoint(L.latLng(boundsJson[i][1], boundsJson[i][0])).y + " L ";
-                    }
-                    path += proj.latLngToLayerPoint(L.latLng(boundsJson[boundsJson.length-1][1], boundsJson[boundsJson.length-1][0])).x + " " +
-                        proj.latLngToLayerPoint(L.latLng(boundsJson[boundsJson.length-1][1], boundsJson[boundsJson.length-1][0])).y + " Z " ;
-                    return path;
-                };
-                sel.append("g")
-                    .attr("fill-rule", "nonzero")
-                    .attr("fill", "red")
-                    .attr('fill-opacity', '0.5')
-                    .append("path")
-                    .attr('d', pathContextRing)
-                    .attr("id", "circlePath");
-                    //.attr('stroke', 'black')
-                    //.attr('fill-opacity', '0.5');
-            });
-            map.fitBounds(L.latLngBounds(ringOuterBounds));
-            contextRing.addTo(map);
-
-        }
-    });
-}
+//function createCircleView(){
+//    $("#circle").show();
+//    var distance = [];
+//    var direction = [];
+//    var outRadius = 250;
+//    var innerRadius = 50;
+//    if(contextRing != null)
+//        map.removeLayer(contextRing);
+//    d3.selectAll("#circlePath").remove();
+//    $.ajax({
+//        url:"cities.do",
+//        type:"post",
+//        dataType:"json",
+//        success:function(data) {
+//            var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+//            var center = bounds.getBounds().getCenter();
+//
+//            for (var i = 0; i < data.length; i++) {
+//                distance = L.latLng(data[i].latitude, data[i].longitude).distanceTo(center);
+//            }
+//
+//            var boundsJson = JSON.parse(L.FreeDraw.Utilities.getJsonPolygons(freedrawEvent.latLngs));
+//            boundsJson = boundsJson.latLngs;
+//            //计算context ring 外部的circle的位置
+//            var ringOuterBounds = [];
+//            for (var i = 0; i < boundsJson.length; i++) {
+//                ringOuterBounds.push(L.latLng(
+//                     boundsJson[i][1] + (boundsJson[i][1] - center.lat),
+//                     boundsJson[i][0] + (boundsJson[i][0] - center.lng)));
+//            }
+//
+//            contextRing = L.d3SvgOverlay(function(sel, proj) {
+//                //计算context ring的path
+//                var pathContextRing = function(){
+//                    var path = "M ";
+//                    for(var i = 0; i < ringOuterBounds.length - 1; i ++){
+//                        path +=
+//                            proj.latLngToLayerPoint(ringOuterBounds[i]).x + " " +
+//                                proj.latLngToLayerPoint(ringOuterBounds[i]).y + " L ";
+//                    }
+//                    path += proj.latLngToLayerPoint(ringOuterBounds[i]).x + " " +
+//                        proj.latLngToLayerPoint(ringOuterBounds[i]).y + " ";
+//
+//                    path += "M ";
+//                    for(var i = 0; i < boundsJson.length - 1; i ++){
+//                        path +=
+//                            proj.latLngToLayerPoint(L.latLng(boundsJson[i][1], boundsJson[i][0])).x + " " +
+//                            proj.latLngToLayerPoint(L.latLng(boundsJson[i][1], boundsJson[i][0])).y + " L ";
+//                    }
+//                    path += proj.latLngToLayerPoint(L.latLng(boundsJson[boundsJson.length-1][1], boundsJson[boundsJson.length-1][0])).x + " " +
+//                        proj.latLngToLayerPoint(L.latLng(boundsJson[boundsJson.length-1][1], boundsJson[boundsJson.length-1][0])).y + " Z " ;
+//                    return path;
+//                };
+//                sel.append("g")
+//                    .attr("fill-rule", "nonzero")
+//                    .attr("fill", "red")
+//                    .attr('fill-opacity', '0.5')
+//                    .append("path")
+//                    .attr('d', pathContextRing)
+//                    .attr("id", "circlePath");
+//                    //.attr('stroke', 'black')
+//                    //.attr('fill-opacity', '0.5');
+//            });
+//            map.fitBounds(L.latLngBounds(ringOuterBounds));
+//            contextRing.addTo(map);
+//
+//        }
+//    });
+//}
 
 /**
  * create the grids view

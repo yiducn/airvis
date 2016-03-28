@@ -7,9 +7,9 @@ var WEST    =   73;
 var EAST    =   135;
 var SOUTH   =   4;
 var NORTH   =   54;
-var stepLon =   16;//longitude 经度
-var stepLat =   9;
-var gridTimes = 3;//格子的树木是标准step的倍数
+var stepLon =   3;//longitude 经度
+var stepLat =   3;
+var gridTimes = 10;//格子的树木是标准step的倍数
 //var intervalHeri
 
 var westUsed = WEST;
@@ -36,6 +36,10 @@ function initGrids(){
     }
 }
 
+var distance = [0,0,0,0,500000, 100000, 50000, 10000, 5000, 1000, 500, 100, 50, 5];
+function generateGrids(westRange, eastRange, northRange, southRange, zoomLevel){
+
+}
 /**
  * 根据风向返回绘制时的坐标
  * @param direction
