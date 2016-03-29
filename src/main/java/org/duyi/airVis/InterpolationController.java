@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.util.Random;
-
 /**
  * Created by yidu on 3/22/16.
  */
@@ -21,6 +20,7 @@ public class InterpolationController {
      * @return 根据输入的经纬度,返回差值后的数据
      * http://localhost:8081/rbfScalar.do?latitudes=1&latitudes=1&longitudes=2&longitudes=3
      */
+
     @RequestMapping(value = "rbfScalar.do", method = RequestMethod.POST)
     public
     @ResponseBody
@@ -35,5 +35,8 @@ public class InterpolationController {
             result.put(new Double(new Random().nextDouble() * 100));
         }
         return result.toString();
+
+
+
     }
 }
