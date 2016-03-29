@@ -121,17 +121,19 @@ public class InterpMeteo {
     }
 
 
-    public void spd(double interpLat, double interpLon) {
+    public double spd(double interpLat, double interpLon) {
         RBF_multiquadric rbf_multiquadric = new RBF_multiquadric(2);
         RBF_interp rbf_interp_multiquadric = new RBF_interp(spdPoints,spds,rbf_multiquadric);
         double[] pt = {interpLat,interpLon};
-        System.out.println("The interp spd is: " + rbf_interp_multiquadric.interp(pt));
+        double interpSpd = rbf_interp_multiquadric.interp(pt);
+        return interpSpd;
     }
 
-    public void dir(double interpLat, double interpLon) {
+    public double dir(double interpLat, double interpLon) {
         RBF_multiquadric rbf_multiquadric = new RBF_multiquadric(2);
         RBF_interp rbf_interp_multiquadric = new RBF_interp(dirPoints,dirs,rbf_multiquadric);
         double[] pt = {interpLat,interpLon};
-        System.out.println("The interp dir is: " + rbf_interp_multiquadric.interp(pt));
+        double interpDir = rbf_interp_multiquadric.interp(pt);
+        return interpDir;
     }
 }
