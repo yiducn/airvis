@@ -126,6 +126,7 @@ public class InterpMeteo {
         RBF_interp rbf_interp_multiquadric = new RBF_interp(spdPoints,spds,rbf_multiquadric);
         double[] pt = {interpLat,interpLon};
         double interpSpd = rbf_interp_multiquadric.interp(pt);
+
         return interpSpd;
     }
 
@@ -134,6 +135,7 @@ public class InterpMeteo {
         RBF_interp rbf_interp_multiquadric = new RBF_interp(dirPoints,dirs,rbf_multiquadric);
         double[] pt = {interpLat,interpLon};
         double interpDir = rbf_interp_multiquadric.interp(pt);
+
         return interpDir;
     }
 }
