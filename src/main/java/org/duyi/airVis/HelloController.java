@@ -185,7 +185,8 @@ public class HelloController {
     @RequestMapping(value = "valueByProvinces.do", method = RequestMethod.POST)
     public @ResponseBody String getValueByProvinces(@RequestParam(value="startTime", required=false) String startTime,
                                                     @RequestParam(value="endTime", required=false) String endTime){
-        MongoCollection coll = getCollection(COL_AVG_MONTH);
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_MONTH);
         //TODO time zone problem
         SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
 
@@ -209,7 +210,7 @@ public class HelloController {
             cur = coll.aggregate(query).allowDiskUse(true).iterator();
         }else if(startTime != null && endTime != null){
             try {
-                match = new Document("$match", new Document("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))));
+                match = new Document("$match", new Document("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))).append("pm", new Document("$ne", 0)));
                 query.add(match);
                 query.add(group);
             }catch(ParseException e){
@@ -226,6 +227,61 @@ public class HelloController {
         }
         return result.toString();
     }
+
+    /**
+     * 根据pmdata_month的月平均数据,返回各城市平均数
+     * @param startTime
+     * @param endTime
+     * @return
+     * 20151204
+     */
+    @RequestMapping(value = "valueByCities.do", method = RequestMethod.POST)
+    public @ResponseBody String getValueByCities(@RequestParam(value="startTime", required=false) String startTime,
+                                                    @RequestParam(value="endTime", required=false) String endTime){
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_MONTH);
+        //TODO time zone problem
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
+
+        Document match;
+        Document group = new Document().append("$group",
+                new Document().append("_id","$city")
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("co", new Document("$avg", "$co"))
+//                        .append("no2", new Document("$avg", "$no2"))
+//                        .append("o3", new Document("$avg", "$o3"))
+//                        .append("pm10", new Document("$avg", "$pm10"))
+                        .append("pm25", new Document("$avg", "$pm25")));
+//                        .append("so2", new Document("$avg", "$so2")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+
+        if(startTime == null && endTime == null){
+            query.add(group);
+            cur = coll.aggregate(query).allowDiskUse(true).iterator();
+        }else if(startTime != null && endTime != null){
+            try {
+                match = new Document("$match", new Document("time",
+                        new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))).append("pm", new Document("$ne", 0)));
+                query.add(match);
+                query.add(group);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
+        }else{
+            //TODO
+            cur = null;
+        }
+
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+        return result.toString();
+    }
+
     /**
      * 根据城市约束返回按月的趋势
      * http://localhost:8081/monthTrends_v2.do?codes[]=1010A&codes[]=1011A

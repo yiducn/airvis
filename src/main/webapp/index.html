@@ -86,18 +86,19 @@
             <div style="text-align: center;"><input id="provinceBoundary" type="checkbox" onchange="provinceBoundaryControl();"><label>Province Boundary</label></div>
             <div style="text-align: center;"><input id="provinceValue" type="checkbox" onchange="provinceValueControl();"><label>Province Value</label></div>
             <div style="text-align: center;"><input id="cityBoundary" type="checkbox" onchange="cityBoundaryControl();"><label>City Boundary</label></div>
+            <div style="text-align: center;"><input id="cityValue" type="checkbox" onchange="cityValueControl();"><label>City Value</label></div>
         </div>
-        <div class="panel-heading">
-            <div style="text-align: center;"><input id="controlCalendar" type="checkbox" onchange="controlCalendar();" style=""><label>Calendar View</label></div>
-        </div>
-        <div id="calencarBody" class="panel-body disabled">
-            <div style="text-align: left;"><input id="adaptiveControlCalendar" type="checkbox" onchange="" style=""><label>Adaptive</label></div>
-            <div style="text-align: left;"><input id="kriging" type="checkbox" onchange="" style=""><label>Kriging Interpolation</label></div>
-            <input id="showDayOfMonth" name="calendarcontrol" type="radio" checked onclick="createCalendarView();"><label for="showDayOfMonth">Day of Month</label><br>
-            <input id="showHourOfWeek" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeek">Hour of Week</label><br>
-            <input id="showDayOfMonthSeparately" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showDayOfMonthSeparately">Day of Month Adaptively</label><br>
-            <input id="showHourOfWeekSeparately" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeekSeparately">Hour of Week Adaptively</label>
-        </div>
+        <!--<div class="panel-heading">-->
+            <!--<div style="text-align: center;"><input id="controlCalendar" type="checkbox" onchange="controlCalendar();" style=""><label>Calendar View</label></div>-->
+        <!--</div>-->
+        <!--<div id="calencarBody" class="panel-body disabled">-->
+            <!--<div style="text-align: left;"><input id="adaptiveControlCalendar" type="checkbox" onchange="" style=""><label>Adaptive</label></div>-->
+            <!--<div style="text-align: left;"><input id="kriging" type="checkbox" onchange="" style=""><label>Kriging Interpolation</label></div>-->
+            <!--<input id="showDayOfMonth" name="calendarcontrol" type="radio" checked onclick="createCalendarView();"><label for="showDayOfMonth">Day of Month</label><br>-->
+            <!--<input id="showHourOfWeek" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeek">Hour of Week</label><br>-->
+            <!--<input id="showDayOfMonthSeparately" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showDayOfMonthSeparately">Day of Month Adaptively</label><br>-->
+            <!--<input id="showHourOfWeekSeparately" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeekSeparately">Hour of Week Adaptively</label>-->
+        <!--</div>-->
 
         <div class="panel-heading">
             <div style="text-align: center;"><input id="controlTrend" type="checkbox" onchange="controlTrend();"><label>Trend View</label></div>
@@ -125,7 +126,7 @@
 
 </div>
 
-<div id="calendar" class="viscomponentbg draggableBoder" style="position:fixed; top:0px; right: 0px; width:800px; height:600px;visibility: hidden;"></div>
+<!--<div id="calendar" class="viscomponentbg draggableBoder" style="position:fixed; top:0px; right: 0px; width:800px; height:600px;visibility: hidden;"></div>-->
 
 <div id="trendpanel" class="viscomponentbg draggableBoder" style="position:fixed; bottom:0px; left:0px;height:250px;">
     <div id="trend" style="height:230px;width:1600px; overflow-x: auto;overflow-y:hidden;  direction:rtl;"></div>
@@ -140,7 +141,7 @@
 
 <script>
     linearTime();
-    createCalendarView();
+//    createCalendarView();
 </script>
 </body>
 </html>
