@@ -4,7 +4,6 @@ import java.text.ParseException;
 
 /**
  * Created by milletpu on 16/3/16.
- *hehe
  *
  * x[][] is the original data point coordinate while y[] is the corresponding value.
  * pt[] is a point to be interpolated.
