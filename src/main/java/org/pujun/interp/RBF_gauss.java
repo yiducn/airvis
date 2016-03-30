@@ -5,7 +5,6 @@ import static java.lang.Math.pow;
 
 /**
  * Created by milletpu on 16/3/16.
- * 
  */
 
 public class RBF_gauss implements RBF_fn{
