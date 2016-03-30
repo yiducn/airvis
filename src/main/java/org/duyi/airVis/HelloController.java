@@ -40,7 +40,7 @@ public class HelloController {
     private static final String COL_AVG_DAY = "pmdata_day";
     private static final String COL_PM = "pmProcess";//"pm_preProcess";
     private static final String COL_M_STATION = "meteo_stations";//"weather_station";
-
+    private static final MongoDatabase db = client.getDatabase(DB_NAME);
     /**
      * 返回所有城市列表
      * modified by yidu at Purdue
@@ -128,7 +128,6 @@ public class HelloController {
 
 
     private MongoCollection getCollection(String collName){
-        MongoDatabase db = client.getDatabase(DB_NAME);
         MongoCollection coll = db.getCollection(collName);
         return coll;
     }
@@ -187,6 +186,7 @@ public class HelloController {
                                                     @RequestParam(value="endTime", required=false) String endTime){
         MongoDatabase db = client.getDatabase(NEW_DB_NAME);
         MongoCollection coll = db.getCollection(COL_AVG_MONTH);
+        Calendar cal = Calendar.getInstance();
         //TODO time zone problem
         SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
 
@@ -210,7 +210,8 @@ public class HelloController {
             cur = coll.aggregate(query).allowDiskUse(true).iterator();
         }else if(startTime != null && endTime != null){
             try {
-                match = new Document("$match", new Document("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))).append("pm", new Document("$ne", 0)));
+                cal.setTime(df.parse(startTime));
+                match = new Document("$match", new Document("_id.month", cal.get(Calendar.MONTH)+1).append("_id.year", cal.get(Calendar.YEAR)).append("pm", new Document("$ne", 0)));
                 query.add(match);
                 query.add(group);
             }catch(ParseException e){
@@ -240,12 +241,13 @@ public class HelloController {
                                                     @RequestParam(value="endTime", required=false) String endTime){
         MongoDatabase db = client.getDatabase(NEW_DB_NAME);
         MongoCollection coll = db.getCollection(COL_AVG_MONTH);
+        Calendar cal = Calendar.getInstance();
         //TODO time zone problem
         SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
 
         Document match;
         Document group = new Document().append("$group",
-                new Document().append("_id","$city")
+                new Document().append("_id","$_id.city")
 //                        .append("aqi", new Document("$avg", "$aqi"))
 //                        .append("aqi", new Document("$avg", "$aqi"))
 //                        .append("co", new Document("$avg", "$co"))
@@ -263,8 +265,9 @@ public class HelloController {
             cur = coll.aggregate(query).allowDiskUse(true).iterator();
         }else if(startTime != null && endTime != null){
             try {
-                match = new Document("$match", new Document("time",
-                        new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))).append("pm", new Document("$ne", 0)));
+                cal.setTime(df.parse(startTime));
+                match = new Document("$match", new Document("_id.month", cal.get(Calendar.MONTH)+1).append("_id.year", cal.get(Calendar.YEAR)).append("pm", new Document("$ne", 0)));
+
                 query.add(match);
                 query.add(group);
             }catch(ParseException e){
@@ -1737,7 +1740,7 @@ public class HelloController {
      *                                20160325 修改
      * @return
      */
-    @RequestMapping(value = "hourTrends2.do", method = RequestMethod.GET)
+    @RequestMapping(value = "hourTrends2.do", method = RequestMethod.POST)
     public
     @ResponseBody
     String getHourTrendsByStationCodes(String startTime, String endTime,
