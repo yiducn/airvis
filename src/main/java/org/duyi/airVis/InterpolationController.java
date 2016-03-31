@@ -26,7 +26,7 @@ public class InterpolationController {
     @RequestMapping(value = "rbfScalar.do", method = RequestMethod.POST)
     public
     @ResponseBody
-    String getYear(Double[] latitudes, Double[] longitudes) {
+    String getRBFScalar(Double[] latitudes, Double[] longitudes) {
         if(latitudes == null || longitudes == null || latitudes.length != longitudes.length){
             return "error";
         }
