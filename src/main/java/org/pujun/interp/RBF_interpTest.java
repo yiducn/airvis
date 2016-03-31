@@ -15,9 +15,9 @@ public class RBF_interpTest {
     public static void main(String[] args) throws ParseException {
         startTimeStamp = System.currentTimeMillis();
 
-//        InterpMeteo interpMeteo = new InterpMeteo("2013-12-18 06:00:00");    //set a time point
-//        interpMeteo.spd(40.080, 116.585);   //set the lat and lon to get its interpolated wind-speed value (9
-//        interpMeteo.dir(40.080, 116.585);   //set the lat and lon to get its interpolated wind-direction value (220
+        InterpMeteo interpMeteo = new InterpMeteo("2013-12-18 06:00:00");    //set a time point
+        System.out.println(interpMeteo.spd(40.080, 116.585));   //9
+        System.out.println(interpMeteo.dir(40.080, 116.585));   //220
 
         InterpPm interpPm = new InterpPm("2013-12-18 06:00:00");    //code:1017A
         System.out.println(interpPm.pm10(39.1082, 117.237));    //39
