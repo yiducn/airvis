@@ -15,13 +15,13 @@ public class RBF_interpTest {
     public static void main(String[] args) throws ParseException {
         startTimeStamp = System.currentTimeMillis();
 
-        InterpMeteo interpMeteo = new InterpMeteo("2013-12-18 06:00:00");    //set a time point
-        interpMeteo.spd(40.080, 116.585);   //set the lat and lon to get its interpolated wind-speed value (9
-        interpMeteo.dir(40.080, 116.585);   //set the lat and lon to get its interpolated wind-direction value (220
+//        InterpMeteo interpMeteo = new InterpMeteo("2013-12-18 06:00:00");    //set a time point
+//        interpMeteo.spd(40.080, 116.585);   //set the lat and lon to get its interpolated wind-speed value (9
+//        interpMeteo.dir(40.080, 116.585);   //set the lat and lon to get its interpolated wind-direction value (220
 
         InterpPm interpPm = new InterpPm("2013-12-18 06:00:00");    //code:1017A
-        interpPm.pm10(39.1082, 117.237);    //39
-        interpPm.pm25(39.1082, 117.237);    //28
+        System.out.println(interpPm.pm10(39.1082, 117.237));    //39
+        System.out.println(interpPm.pm25(39.1082, 117.237));    //28
 
         endTimeStamp = System.currentTimeMillis();
         System.out.println("total time: " + (endTimeStamp-startTimeStamp) + "ms");
