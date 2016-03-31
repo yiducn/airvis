@@ -40,7 +40,8 @@ import java.util.Random;
 @Controller
 public class ClusterController {
     private static final String NEW_DB_NAME = "airdb";
-    private static final String CITY_PATH = "/Users/yidu/dev/airvis/src/main/webapp/maps/china_cities.json";
+    //private static final String CITY_PATH = "/Users/yidu/dev/airvis/src/main/webapp/maps/china_cities.json";
+    private static final String CITY_PATH = "/Users/milletpu/airvis/src/main/webapp/maps/china_cities.json";
     /**
      * String[] codes = {"1001A", "1002A"};
      * double maxDistance = 200000;//最大距离约束
