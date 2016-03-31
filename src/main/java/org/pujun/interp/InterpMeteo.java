@@ -14,6 +14,7 @@ import java.util.SimpleTimeZone;
  *
  */
 public class InterpMeteo {
+    private static final String NEW_DB_NAME = "airdb";
     private double[][] spdPoints;
     private double[][] dirPoints;
     private double[] spds;
@@ -21,7 +22,7 @@ public class InterpMeteo {
     Date date;
 
     MongoClient client = new MongoClient("127.0.0.1", 27017);
-    DB db = client.getDB("alldata");
+    DB db = client.getDB(NEW_DB_NAME);
     DBCollection meteoCollection = db.getCollection("meteo_data");
     DBCollection meteoStationCollection = db.getCollection("meteo_stations");
 

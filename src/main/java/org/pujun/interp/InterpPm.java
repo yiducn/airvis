@@ -13,6 +13,7 @@ import java.util.SimpleTimeZone;
  * Created by milletpu on 16/3/26.
  */
 public class InterpPm {
+    private static final String NEW_DB_NAME = "airdb";
     private double[][] pm25Points;
     private double[][] pm10Points;
     private double[] pm25s;
@@ -20,7 +21,7 @@ public class InterpPm {
     Date date;
 
     MongoClient client = new MongoClient("127.0.0.1", 27017);
-    DB db = client.getDB("alldata");
+    DB db = client.getDB(NEW_DB_NAME);
     DBCollection pmCollection = db.getCollection("pm_data");
     DBCollection pmStationCollection = db.getCollection("pm_stations");
 
