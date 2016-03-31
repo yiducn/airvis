@@ -23,9 +23,9 @@ var paintControl = {
 };
 
 //option of points
-var optPoint = {fillColor:'#ee0011', fill:true, color:'#FF0000'};
+var optPoint = {fillColor:'#FF0000', fill:true, color:'#FF0000', fillOpacity:0.7, opacity:0.7};
 // option of meteorological station
-var meteorologicalStationOption = {fillColor:'#00ee11', fill:true, color:'#0000FF'};
+var meteorologicalStationOption = {fillColor:'#0000FF', fill:true, color:'#0000FF', fillOpacity:0.7, opacity:0.7};
 
 var cursorX;
 var cursorY;
@@ -51,12 +51,16 @@ var CALENDAR_HEIGHT_DEFAULT = 600;
 var colors = ["#FF0000","#FFFF00","00FF00"]
 var colorScale = d3.scale.linear().domain([150, 0]).range(colors);
 
+//当前选择的月份
+var currentSelectedDate = new Date("2015-10-01");
+
 function initUIs(){
     $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
     map = L.mapbox.map('map', 'mapbox.streets')
-        .setView([38.0121105, 105.6670345], 4);
+        .setView([23, 120], 4);
     map.options.minZoom = 4;
+    map.options.maxZoom = 13;
 
     //add location layer
     locationLayer = L.layerGroup();
@@ -117,6 +121,9 @@ function updateBounds4Grids(){
     controlGrids();
 }
 
+/**
+ * 创建中国地图轮廓
+ */
 function createChinamap(){
     var provinces = [];
     provinceBoundaryOverlay = L.d3SvgOverlay(function(sel, proj) {
@@ -137,6 +144,9 @@ function createChinamap(){
     );
 }
 
+/**
+ * 填充中国地图颜色
+ */
 function createProvinceValue(){
 
     var provinces = [];
@@ -155,19 +165,19 @@ function createProvinceValue(){
 
     });
 
-    var cities = "";
+    var time = "";
     if(overAllBrush != null){
-        cities += "startTime="+overAllBrush[0] +"&endTime="+overAllBrush[1];
+        time += "startTime="+overAllBrush[0] +"&endTime="+overAllBrush[1];
     }
     $.ajax({
         url: "valueByProvinces.do",
         type: "post",
-        data: cities,
+        data: time,
         success: function (resultData) {
             var result = JSON.parse(resultData);
             var findValue = function(proName){
                 for(var i = 0; i < result.length; i ++){
-                    if(result[i]._id == proName)
+                    if(result[i]._id != null &&result[i]._id.substr(0,2) == proName.substr(0,2))
                         return result[i].pm25;
                 }
             };
@@ -195,15 +205,102 @@ function createCityMap(){
             .append('path')
             .attr('d', proj.pathFromGeojson)
             .attr('stroke', 'black')
-            .attr('fill', function(d){
-                console.log(d);
-                return d3.hsl(Math.random() * 360, 0.9, 0.5)
-            })
             .attr('fill-opacity', '0');
+
         upd.attr('stroke-width', 0.5 / proj.scale);
     });
 
     d3.json("maps/china_cities.json", function(data) { cities = data.features; cityBoundaryOverlay.addTo(map) });
+
+}
+
+/**
+ * 按城市填充中国地图颜色
+ */
+function createCityValue(){
+
+    var cities = [];
+    cityValueOverlay = L.d3SvgOverlay(function(sel, proj) {
+
+        var upd = sel.selectAll('path').data(cities);
+        upd.enter()
+            .append('path')
+            .attr('d', proj.pathFromGeojson)
+            //.attr('stroke', 'black')
+            .attr('stroke-width', '0px')
+            .attr('stroke-opacity', '0')
+            .attr("fill", function(d){
+                return colorScale(d.pm25);
+            })
+            //.attr('fill', function(d){
+            //    console.log(d);
+            //    return d3.hsl(0.2 * 360, Math.random()*0.9, 0.5)
+            //})
+            .attr('fill-opacity', '0.5');
+        upd.attr('stroke-width', 0.5 / proj.scale);
+    });
+
+    var time = "";
+    if(overAllBrush != null){
+        time += "startTime="+overAllBrush[0] +"&endTime="+overAllBrush[1];
+    }
+    $.ajax({
+        url: "valueByCities.do",
+        type: "post",
+        data: time,
+        success: function (resultData) {
+            var result = JSON.parse(resultData);
+            var findValue = function(proName, proId){
+                for(var i = 0; i < result.length; i ++){
+                    if(result[i]._id == proName)
+                        return result[i].pm25;
+                }
+                //匹配前两个地名,主要解决各种自治州全名不一致问题
+                for(var i = 0; i < result.length; i ++){
+                    if(result[i]._id != null && result[i]._id.substr(0,2) == proName.substr(0,2) &&
+                    proName != "朝阳市" &&//北京朝阳区
+                    proName != "大兴安岭地区")//北京大兴区
+                        return result[i].pm25;
+                }
+                //匹配地名第一个字:襄阳市与襄樊市
+                for(var i = 0; i < result.length; i ++){
+                    if(result[i]._id != null &&
+                        result[i]._id.substr(0,1) == proName.substr(0,1) &&
+                        result[i]._id.substr(0,2) == "襄阳")
+                        return result[i].pm25;
+                    else if(result[i]._id != null &&
+                        result[i]._id.substr(0,1) == proName.substr(0,1) &&
+                        result[i]._id.substr(0,2) == "博州")
+                        return result[i].pm25;
+                    else if(result[i]._id == "昌吉州" &&
+                        proName == "巴音郭楞蒙古自治州")
+                        return result[i].pm25;
+                    else if(result[i]._id == "天津市" &&
+                        proId.substr(0,3) == "120")
+                    return result[i].pm25;
+                    else if(result[i]._id == "重庆市" &&
+                        proId.substr(0,3) == "500")
+                        return result[i].pm25;
+                    else if(result[i]._id == "上海市" &&
+                        proId.substr(0,3) == "310")
+                        return result[i].pm25;
+                    else if(result[i]._id == "北京市" &&
+                        proId.substr(0,3) == "110")
+                        return result[i].pm25;
+                }
+            };
+
+            d3.json("maps/china_cities.json",
+                function (data) {
+                    cities = data.features;
+                    for(var i = 0; i < cities.length; i ++){
+                        cities[i].pm25 = findValue(cities[i].properties.name, cities[i].id);
+                    }
+                    cityValueOverlay.addTo(map)
+                }
+            );
+        }
+    });
 
 }
 
@@ -733,8 +830,10 @@ function normalizeToRect(filtered, width, height){
 function linearTime(){
     $("#trend").empty();
     $("#trend").width(window.screen.availWidth);
-    var totalW = $("#trend").width(), totalH = $("#trend").height();
-    var margin = {top: 10, right: 10, bottom: 30, left: 40},
+    //var totalW = $("#trend").width(), totalH = $("#trend").height();
+    //var startTime
+    var totalW = 2500, totalH = $("#trend").height();
+    var margin = {top: 10, right: 20, bottom: 50, left: 40},
         width = totalW - margin.left - margin.right,
         height = totalH - margin.top - margin.bottom;
 
@@ -775,7 +874,7 @@ function linearTime(){
             var x = d3.time.scale().range([0, width]),
                 y = d3.scale.linear().range([height, 0]);
 
-            var xAxis = d3.svg.axis().scale(x).orient("bottom"),
+            var xAxis = d3.svg.axis().scale(x).orient("bottom").ticks(25),
                 yAxis = d3.svg.axis().scale(y).orient("left");
 
             var brush = d3.svg.brush()
@@ -811,6 +910,31 @@ function linearTime(){
             //TODO 固定y轴最大数值
             y.domain([0, 150]);
 
+            //TODO
+            var imageDate = [new Date("2013-12-01"), new Date("2014-01-01"), new Date("2014-02-01")
+                ,new Date("2014-03-01"), new Date("2014-04-01"), new Date("2014-05-01")
+                ,new Date("2014-06-01"), new Date("2014-07-01"), new Date("2014-08-01")
+                ,new Date("2014-09-01"), new Date("2014-10-01"), new Date("2014-11-01")
+                ,new Date("2014-12-01"), new Date("2015-01-01"), new Date("2015-02-01")
+                ,new Date("2015-03-01"), new Date("2015-04-01"), new Date("2015-05-01")
+                ,new Date("2015-06-01"), new Date("2015-07-01"), new Date("2015-08-01")
+                ,new Date("2015-09-01"), new Date("2015-0=10-01")];
+            var imagePanel = context.append("g").attr("id", "image");
+            imagePanel.selectAll("image")
+                .data(imageDate)
+                .enter()
+                .append("image")
+                .attr("x",function(d){return x(d);})
+                .attr("y",0)
+                .attr("width", 100)
+                .attr("height", 100)
+                .attr("xlink:href", "../imgs/201401.png")
+                .on("mouseup", function(){
+                    console.log(this);
+                    console.log(d3.select(this));
+
+                });
+
             context.append("g")
                 .attr("class", "x axis")
                 .attr("transform", "translate(0," + height + ")")
@@ -827,6 +951,7 @@ function linearTime(){
                 .datum(data)
                 .attr("class", "line")
                 .attr("d", line);
+
         }
     });
 
@@ -840,6 +965,7 @@ function repaintAll(){
     //TODO
     createCalendarView();
     provinceValueControl();
+    cityValueControl();
 }
 
 /**
@@ -871,8 +997,8 @@ function createCircleView2() {
 
     contextRing = L.d3SvgOverlay(function(sel, proj) {
         var sizeScreen = map.getPixelBounds().getSize();
-        var outerRadius = sizeScreen.y / 2;
-        var innerRadius = outerRadius -  100;
+        var outerRadius = sizeScreen.y / 2-50;
+        var innerRadius = outerRadius -  200;
         var centerScreen = proj.latLngToLayerPoint(center);
         //计算context ring的path
         var pathContextRing = function(d){
@@ -913,7 +1039,14 @@ function createCircleView2() {
             .attr("d", pathContextRing)
             .attr("fill", "red")
             .attr('stroke', 'black')
-            .attr('fill-opacity', '0.5');
+            .attr('fill-opacity', '0.2');
+        //var themeRivers = sel.append("g")
+        //    .attr("id", "themeRivers");
+        //themeRivers.selectAll("g").data(parts)
+        //    .enter()
+        //    .append("g")
+        //    .attr("id", themeRiverId)
+        //    .append("")
 
         var stationX = function(d){
             var r = (innerRadius + (d.distance - minDis)/(maxDis-minDis) * (outerRadius - innerRadius));
@@ -928,7 +1061,7 @@ function createCircleView2() {
                 (d.latitude - center.lat) /
                 Math.sqrt((d.latitude - center.lat)*(d.latitude - center.lat) + (d.longitude - center.lng)*(d.longitude - center.lng));
         }
-        sel.selectAll(".contextScatter").data(unfilteredData)
+        sel.append("g").selectAll(".contextScatter").data(unfilteredData)
             .enter()
             .append("circle")
             .filter(function(d){return d.distance > minDis && d.distance < maxDis;})
@@ -939,80 +1072,74 @@ function createCircleView2() {
             .attr('stroke-width',1);
 
 
+        //绘制中心的趋势图
+        var cities = "";
+        if(filteredData.length != 0){
+            cities += ("codes[]="+filteredData[0].code);
+            if(filteredData.length > 1){
+                var i;
+                for(i = 1; i < filteredData.length; i ++){
+                    cities += ("&codes[]="+filteredData[i].code);
+                }
+            }
+        }
+        var timeRange = "&startTime=2015-01-01&endTime=2015-01-03";
+        $.ajax({
+            url:"hourTrends2.do",
+            type:"get",
+            data: cities+"&"+timeRange,
+            success: function (returnData) {
+                var data = JSON.parse(returnData);
+
+                var trend = sel.append("g").attr("id", "trendsCenter")
+                    .attr("transform", "translate("+(centerScreen.x-150)+"," + centerScreen.y + ")");
+
+                var x = d3.time.scale().range([0, 300]),
+                    y = d3.scale.linear().range([ -50, 0]);
+
+                var xAxis = d3.svg.axis().scale(x).orient("bottom").ticks(4).tickFormat(d3.time.format("%b%d %H")),
+                    yAxis = d3.svg.axis().scale(y).orient("left");
+
+                var line = d3.svg.line()
+                    .interpolate("monotone")
+                    .x(function (d) {
+                        return x(new Date(d.time.$date));
+                    })
+                    .y(function (d) {
+                        return y(d.pm25);
+                    });
+                var color = d3.scale.category10();
+                color.domain(d3.keys(data[0]).filter(function (key) {
+                    return key === "pm25";
+                }));
+
+                x.domain(d3.extent(data.map(function (d) {
+                    return new Date(d.time.$date);
+                })));
+
+                //TODO 固定y轴最大数值
+                y.domain([0, 150]);
+
+                trend.append("g")
+                    .attr("class", "x axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(xAxis);
+
+                trend.append("path")
+                    .datum(data)
+                    .attr("class", "line")
+                    .attr("d", line);
+
+            }});
+
+        //绘制theme river
+
     });
+
     contextRing.addTo(map);
 }
 
 
-function createCircleView(){
-    $("#circle").show();
-    var distance = [];
-    var direction = [];
-    var outRadius = 250;
-    var innerRadius = 50;
-    if(contextRing != null)
-        map.removeLayer(contextRing);
-    d3.selectAll("#circlePath").remove();
-    $.ajax({
-        url:"cities.do",
-        type:"post",
-        dataType:"json",
-        success:function(data) {
-            var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
-            var center = bounds.getBounds().getCenter();
-
-            for (var i = 0; i < data.length; i++) {
-                distance = L.latLng(data[i].latitude, data[i].longitude).distanceTo(center);
-            }
-
-            var boundsJson = JSON.parse(L.FreeDraw.Utilities.getJsonPolygons(freedrawEvent.latLngs));
-            boundsJson = boundsJson.latLngs;
-            //计算context ring 外部的circle的位置
-            var ringOuterBounds = [];
-            for (var i = 0; i < boundsJson.length; i++) {
-                ringOuterBounds.push(L.latLng(
-                     boundsJson[i][1] + (boundsJson[i][1] - center.lat),
-                     boundsJson[i][0] + (boundsJson[i][0] - center.lng)));
-            }
-
-            contextRing = L.d3SvgOverlay(function(sel, proj) {
-                //计算context ring的path
-                var pathContextRing = function(){
-                    var path = "M ";
-                    for(var i = 0; i < ringOuterBounds.length - 1; i ++){
-                        path +=
-                            proj.latLngToLayerPoint(ringOuterBounds[i]).x + " " +
-                                proj.latLngToLayerPoint(ringOuterBounds[i]).y + " L ";
-                    }
-                    path += proj.latLngToLayerPoint(ringOuterBounds[i]).x + " " +
-                        proj.latLngToLayerPoint(ringOuterBounds[i]).y + " ";
-
-                    path += "M ";
-                    for(var i = 0; i < boundsJson.length - 1; i ++){
-                        path +=
-                            proj.latLngToLayerPoint(L.latLng(boundsJson[i][1], boundsJson[i][0])).x + " " +
-                            proj.latLngToLayerPoint(L.latLng(boundsJson[i][1], boundsJson[i][0])).y + " L ";
-                    }
-                    path += proj.latLngToLayerPoint(L.latLng(boundsJson[boundsJson.length-1][1], boundsJson[boundsJson.length-1][0])).x + " " +
-                        proj.latLngToLayerPoint(L.latLng(boundsJson[boundsJson.length-1][1], boundsJson[boundsJson.length-1][0])).y + " Z " ;
-                    return path;
-                };
-                sel.append("g")
-                    .attr("fill-rule", "nonzero")
-                    .attr("fill", "red")
-                    .attr('fill-opacity', '0.5')
-                    .append("path")
-                    .attr('d', pathContextRing)
-                    .attr("id", "circlePath");
-                    //.attr('stroke', 'black')
-                    //.attr('fill-opacity', '0.5');
-            });
-            map.fitBounds(L.latLngBounds(ringOuterBounds));
-            contextRing.addTo(map);
-
-        }
-    });
-}
 
 /**
  * create the grids view
@@ -1047,8 +1174,8 @@ function createGridsView(){
                         sel.append("polygon")
                             .attr("points", points)
                             .attr("fill", colorScale(data[i*grids[0].length+j]))
-                            .attr("stroke", "black")
-                            .attr("stroke-width", "0.5")
+                            //.attr("stroke", "black")
+                            .attr("stroke-width", "0")
                             .attr('fill-opacity', '0.5');
                     }
                 }
@@ -1079,8 +1206,8 @@ function createWindsView(){
             .append("path")
             .attr("d", "M 0 0 L 10 5 L 0 10 z");
 
-        for (var i = 0; i < grids.length; i++) {
-            for (var j = 0; j < grids[0].length; j++) {
+        for (var i = 0; i < grids.length; i=i+gridTimes) {
+            for (var j = 0; j < grids[0].length; j=j+gridTimes) {
                 var wind = windPath(Math.random() * 360);
                 var start = proj.latLngToLayerPoint(L.latLng(grids[i][j].north - wind.startY, grids[i][j].west + wind.startX));
                 var end = proj.latLngToLayerPoint(L.latLng(grids[i][j].north - wind.endY, grids[i][j].west + wind.endX));
@@ -1094,6 +1221,7 @@ function createWindsView(){
                     .attr("stroke", "black")
                     .attr("stroke-width", function(){return Math.random()*8;})
                     .attr('fill-opacity', '0.8');
+                //sel.transition().duration(500)
             }
         }
     });
@@ -1175,6 +1303,16 @@ function provinceValueControl(){
         createProvinceValue();
     }else{
         map.removeLayer(provinceValueOverlay);
+    }
+}
+
+function cityValueControl(){
+    if($("#cityValue").is( ':checked' )){
+        if(cityValueOverlay != null)
+            map.removeLayer(cityValueOverlay);
+        createCityValue();
+    }else{
+        map.removeLayer(cityValueOverlay);
     }
 }
 
