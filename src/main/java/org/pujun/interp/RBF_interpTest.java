@@ -13,25 +13,25 @@ import java.text.ParseException;
 public class RBF_interpTest {
     protected static long startTimeStamp, endTimeStamp;
     public static void main(String[] args) throws ParseException {
-        startTimeStamp = System.currentTimeMillis();
-
-        InterpMeteo interpMeteo = new InterpMeteo("2013-12-18 06:00:00");    //set a time point
-        System.out.println(interpMeteo.spd(40.080, 116.585));   //9
-        System.out.println(interpMeteo.dir(40.080, 116.585));   //220
+//        startTimeStamp = System.currentTimeMillis();
+//
+//        InterpMeteo interpMeteo = new InterpMeteo("2013-12-18 06:00:00");    //set a time point
+//        System.out.println(interpMeteo.spd(40.080, 116.585));   //9
+//        System.out.println(interpMeteo.dir(40.080, 116.585));   //220
 
         InterpPm interpPm = new InterpPm("2013-12-18 06:00:00");    //code:1017A
         System.out.println(interpPm.pm10(39.1082, 117.237));    //39
         System.out.println(interpPm.pm25(39.1082, 117.237));    //28
 
-        endTimeStamp = System.currentTimeMillis();
-        System.out.println("total time: " + (endTimeStamp-startTimeStamp) + "ms");
+//        endTimeStamp = System.currentTimeMillis();
+//        System.out.println("total time: " + (endTimeStamp-startTimeStamp) + "ms");
 
 
-//        double[][] x = {{1,1}, {2,2}, {3,3}, {4,4}, {5,5}, {6,6}, {7,7}, {8,8}, {9,9}, {10,10}};
-//        double[] y = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-//        double[] pt = {6.5,6.5};
+//        double[][] x = {{120,30}, {125,35}};
+//        double[] y = {30, 29};
+//        double[] pt = {110,39};
 //
-//        RBF_multiquadric rbf_multiquadric = new RBF_multiquadric(2);
+//        RBF_multiquadric rbf_multiquadric = new RBF_multiquadric();
 //        RBF_interp rbf_interp_multiquadric = new RBF_interp(x,y,rbf_multiquadric);
 //
 //        System.out.println(rbf_interp_multiquadric.interp(pt));
