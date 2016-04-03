@@ -119,6 +119,8 @@
         <div class="panel-body">
             <input type="button" onclick="activeFreeDraw();" value="polygonselection"><br>
             <input type="button" onclick="deactiveFreeDraw();" value="navigation"><br>
+            <input type="button" onclick="cluster();" value="cluster"><br>
+            <input type="button" onclick="clusterAndThemeRiver();" value="cluster and theme river"><br>
             <label id="minDistance">0</label><div id="slider" style="display:inline-block;width:50px;left:10px;"></div><label id="maxDistance">0</label>
         </div>
     </div>
@@ -134,7 +136,14 @@
     <input id="showMonthTrends" name="trendcontrol" type="radio" onclick="trendMonth();"><label for="showMonthTrends">showMonthTrends</label>
 </div>
 <div id="circle"  style="position:fixed; top:0px; left: 0px; width:0px; height:0px; visibility: hidden"></div>
-
+<div id="themeriver0" style="position:fixed;"></div>
+<div id="themeriver1" style="position:fixed;"></div>
+<div id="themeriver2" style="position:fixed;"></div>
+<div id="themeriver3" style="position:fixed;"></div>
+<div id="themeriver4" style="position:fixed;"></div>
+<div id="themeriver5" style="position:fixed;"></div>
+<div id="themeriver6" style="position:fixed;"></div>
+<div id="themeriver7" style="position:fixed;"></div>
 <script>
     initUIs();
 </script>
