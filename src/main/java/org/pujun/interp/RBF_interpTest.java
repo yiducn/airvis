@@ -20,8 +20,8 @@ public class RBF_interpTest {
 //        System.out.println(interpMeteo.dir(40.080, 116.585));   //220
 
         InterpPm interpPm = new InterpPm("2013-12-18 06:00:00");    //code:1017A
-        System.out.println(interpPm.pm10(39.1082, 117.237));    //39
-        System.out.println(interpPm.pm25(39.1082, 117.237));    //28
+        System.out.println(interpPm.pm10(37.1082, 117.237));    //39
+        System.out.println(interpPm.pm25(37.1082, 117.237));    //28
 
 //        endTimeStamp = System.currentTimeMillis();
 //        System.out.println("total time: " + (endTimeStamp-startTimeStamp) + "ms");
