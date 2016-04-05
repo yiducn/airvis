@@ -85,8 +85,8 @@
             <div style="text-align: center;"><input id="meteorologicalStationControl" type="checkbox" onchange="meteorologicalStationControl();"><label>Meteorological Stations</label></div>
             <div style="text-align: center;"><input id="provinceBoundary" type="checkbox" onchange="provinceBoundaryControl();"><label>Province Boundary</label></div>
             <div style="text-align: center;"><input id="provinceValue" type="checkbox" onchange="provinceValueControl();"><label>Province Value</label></div>
-            <div style="text-align: center;"><input id="cityBoundary" type="checkbox" onchange="cityBoundaryControl();"><label>City Boundary</label></div>
-            <div style="text-align: center;"><input id="cityValue" type="checkbox" onchange="cityValueControl();"><label>City Value</label></div>
+            <div style="text-align: center;"><input id="cityBoundary" type="checkbox" onchange="cityBoundaryControl();" ><label>City Boundary</label></div>
+            <div style="text-align: center;"><input id="cityValue" type="checkbox" onchange="cityValueControl();" checked><label>City Value</label></div>
         </div>
         <!--<div class="panel-heading">-->
             <!--<div style="text-align: center;"><input id="controlCalendar" type="checkbox" onchange="controlCalendar();" style=""><label>Calendar View</label></div>-->
@@ -101,12 +101,14 @@
         <!--</div>-->
 
         <div class="panel-heading">
-            <div style="text-align: center;"><input id="controlTrend" type="checkbox" onchange="controlTrend();"><label>Trend View</label></div>
+            <div style="text-align: center;"><input id="controlTrend" type="checkbox" onchange="controlTrend();" checked><label>Trend View</label></div>
         </div>
         <!--<div class="panel-body"></div>-->
 
         <div class="panel-heading">
             <div style="text-align: center;"><input id="controlContextRing" type="checkbox" onchange="controlContextRing();"><label>controlContextRing View</label></div>
+            <div style="text-align: center;"><input id="controlCluster" type="checkbox" onchange="controlCluster();"><label>control Cluster</label></div>
+            <div style="text-align: center;"><input id="controlThemeRiver" type="checkbox" onchange="controlThemeRiver();"><label>controlThemeRiver View</label></div>
             <div style="text-align: center;"><input id="controlGrids" type="checkbox" onchange="controlGrids();"><label>Grids View</label></div>
         </div>
         <div class="panel-body">
@@ -119,8 +121,8 @@
         <div class="panel-body">
             <input type="button" onclick="activeFreeDraw();" value="polygonselection"><br>
             <input type="button" onclick="deactiveFreeDraw();" value="navigation"><br>
-            <input type="button" onclick="cluster();" value="cluster"><br>
-            <input type="button" onclick="clusterAndThemeRiver();" value="cluster and theme river"><br>
+
+
             <label id="minDistance">0</label><div id="slider" style="display:inline-block;width:50px;left:10px;"></div><label id="maxDistance">0</label>
         </div>
     </div>

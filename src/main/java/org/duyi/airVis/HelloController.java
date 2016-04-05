@@ -247,7 +247,7 @@ public class HelloController {
 
         Document match;
         Document group = new Document().append("$group",
-                new Document().append("_id","$_id.city")
+                new Document().append("_id","$city")
 //                        .append("aqi", new Document("$avg", "$aqi"))
 //                        .append("aqi", new Document("$avg", "$aqi"))
 //                        .append("co", new Document("$avg", "$co"))
