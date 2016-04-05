@@ -14,11 +14,11 @@ import java.util.SimpleTimeZone;
  */
 public class InterpPm {
     private static final String NEW_DB_NAME = "airdb";
-    private double[][] pm25Points;
-    private double[][] pm10Points;
-    private double[] pm25s;
-    private double[] pm10s;
-    Date date;
+    public double[][] pm25Points;
+    public double[][] pm10Points;
+    public double[] pm25s;
+    public double[] pm10s;
+    public Date date;
 
     MongoClient client = new MongoClient("127.0.0.1", 27017);
     DB db = client.getDB(NEW_DB_NAME);
@@ -124,8 +124,8 @@ public class InterpPm {
     }
 
     public double pm25(double interpLat, double interpLon) {
-        RBF_multiquadric rbf_multiquadric = new RBF_multiquadric();
-        RBF_interp rbf_interp_multiquadric = new RBF_interp(pm25Points,pm25s,rbf_multiquadric);
+        RBF_linear rbf_linear = new RBF_linear();
+        RBF_interp rbf_interp_multiquadric = new RBF_interp(pm25Points,pm25s,rbf_linear);
         double[] pt = {interpLat, interpLon};
         double interpPm25 = rbf_interp_multiquadric.interp(pt);
 
@@ -133,8 +133,8 @@ public class InterpPm {
     }
 
     public double pm10(double interpLat, double interpLon) {
-        RBF_multiquadric rbf_multiquadric = new RBF_multiquadric();
-        RBF_interp rbf_interp_multiquadric = new RBF_interp(pm10Points,pm10s,rbf_multiquadric);
+        RBF_linear rbf_linear = new RBF_linear();
+        RBF_interp rbf_interp_multiquadric = new RBF_interp(pm10Points,pm10s,rbf_linear);
         double[] pt = {interpLat, interpLon};
         double interpPm10 = rbf_interp_multiquadric.interp(pt);
 
