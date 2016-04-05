@@ -19,7 +19,7 @@ import java.util.ArrayList;
  * Created by milletpu on 16/3/31.
  */
 public class HeatMap {
-    String timePoint;
+    private String timePoint;
     private static final String CITY_PATH = "/Users/milletpu/airvis/src/main/webapp/maps/china_cities.json";
 
     public HeatMap(String timePoint) {
@@ -38,10 +38,10 @@ public class HeatMap {
             String[] thisLocation = feature.getProperty("cp").getValue().toString().split(",");
             double thisLon = Double.parseDouble(thisLocation[0].replace("[", ""));
             double thisLat = Double.parseDouble(thisLocation[1].replace("]", ""));
+
             System.out.println("lat:"+ thisLat + "lon:" + thisLon);
             System.out.println(interpPm.pm10(thisLat, thisLon));
             System.out.println(interpPm.pm25(thisLat, thisLon));
-
         }
 
 
@@ -52,6 +52,5 @@ class HeatMapTest{
     public static void main(String[] args) throws IOException, ParseException {
         HeatMap hmp = new HeatMap("2013-12-18 06:00:00");
         hmp.getInterpPm();
-
     }
 }
