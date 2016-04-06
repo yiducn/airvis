@@ -124,7 +124,7 @@ public class InterpPm {
     }
 
     public double pm25(double interpLat, double interpLon) {
-        RBF_linear rbf_linear = new RBF_linear();
+        RBF_multiquadric rbf_linear = new RBF_multiquadric(20);
         RBF_interp rbf_interp_multiquadric = new RBF_interp(pm25Points,pm25s,rbf_linear);
         double[] pt = {interpLat, interpLon};
         double interpPm25 = rbf_interp_multiquadric.interp(pt);

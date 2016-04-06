@@ -53,8 +53,8 @@ public class HeatMap {
             double thisLon = Double.parseDouble(thisLocation[0].replace("[", ""));
             double thisLat = Double.parseDouble(thisLocation[1].replace("]", ""));
             double thisPm25 = interpPm.pm25(thisLat, thisLon);
-
-            int selectCorlor = (int) ceil((thisPm25 - min) / (max - min) * 383);
+            System.out.println(thisPm25);
+            int selectCorlor = (int) ceil((thisPm25 - min) / (max - min) * 383);    //383种渐变颜色
             if (selectCorlor >= max) {
                 thisColor = maxColor;
             }else if(selectCorlor >= 0 && selectCorlor <= 127){
@@ -62,7 +62,7 @@ public class HeatMap {
             }else if(selectCorlor >=128 && selectCorlor <= 383){
                 thisColor = new Color(255,minColor.getGreen()-(selectCorlor-128),0,50);
             }else{
-                thisColor = minColor;
+                thisColor = maxColor;
             }
 
             dg.graphics.setColor(thisColor);
@@ -77,7 +77,7 @@ public class HeatMap {
 
     public static void main(String[] args) throws IOException, ParseException {
         HeatMap heatMap = new HeatMap("2013-12-18 06:00:00");
-        heatMap.getInterpPm25(200, 0);
+        heatMap.getInterpPm25(300, 0);
 
     }
 }
