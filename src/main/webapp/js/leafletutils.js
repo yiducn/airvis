@@ -36,7 +36,7 @@ document.onmousemove = function(e){
 var piemenu;
 
 //max and min distance of context ring
-var maxDis = 100000, minDis;
+var maxDis, minDis;
 
 /**
  * active free draw function
@@ -95,33 +95,47 @@ function initUIs(){
 
     map.on('zoomend', function() {
         controlContextRing();
+        controlCluster();
         controlThemeRiver();
-    });
-    map.on('moveend', function(){
-        //maxDis = null;
-        minDis = null;
-        //controlContextRing();//TODO
+
         if($("#controlContextRing").is(":checked")){
             $( "#slider" ).slider( "option", "min", minDis );
             $( "#slider" ).slider( "option", "max", maxDis );
             $("#maxDistance").text(parseInt(maxDis/1000) + "km");
             $("#minDistance").text(parseInt(minDis/1000) + "km");
         }
-        console.log("move end");
-        updateBounds4Grids();
-        //controlContextRing();
-        //clusterAndThemeRiver();
+    });
+    map.on('moveend', function(){
+        //maxDis = null;
+        //minDis = null;
+        //controlContextRing();//TODO
+        //controlCluster();
+        //controlThemeRiver();
+
+        $("#controlTrend").attr('checked', false);
+        $("#trendpanel").hide();
+
+        if($("#controlContextRing").is(":checked")){
+            //$( "#slider" ).slider( "option", "min", minDis );
+            $( "#slider" ).slider( "option", "max", maxDis );
+            $("#maxDistance").text(parseInt(maxDis/1000) + "km");
+            //$("#minDistance").text(parseInt(minDis/1000) + "km");
+        }
+        //updateBounds4Grids();
     });
 
     $("#slider").slider();
     $( "#slider" ).on( "slidechange",
         function( event, ui ) {
-            //maxDis = ui.value;
-            $("#maxDistance").text(parseInt(ui.value));
-            //controlContextRing();//TODO
+            maxDis = ui.value;
+            $("#maxDistance").text(parseInt(maxDis/1000) + "km");
+            controlContextRing();//TODO
+            controlCluster();
+            controlThemeRiver();
         }
     );
     createCityValue();
+    themeLayer = [];
 }
 
 /**
@@ -734,7 +748,8 @@ function activeFreeDraw(){
  * deactive free draw function
  */
 function deactiveFreeDraw(){
-    map.removeLayer(freedrawLayer);
+    if(freedrawLayer != null)
+        map.removeLayer(freedrawLayer);
 }
 
 /**
@@ -780,6 +795,30 @@ function zoomAndCenter(){
 
             buildLocationLayer(newData);
             linearTime();
+
+            var center = bounds.getBounds().getCenter();
+            minDis = Number.MAX_VALUE;
+            for (var i = 0; i < unfilteredData.length; i++) {
+                var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
+                unfilteredData[i].distance = dist;
+                if (dist < minDis)
+                    minDis = dist;
+                var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
+                unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
+            }
+            maxDis = 0;
+            for (var i = 0; i < unfilteredData.length; i++) {
+                var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
+                unfilteredData[i].distance = dist;
+                if (dist > maxDis)
+                    maxDis = dist;
+                var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
+                unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
+            }
+            $( "#slider" ).slider( "option", "min", minDis );
+            $( "#slider" ).slider( "option", "max", maxDis );
+            $("#maxDistance").text(parseInt(maxDis/1000) + "km");
+            $("#minDistance").text(parseInt(minDis/1000) + "km");
         }
     });
     $.ajax({
@@ -803,9 +842,8 @@ function zoomAndCenter(){
         }
     });
     $("#piemenu").css("visibility", "hidden");
-    //deactiveFreeDraw();//TODO ugly structure
-    createCalendarView();//TODO ugly structure
-
+    deactiveFreeDraw();//TODO ugly structure
+    //createCalendarView();//TODO ugly structure
 
 }
 
@@ -981,6 +1019,8 @@ function repaintAll(){
     createCalendarView();
     provinceValueControl();
     cityValueControl();
+    controlCluster();
+    controlThemeRiver();
 }
 
 /**
@@ -997,30 +1037,32 @@ function createCircleView2() {
 
     sizeScreen = map.getPixelBounds().getSize();
     outerRadius = sizeScreen.y / 2-50;
+    outerRadius4Octagonal = outerRadius + 50;
     innerRadius = outerRadius -  200;
 
-    if(minDis == null) {
-        minDis = Number.MAX_VALUE;
-        for (var i = 0; i < unfilteredData.length; i++) {
-            var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
-            unfilteredData[i].distance = dist;
-            if (dist < minDis)
-                minDis = dist;
-            var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
-            unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
-        }
-    }
-    if(maxDis == null) {
-        maxDis = 0;
-        for (var i = 0; i < unfilteredData.length; i++) {
-            var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
-            unfilteredData[i].distance = dist;
-            if (dist > maxDis)
-                maxDis = dist;
-            var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
-            unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
-        }
-    }
+    //将初始化minDis和maxDis的操作在缩放之后进行,移动到zoomAndCenter
+    //if(minDis == null) {
+    //    minDis = Number.MAX_VALUE;
+    //    for (var i = 0; i < unfilteredData.length; i++) {
+    //        var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
+    //        unfilteredData[i].distance = dist;
+    //        if (dist < minDis)
+    //            minDis = dist;
+    //        var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
+    //        unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
+    //    }
+    //}
+    //if(maxDis == null) {
+    //    maxDis = 0;
+    //    for (var i = 0; i < unfilteredData.length; i++) {
+    //        var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
+    //        unfilteredData[i].distance = dist;
+    //        if (dist > maxDis)
+    //            maxDis = dist;
+    //        var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
+    //        unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
+    //    }
+    //}
 
     contextRing = L.d3SvgOverlay(function(sel, proj) {
 
@@ -1034,10 +1076,10 @@ function createCircleView2() {
             var p1Y = centerScreen.y - innerRadius * Math.cos(d.angle);
             var p2X = centerScreen.x + innerRadius * Math.sin(d.angle + intervalAngle);
             var p2Y = centerScreen.y - innerRadius * Math.cos(d.angle + intervalAngle);
-            var p3X = centerScreen.x + outerRadius * Math.sin(d.angle + intervalAngle);
-            var p3Y = centerScreen.y - outerRadius * Math.cos(d.angle + intervalAngle);
-            var p4X = centerScreen.x + outerRadius * Math.sin(d.angle);
-            var p4Y = centerScreen.y - outerRadius * Math.cos(d.angle);
+            var p3X = centerScreen.x + outerRadius4Octagonal * Math.sin(d.angle + intervalAngle);
+            var p3Y = centerScreen.y - outerRadius4Octagonal * Math.cos(d.angle + intervalAngle);
+            var p4X = centerScreen.x + outerRadius4Octagonal * Math.sin(d.angle);
+            var p4Y = centerScreen.y - outerRadius4Octagonal * Math.cos(d.angle);
             path += p1X + " ";
             path += p1Y + " L ";
             path += p2X + " ";
@@ -1184,6 +1226,8 @@ function createCircleView2() {
     });
 
     contextRing.addTo(map);
+
+
 }
 
 
@@ -1377,8 +1421,12 @@ function controlThemeRiver(){
     for(var i = 0; i < 8; i ++){
         $("#themeriver"+i).empty();
     }
-    if(themeLayer != null)
-        map.removeLayer(themeLayer);
+    if(themeLayer != null){
+        for(var i = 0; i < 8; i ++){
+            if(themeLayer[i] != null)
+                map.removeLayer(themeLayer[i]);
+        }
+    }
     if($("#controlThemeRiver").is(":checked")){
         clusterAndThemeRiver();
     }
@@ -1467,6 +1515,17 @@ function cluster(){
             }
 
             clusterLayer = L.d3SvgOverlay(function(sel, proj) {
+                sel.append("svg:marker")
+                    .attr("id", "triangle")
+                    .attr("viewBox", "0 0 15 10")
+                    .attr("refX", "0")
+                    .attr("refY", "5")
+                    .attr("markerWidth", "3")
+                    .attr("markerHeight", "3")
+                    .attr("orient", "auto")
+                    .append("path")
+                    .attr("d", "M 0 0 L 15 5 L 0 10 z");
+
                 var centerScreen = proj.latLngToLayerPoint(center);
 
                 //return centerScreen.x + r *
@@ -1497,6 +1556,19 @@ function cluster(){
                     .attr('opacity', '1')
                     .attr('stroke', 'black')
                     .attr('stroke-width', 1);
+                //TODO
+                sel.append("g").selectAll(".clusterWind").data(data)
+                    .enter()
+                    .append("line")
+                    .attr('x1', stationX)
+                    .attr('y1', stationY)
+                    .attr("x2", stationX)
+                    .attr("y2", stationY)
+                    .attr("marker-end", "url(#triangle)")
+                    .attr("stroke", "black")
+                    .attr("stroke-width", function(d){return d.cluster.length;})
+                    .attr('fill-opacity', '0.8');
+
             });
             clusterLayer.addTo(map);
         }
@@ -1512,8 +1584,10 @@ function clusterAndThemeRiver(){
         $("#themeriver"+i).empty();
     }
     if(themeLayer != null){
-        for(var i = 0; i < 8; i ++)
-            map.removeLayer(themeLayer[i]);
+        for(var i = 0; i < 8; i ++){
+            if(themeLayer[i] != null)
+                map.removeLayer(themeLayer[i]);
+        }
     }
     colorrange = ["#045A8D", "#2B8CBE", "#74A9CF", "#A6BDDB", "#D0D1E6", "#F1EEF6"];
     var strokecolor = colorrange[0];
@@ -1587,7 +1661,7 @@ function clusterAndThemeRiver(){
         //if(param.length > 0)
         //    param[i] = param[i].substring(0, param[i].length-6);
         //console.log(":"+param[i]);
-        param[i] += "&startTime="+new Date("2015-09-01")+"&endTime="+new Date("2015-09-31");
+        param[i] += "&startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
         param[i] += "&index="+i;
     }
 
@@ -1599,53 +1673,55 @@ function clusterAndThemeRiver(){
             type:"post",
             data: param[i],
             success: function (returnData) {
-                if(returnData == null || returnData == "")
-                    return;
-                var dataAll = JSON.parse(returnData);
-                var data = dataAll.result;
-                data = assignDefaultValues(data);
-                data.forEach(function (d) {
-                    d.time = new Date(d.time);
-                    //d.value = +d.pm25;
-                });
-                var g = d3.select("#themeriver" + i)
-                    .style("left", (octagonLocationScreen[dataAll.index].x - 140) + "px")
-                    .style("top", (octagonLocationScreen[dataAll.index].y - 120 ) + "px");
-
-                var svg = g.append("svg")
-                    .attr("width", width + margin.left + margin.right)
-                    .attr("height", height + margin.top + margin.bottom)
-                    .append("g")
-                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-                var entries = nest.entries(data);
-
-                var layers = stack(entries);
-
-                x.domain(d3.extent(data, function (d) {
-                    return d.time;
-                }));
-                y.domain([0, d3.max(data, function (d) {
-                    return d.y0 + d.y;
-                })]);
-
-                svg.selectAll(".layer" )
-                    .data(layers)
-                    .enter().append("path")
-                    .attr("class", "layer" )
-                    .attr("d", function (d) {
-                        return area(d.values);
-                    })
-                    .style("fill", function (d, i) {
-                        //console.log("d:"+i+":"+z(i));
-                        return z(i);
+                themeLayer[i] = L.d3SvgOverlay(function(sel, proj) {
+                    if (returnData == null || returnData == "")
+                        return;
+                    var dataAll = JSON.parse(returnData);
+                    var data = dataAll.result;
+                    data = assignDefaultValues(data);
+                    data.forEach(function (d) {
+                        d.time = new Date(d.time);
+                        //d.value = +d.pm25;
                     });
+                    //var g = d3.select("#themeriver" + i).style("left", (octagonLocationScreen[dataAll.index].x - 140) + "px")
+                    //    .style("top", (octagonLocationScreen[dataAll.index].y - 120 ) + "px");
+                    var g = sel.append("g")
+                        .attr("transform","translate("+(octagonLocationScreen[dataAll.index].x - 140)+","+(octagonLocationScreen[dataAll.index].y - 120 )+")");
+                    var svg = g.append("svg")
+                        .attr("width", width + margin.left + margin.right)
+                        .attr("height", height + margin.top + margin.bottom)
+                        .append("g")
+                        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-                svg.append("g")
-                    .attr("class", "x axis")
-                    .attr("transform", "translate(0," + height + ")")
-                    .call(xAxis);
+                    var entries = nest.entries(data);
 
+                    var layers = stack(entries);
+
+                    x.domain(d3.extent(data, function (d) {
+                        return d.time;
+                    }));
+                    y.domain([0, d3.max(data, function (d) {
+                        return d.y0 + d.y;
+                    })]);
+
+                    svg.selectAll(".layer")
+                        .data(layers)
+                        .enter().append("path")
+                        .attr("class", "layer")
+                        .attr("d", function (d) {
+                            return area(d.values);
+                        })
+                        .style("fill", function (d, i) {
+                            //console.log("d:"+i+":"+z(i));
+                            return z(i);
+                        });
+
+                    svg.append("g")
+                        .attr("class", "x axis")
+                        .attr("transform", "translate(0," + height + ")")
+                        .call(xAxis);
+                });
+                themeLayer[i].addTo(map);
 
             },
             async:false
