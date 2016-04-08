@@ -46,6 +46,7 @@ public class HeatMap {
         for (int i = 0; i < interpPm.pm25s.length; i++) {
             dg.outpng="/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/outimageorigin.png";
             dg.graphics.setColor(useColor(interpPm.pm25s[i]));
+            System.out.println(interpPm.pm25s[i]);
             dg.drawEllipse(interpPm.pm25Points[i][0], interpPm.pm25Points[i][1]);
         }
 
@@ -98,8 +99,8 @@ public class HeatMap {
 
     public static void main(String[] args) throws IOException, ParseException {
         HeatMap heatMap = new HeatMap("2013-12-18 06:00:00");
-        heatMap.drawInterpPm25(200, 0);
-        //heatMap.drawPm25(200,0);
+        //heatMap.drawInterpPm25(200, 0);
+        heatMap.drawPm25(200,0);
 
     }
 }
