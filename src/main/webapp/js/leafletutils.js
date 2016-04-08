@@ -7,7 +7,7 @@ var map;
 
 //各种叠加图层
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
-var provinceBoundaryOverlay, cityBoundaryOverlay, contextRing, gridsView, windsView;
+var provinceBoundaryOverlay, cityBoundaryOverlay, contextRing, clusterLayer, themeLayer, gridsView, windsView;
 var provinceValueOverlay, cityValueOverlay;
 
 var overAllBrush;
@@ -54,6 +54,16 @@ var colorScale = d3.scale.linear().domain([150, 0]).range(colors);
 //当前选择的月份
 var currentSelectedDate = new Date("2015-10-01");
 
+//contextRing param
+var sizeScreen;
+var outerRadius;
+var innerRadius;
+
+var clusterResult;
+
+//八边形从北开始顺时针,各个格子在屏幕中的位置
+var octagonLocationScreen = [];
+
 function initUIs(){
     $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
@@ -84,29 +94,48 @@ function initUIs(){
     piemenu.wheelRadius = 50;
 
     map.on('zoomend', function() {
+        controlContextRing();
+        controlCluster();
+        controlThemeRiver();
 
-    });
-    map.on('moveend', function(){
-        maxDis = null;
-        minDis = null;
-        controlContextRing();//TODO
         if($("#controlContextRing").is(":checked")){
             $( "#slider" ).slider( "option", "min", minDis );
             $( "#slider" ).slider( "option", "max", maxDis );
             $("#maxDistance").text(parseInt(maxDis/1000) + "km");
             $("#minDistance").text(parseInt(minDis/1000) + "km");
         }
-        updateBounds4Grids();
+    });
+    map.on('moveend', function(){
+        //maxDis = null;
+        //minDis = null;
+        //controlContextRing();//TODO
+        //controlCluster();
+        //controlThemeRiver();
+
+        $("#controlTrend").attr('checked', false);
+        $("#trendpanel").hide();
+
+        if($("#controlContextRing").is(":checked")){
+            //$( "#slider" ).slider( "option", "min", minDis );
+            $( "#slider" ).slider( "option", "max", maxDis );
+            $("#maxDistance").text(parseInt(maxDis/1000) + "km");
+            //$("#minDistance").text(parseInt(minDis/1000) + "km");
+        }
+        //updateBounds4Grids();
     });
 
     $("#slider").slider();
     $( "#slider" ).on( "slidechange",
         function( event, ui ) {
             maxDis = ui.value;
-            $("#maxDistance").text(parseInt(ui.value));
+            $("#maxDistance").text(parseInt(maxDis/1000) + "km");
             controlContextRing();//TODO
+            controlCluster();
+            controlThemeRiver();
         }
     );
+    createCityValue();
+    themeLayer = [];
 }
 
 /**
@@ -311,14 +340,14 @@ function createCityValue(){
 function buildLocationLayer(data){
     locationLayer.clearLayers();
     for ( var i = 0; i < data.length; ++i) {
-        locationLayer.addLayer(L.circle([data[i].latitude, data[i].longitude], 500, optPoint));
+        locationLayer.addLayer(L.circle([data[i].latitude, data[i].longitude], 100, optPoint));
     }
 
 }
 function buildMeteorologicalStationLayer(data){
     meteorologicalStationLayer.clearLayers();
     for ( var i = 0; i < data.length; ++i) {
-        meteorologicalStationLayer.addLayer(L.circle([data[i].latitude, data[i].longitude], 500, meteorologicalStationOption));
+        meteorologicalStationLayer.addLayer(L.circle([data[i].latitude, data[i].longitude], 100, meteorologicalStationOption));
     }
 }
 function displayMeteorologicalStations(){
@@ -719,7 +748,8 @@ function activeFreeDraw(){
  * deactive free draw function
  */
 function deactiveFreeDraw(){
-    map.removeLayer(freedrawLayer);
+    if(freedrawLayer != null)
+        map.removeLayer(freedrawLayer);
 }
 
 /**
@@ -765,6 +795,30 @@ function zoomAndCenter(){
 
             buildLocationLayer(newData);
             linearTime();
+
+            var center = bounds.getBounds().getCenter();
+            minDis = Number.MAX_VALUE;
+            for (var i = 0; i < unfilteredData.length; i++) {
+                var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
+                unfilteredData[i].distance = dist;
+                if (dist < minDis)
+                    minDis = dist;
+                var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
+                unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
+            }
+            maxDis = 0;
+            for (var i = 0; i < unfilteredData.length; i++) {
+                var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
+                unfilteredData[i].distance = dist;
+                if (dist > maxDis)
+                    maxDis = dist;
+                var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
+                unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
+            }
+            $( "#slider" ).slider( "option", "min", minDis );
+            $( "#slider" ).slider( "option", "max", maxDis );
+            $("#maxDistance").text(parseInt(maxDis/1000) + "km");
+            $("#minDistance").text(parseInt(minDis/1000) + "km");
         }
     });
     $.ajax({
@@ -788,9 +842,8 @@ function zoomAndCenter(){
         }
     });
     $("#piemenu").css("visibility", "hidden");
-    //deactiveFreeDraw();//TODO ugly structure
-    createCalendarView();//TODO ugly structure
-
+    deactiveFreeDraw();//TODO ugly structure
+    //createCalendarView();//TODO ugly structure
 
 }
 
@@ -966,6 +1019,8 @@ function repaintAll(){
     createCalendarView();
     provinceValueControl();
     cityValueControl();
+    controlCluster();
+    controlThemeRiver();
 }
 
 /**
@@ -979,41 +1034,67 @@ function createCircleView2() {
 
     var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
     var center = bounds.getBounds().getCenter();
-    if(maxDis == null || minDis == null) {
-        maxDis = 0;
-        minDis = Number.MAX_VALUE;
-        for (var i = 0; i < unfilteredData.length; i++) {
-            var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
-            unfilteredData[i].distance = dist;
-            if (dist > maxDis)
-                maxDis = dist;
-            if (dist < minDis)
-                minDis = dist;
-            var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
-            unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
-        }
-    }
 
+    sizeScreen = map.getPixelBounds().getSize();
+    outerRadius = sizeScreen.y / 2-50;
+    outerRadius4Octagonal = outerRadius + 50;
+    innerRadius = outerRadius -  200;
+
+    //将初始化minDis和maxDis的操作在缩放之后进行,移动到zoomAndCenter
+    //if(minDis == null) {
+    //    minDis = Number.MAX_VALUE;
+    //    for (var i = 0; i < unfilteredData.length; i++) {
+    //        var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
+    //        unfilteredData[i].distance = dist;
+    //        if (dist < minDis)
+    //            minDis = dist;
+    //        var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
+    //        unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
+    //    }
+    //}
+    //if(maxDis == null) {
+    //    maxDis = 0;
+    //    for (var i = 0; i < unfilteredData.length; i++) {
+    //        var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
+    //        unfilteredData[i].distance = dist;
+    //        if (dist > maxDis)
+    //            maxDis = dist;
+    //        var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
+    //        unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
+    //    }
+    //}
 
     contextRing = L.d3SvgOverlay(function(sel, proj) {
-        var sizeScreen = map.getPixelBounds().getSize();
-        var outerRadius = sizeScreen.y / 2-50;
-        var innerRadius = outerRadius -  200;
+
         var centerScreen = proj.latLngToLayerPoint(center);
         //计算context ring的path
         var pathContextRing = function(d){
             //var startAngle = Math.PI * 2 * 15 / 16;
             var intervalAngle = Math.PI * 2 / 8;
             var path = "M ";
-            path += centerScreen.x + innerRadius * Math.sin(d.angle) + " ";
-            path += centerScreen.y - innerRadius * Math.cos(d.angle) + " L ";
-            path += centerScreen.x + innerRadius * Math.sin(d.angle + intervalAngle) + " ";
-            path += centerScreen.y - innerRadius * Math.cos(d.angle + intervalAngle) + " L ";
-            path += centerScreen.x + outerRadius * Math.sin(d.angle + intervalAngle) + " ";
-            path += centerScreen.y - outerRadius * Math.cos(d.angle + intervalAngle) + " L ";
-            path += centerScreen.x + outerRadius * Math.sin(d.angle) + " ";
-            path += centerScreen.y - outerRadius * Math.cos(d.angle) + " ";
+            var p1X = centerScreen.x + innerRadius * Math.sin(d.angle);
+            var p1Y = centerScreen.y - innerRadius * Math.cos(d.angle);
+            var p2X = centerScreen.x + innerRadius * Math.sin(d.angle + intervalAngle);
+            var p2Y = centerScreen.y - innerRadius * Math.cos(d.angle + intervalAngle);
+            var p3X = centerScreen.x + outerRadius4Octagonal * Math.sin(d.angle + intervalAngle);
+            var p3Y = centerScreen.y - outerRadius4Octagonal * Math.cos(d.angle + intervalAngle);
+            var p4X = centerScreen.x + outerRadius4Octagonal * Math.sin(d.angle);
+            var p4Y = centerScreen.y - outerRadius4Octagonal * Math.cos(d.angle);
+            path += p1X + " ";
+            path += p1Y + " L ";
+            path += p2X + " ";
+            path += p2Y + " L ";
+            path += p3X + " ";
+            path += p3Y + " L ";
+            path += p4X + " ";
+            path += p4Y + " ";
             path += " Z ";
+            var centerXGrid = (p1X + p2X + p3X + p4X) / 4;
+            var centerYGrid = (p1Y + p2Y + p3Y + p4Y) / 4;
+            //TODO
+            octagonLocationScreen[d.dir] = {};
+            octagonLocationScreen[d.dir].x = centerXGrid;
+            octagonLocationScreen[d.dir].y = centerYGrid;
 
             return path;
         };
@@ -1027,9 +1108,9 @@ function createCircleView2() {
         for(var i = 0; i < 8; i ++){
             var temp = {};
             temp.dir = i;
-            temp.angle = startAngle + intervalAngle;
+            temp.angle = startAngle + intervalAngle*i;
             parts.push(temp);
-            startAngle += intervalAngle;
+            //startAngle += intervalAngle;
         }
         sel.selectAll("g").data(parts)
             .enter()
@@ -1037,9 +1118,9 @@ function createCircleView2() {
             .attr("id", contextRingId)
             .append("path")
             .attr("d", pathContextRing)
-            .attr("fill", "red")
+            .attr("fill", "gray")
             .attr('stroke', 'black')
-            .attr('fill-opacity', '0.2');
+            .attr('fill-opacity', '0.7');
         //var themeRivers = sel.append("g")
         //    .attr("id", "themeRivers");
         //themeRivers.selectAll("g").data(parts)
@@ -1073,70 +1154,80 @@ function createCircleView2() {
 
 
         //绘制中心的趋势图
-        var cities = "";
-        if(filteredData.length != 0){
-            cities += ("codes[]="+filteredData[0].code);
-            if(filteredData.length > 1){
-                var i;
-                for(i = 1; i < filteredData.length; i ++){
-                    cities += ("&codes[]="+filteredData[i].code);
-                }
-            }
-        }
-        var timeRange = "&startTime=2015-01-01&endTime=2015-01-03";
-        $.ajax({
-            url:"hourTrends2.do",
-            type:"get",
-            data: cities+"&"+timeRange,
-            success: function (returnData) {
-                var data = JSON.parse(returnData);
+        //var cities = "";
+        //if(filteredData.length != 0){
+        //    cities += ("codes[]="+filteredData[0].code);
+        //    if(filteredData.length > 1){
+        //        var i;
+        //        for(i = 1; i < filteredData.length; i ++){
+        //            cities += ("&codes[]="+filteredData[i].code);
+        //        }
+        //    }
+        //}
+        ////TODO
+        //var timeRange = "&startTime=2015-01-01&endTime=2015-01-03";
+        //$.ajax({
+        //    url:"hourTrends2.do",
+        //    type:"post",
+        //    data: cities+"&"+timeRange,
+        //    success: function (returnData) {
+        //        var data = JSON.parse(returnData);
+        //
+        //        var trend = sel.append("g").attr("id", "trendsCenter")
+        //            .attr("transform", "translate("+(centerScreen.x-150)+"," + centerScreen.y + ")");
+        //
+        //        var x = d3.time.scale().range([0, 300]),
+        //            y = d3.scale.linear().range([ -50, 0]);
+        //
+        //        var xAxis = d3.svg.axis().scale(x).orient("bottom").ticks(4).tickFormat(d3.time.format("%b%d %H")),
+        //            yAxis = d3.svg.axis().scale(y).orient("left");
+        //
+        //        var line = d3.svg.line()
+        //            .interpolate("monotone")
+        //            .x(function (d) {
+        //                return x(new Date(d.time.$date));
+        //            })
+        //            .y(function (d) {
+        //                return y(d.pm25);
+        //            });
+        //        var color = d3.scale.category10();
+        //        color.domain(d3.keys(data[0]).filter(function (key) {
+        //            return key === "pm25";
+        //        }));
+        //
+        //        x.domain(d3.extent(data.map(function (d) {
+        //            return new Date(d.time.$date);
+        //        })));
+        //
+        //        //TODO 固定y轴最大数值
+        //        y.domain([0, 150]);
+        //
+        //        trend.append("g")
+        //            .attr("class", "x axis")
+        //            .attr("transform", "translate("+0+"," + 0 + ")")
+        //            .call(xAxis);
+        //
+        //        trend.append("path")
+        //            .datum(data)
+        //            .attr("class", "line")
+        //            .attr("d", line);
+        //
+        //    }});
 
-                var trend = sel.append("g").attr("id", "trendsCenter")
-                    .attr("transform", "translate("+(centerScreen.x-150)+"," + centerScreen.y + ")");
-
-                var x = d3.time.scale().range([0, 300]),
-                    y = d3.scale.linear().range([ -50, 0]);
-
-                var xAxis = d3.svg.axis().scale(x).orient("bottom").ticks(4).tickFormat(d3.time.format("%b%d %H")),
-                    yAxis = d3.svg.axis().scale(y).orient("left");
-
-                var line = d3.svg.line()
-                    .interpolate("monotone")
-                    .x(function (d) {
-                        return x(new Date(d.time.$date));
-                    })
-                    .y(function (d) {
-                        return y(d.pm25);
-                    });
-                var color = d3.scale.category10();
-                color.domain(d3.keys(data[0]).filter(function (key) {
-                    return key === "pm25";
-                }));
-
-                x.domain(d3.extent(data.map(function (d) {
-                    return new Date(d.time.$date);
-                })));
-
-                //TODO 固定y轴最大数值
-                y.domain([0, 150]);
-
-                trend.append("g")
-                    .attr("class", "x axis")
-                    .attr("transform", "translate("+0+"," + 0 + ")")
-                    .call(xAxis);
-
-                trend.append("path")
-                    .datum(data)
-                    .attr("class", "line")
-                    .attr("d", line);
-
-            }});
-
-        //绘制theme river
+        ////绘制theme river
+        //$.ajax({
+        //    url:"rangetrend.do",
+        //    type:"post",
+        //    data: "",
+        //    success: function (returnData) {
+        //
+        //    }});
 
     });
 
     contextRing.addTo(map);
+
+
 }
 
 
@@ -1302,7 +1393,8 @@ function provinceValueControl(){
             map.removeLayer(provinceValueOverlay);
         createProvinceValue();
     }else{
-        map.removeLayer(provinceValueOverlay);
+        if(provinceValueOverlay != null)
+            map.removeLayer(provinceValueOverlay);
     }
 }
 
@@ -1312,7 +1404,8 @@ function cityValueControl(){
             map.removeLayer(cityValueOverlay);
         createCityValue();
     }else{
-        map.removeLayer(cityValueOverlay);
+        if(provinceValueOverlay != null)
+            map.removeLayer(cityValueOverlay);
     }
 }
 
@@ -1321,6 +1414,29 @@ function controlContextRing(){
         map.removeLayer(contextRing);
     if($("#controlContextRing").is(":checked")){
         createCircleView2();
+    }
+}
+
+function controlThemeRiver(){
+    for(var i = 0; i < 8; i ++){
+        $("#themeriver"+i).empty();
+    }
+    if(themeLayer != null){
+        for(var i = 0; i < 8; i ++){
+            if(themeLayer[i] != null)
+                map.removeLayer(themeLayer[i]);
+        }
+    }
+    if($("#controlThemeRiver").is(":checked")){
+        clusterAndThemeRiver();
+    }
+}
+
+function controlCluster(){
+    if(clusterLayer != null)
+        map.removeLayer(clusterLayer);
+    if($("#controlCluster").is(":checked")){
+        cluster();
     }
 }
 
@@ -1358,3 +1474,304 @@ function hidePoints(){
     locationLayer.clearLayers();
 }
 
+/**将unfiltereddata进行聚类
+ * 首先根据city区域进行聚类
+ * 然后根据时间相似性进行聚类
+ */
+function cluster(){
+    if(clusterLayer != null)
+        map.removeLayer(clusterLayer);
+    sizeScreen = map.getPixelBounds().getSize();
+    outerRadius = sizeScreen.y / 2-50;
+    innerRadius = outerRadius -  200;
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
+
+    var centerX, centerY, sumX = 0, sumY = 0;
+    for(var i = 0; i < freedrawEvent.latLngs[0].length; i ++){
+        sumX += freedrawEvent.latLngs[0][i].lng;
+        sumY += freedrawEvent.latLngs[0][i].lat;
+    }
+    centerX = sumX / freedrawEvent.latLngs[0].length;
+    centerY = sumY / freedrawEvent.latLngs[0].length;
+
+    var param = "";
+    for(var i = 0; i < filteredData.length; i ++){
+        param += ("codes="+filteredData[i].code + "&");
+    }
+    param += "maxDistance="+maxDis+"&";
+    param += "centerLon=" + centerX+"&";
+    param += "centerLat=" + centerY+"&";
+    $.ajax({
+        url:"cluster.do",
+        type:"post",
+        data: param,
+        success: function (returnData) {
+            var data = JSON.parse(returnData);
+            clusterResult = data;
+
+            for(var i = 0; i < data.length; i ++){
+                data[i].distance = L.latLng(data[i].centerY, data[i].centerX).distanceTo(center);
+            }
+
+            clusterLayer = L.d3SvgOverlay(function(sel, proj) {
+                sel.append("svg:marker")
+                    .attr("id", "triangle")
+                    .attr("viewBox", "0 0 15 10")
+                    .attr("refX", "0")
+                    .attr("refY", "5")
+                    .attr("markerWidth", "3")
+                    .attr("markerHeight", "3")
+                    .attr("orient", "auto")
+                    .append("path")
+                    .attr("d", "M 0 0 L 15 5 L 0 10 z");
+
+                var centerScreen = proj.latLngToLayerPoint(center);
+
+                //return centerScreen.x + r *
+                //    (d.longitude - center.lng) /
+                //    Math.sqrt((d.latitude - center.lat)*(d.latitude - center.lat) + (d.longitude - center.lng)*(d.longitude - center.lng));
+                //
+                var stationX = function (d) {
+                    var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
+                    return centerScreen.x + r *
+                        (d.centerX - center.lng) /
+                        Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
+                }
+                var stationY = function (d) {
+                    var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
+                    return centerScreen.y - r *
+                        (d.centerY - center.lat) /
+                        Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
+                }
+                sel.append("g").selectAll(".cluster").data(data)
+                    .enter()
+                    .append("circle")
+                    .attr('r', function (d) {
+                        return d.cluster.length*5;
+                    })
+                    .attr('cx', stationX)
+                    .attr('cy', stationY)
+                    .attr('fill', 'yellow')
+                    .attr('opacity', '1')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1);
+                //TODO
+                sel.append("g").selectAll(".clusterWind").data(data)
+                    .enter()
+                    .append("line")
+                    .attr('x1', stationX)
+                    .attr('y1', stationY)
+                    .attr("x2", stationX)
+                    .attr("y2", stationY)
+                    .attr("marker-end", "url(#triangle)")
+                    .attr("stroke", "black")
+                    .attr("stroke-width", function(d){return d.cluster.length;})
+                    .attr('fill-opacity', '0.8');
+
+            });
+            clusterLayer.addTo(map);
+        }
+    });
+}
+
+/**
+ * 聚类,然后绘制themeriver
+ */
+//TODO
+function clusterAndThemeRiver(){
+    for(var i = 0; i < 8; i ++){
+        $("#themeriver"+i).empty();
+    }
+    if(themeLayer != null){
+        for(var i = 0; i < 8; i ++){
+            if(themeLayer[i] != null)
+                map.removeLayer(themeLayer[i]);
+        }
+    }
+    colorrange = ["#045A8D", "#2B8CBE", "#74A9CF", "#A6BDDB", "#D0D1E6", "#F1EEF6"];
+    var strokecolor = colorrange[0];
+    var margin = {top: 20, right: 40, bottom: 30, left: 30};
+
+    var format = d3.time.format("%m/%d/%y");
+
+    var width = 200;//TODO
+    var height = 150;//TODO
+
+    var x = d3.time.scale()
+        .range([0, width]);
+
+    var y = d3.scale.linear()
+        .range([height - 10, 0]);
+
+    var z = d3.scale.ordinal()
+        .range(colorrange);
+
+    var xAxis = d3.svg.axis()
+        .scale(x)
+        .orient("bottom")
+        .ticks(d3.time.weeks);
+
+    var yAxis = d3.svg.axis()
+        .scale(y);
+
+
+    var stack = d3.layout.stack()
+        .offset("silhouette")
+        .values(function (d) {
+            //console.log("value:"+ d.values);
+            return d.values;
+        })
+        .x(function (d) {
+            //console.log("time:"+ d.time);
+            return d.time;
+        })
+        .y(function (d) {
+            //console.log("pm25:"+ d.pm25);
+            return d.pm25;
+        });
+
+    var nest = d3.nest()
+        .key(function (d) {
+            return d.code;
+        });
+
+    var area = d3.svg.area()
+        .interpolate("cardinal")
+        .x(function (d) {
+            return x(d.time);
+        })
+        .y0(function (d) {
+            return y(d.y0);
+        })
+        .y1(function (d) {
+            return y(d.y0 + d.y);
+        });
+    var param = [];
+    for(var i = 0; i < 8; i ++){
+        param[i] = "";
+    }
+    for(var i = 0; i < clusterResult.length; i ++){
+        //param[clusterResult[i].angle] += "&cities="+clusterResult[i].cluster[0].city;
+        for(var j = 0; j < clusterResult[i].cluster.length; j ++){
+            param[clusterResult[i].angle] += ("&codes="+clusterResult[i].cluster[j].code)
+        }
+    }
+    for(var i = 0; i < 8; i ++){
+        //if(param.length > 0)
+        //    param[i] = param[i].substring(0, param[i].length-6);
+        //console.log(":"+param[i]);
+        param[i] += "&startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
+        param[i] += "&index="+i;
+    }
+
+    //Uncaught TypeError: Cannot read property '1' of undefined
+    //https://github.com/shutterstock/rickshaw/issues/108
+    for(var i = 0; i < 8; i ++){
+        $.ajax({
+            url:"themeriverdata.do",
+            type:"post",
+            data: param[i],
+            success: function (returnData) {
+                themeLayer[i] = L.d3SvgOverlay(function(sel, proj) {
+                    if (returnData == null || returnData == "")
+                        return;
+                    var dataAll = JSON.parse(returnData);
+                    var data = dataAll.result;
+                    data = assignDefaultValues(data);
+                    data.forEach(function (d) {
+                        d.time = new Date(d.time);
+                        //d.value = +d.pm25;
+                    });
+                    //var g = d3.select("#themeriver" + i).style("left", (octagonLocationScreen[dataAll.index].x - 140) + "px")
+                    //    .style("top", (octagonLocationScreen[dataAll.index].y - 120 ) + "px");
+                    var g = sel.append("g")
+                        .attr("transform","translate("+(octagonLocationScreen[dataAll.index].x - 140)+","+(octagonLocationScreen[dataAll.index].y - 120 )+")");
+                    var svg = g.append("svg")
+                        .attr("width", width + margin.left + margin.right)
+                        .attr("height", height + margin.top + margin.bottom)
+                        .append("g")
+                        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                    var entries = nest.entries(data);
+
+                    var layers = stack(entries);
+
+                    x.domain(d3.extent(data, function (d) {
+                        return d.time;
+                    }));
+                    y.domain([0, d3.max(data, function (d) {
+                        return d.y0 + d.y;
+                    })]);
+
+                    svg.selectAll(".layer")
+                        .data(layers)
+                        .enter().append("path")
+                        .attr("class", "layer")
+                        .attr("d", function (d) {
+                            return area(d.values);
+                        })
+                        .style("fill", function (d, i) {
+                            //console.log("d:"+i+":"+z(i));
+                            return z(i);
+                        });
+
+                    svg.append("g")
+                        .attr("class", "x axis")
+                        .attr("transform", "translate(0," + height + ")")
+                        .call(xAxis);
+                });
+                themeLayer[i].addTo(map);
+
+            },
+            async:false
+        });
+    }
+    //themeLayer.addTo(map);
+}
+
+
+function assignDefaultValues( dataset )
+{
+    return dataset;
+    //console.log("before:"+dataset.length);
+    //var defaultValue = 0;
+    //var keys = [  ];
+    //var hadData = [];
+    //var j = 0;
+    //for(var i = 0; i < dataset.length; i ++){
+    //    if(keys.indexOf(dataset[i].code) == -1) {
+    //        keys[j] = dataset[i].code;
+    //        hadData[j] = true;
+    //        j ++;
+    //    }
+    //}
+    //
+    //var newData = [];
+    //var previousdate = new Date();
+    //var sortByDate = function(a,b){ return a.date > b.date ? 1 : -1; };
+    //
+    //dataset.sort(sortByDate);
+    //dataset.forEach(function(row){
+    //    if(row.time.valueOf() !== previousdate.valueOf()){
+    //        for(var i = 0 ; i < keys.length ; ++i){
+    //            if(hadData[i] === false){
+    //                newData.push( { code: keys[i],
+    //                    pm: defaultValue,
+    //                    time: previousdate });
+    //            }
+    //            hadData[i] = false;
+    //        }
+    //        previousdate = row.time;
+    //    }
+    //    hadData[keys.indexOf(row.code)] = true;
+    //});
+    //for( i = 0 ; i < keys.length ; ++i){
+    //    if(hadData[i] === false){
+    //        newData.push( { code: keys[i], pm: defaultValue,
+    //            time: previousdate });
+    //    }
+    //}
+    //console.log("after:"+dataset.concat(newData).sort(sortByDate).length);
+    //return dataset.concat(newData).sort(sortByDate);
+}

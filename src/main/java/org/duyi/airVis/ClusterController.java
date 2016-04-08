@@ -1,5 +1,6 @@
 package org.duyi.airVis;
 
+import com.mongodb.Mongo;
 import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -31,7 +32,10 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import java.io.File;
 import java.io.FileInputStream;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -48,11 +52,13 @@ public class ClusterController {
      *
      * 返回结果如下:
      *
-    [{"cluster":[[{"code":"1006A","city":"北京市","latitude":39.9425,"station":"官园","point":"POINT (116.361 39.9425)","longitude":116.361}]],"centerY":[39.92829649191552],"centerX":[116.3665953861068]},
-    {"cluster":[[{"code":"1004A","city":"北京市","latitude":39.8745,"station":"天坛","point":"POINT (116.434 39.8745)","longitude":116.434}]],"centerY":[39.88331922006622],"centerX":[116.41830732208214]},
-    {"cluster":[[{"code":"1003A","city":"北京市","latitude":39.9522,"station":"东四","point":"POINT (116.434 39.9522)","longitude":116.434},{"code":"1005A","city":"北京市","latitude":39.9716,"station":"农展馆","point":"POINT (116.473 39.9716)","longitude":116.473},{"code":"1011A","city":"北京市","latitude":40.0031,"station":"奥体中心","point":"POINT (116.407 40.0031)","longitude":116.407}]],"centerY":[39.95284375537745],"centerX":[116.51521256978202]},
-    {"cluster":[[{"code":"1007A","city":"北京市","latitude":39.9934,"station":"海淀区万柳","point":"POINT (116.315 39.9934)","longitude":116.315},{"code":"1012A","city":"北京市","latitude":39.9279,"station":"古城","point":"POINT (116.225 39.9279)","longitude":116.225}]],"centerY":[40.02717109170304],"centerX":[116.2331073821836]},
-    ....
+    [{"cluster":[{"code":"2630A","city":"阿里地区","latitude":32.5,"station":"阿里监测站","point":"POINT (80.1161 32.5)","longitude":80.1161},{"code":"2631A","city":"阿里地区","latitude":32.5039,"station":"阿里地委","point":"POINT (80.0895 32.5039)","longitude":80.0895}],"centerY":33.03017272539136,"centerX":82.55745541810138,"angle":3},{"cluster":[{"code":"1954A","city":"克拉玛依市","latitude":44.3336,"station":"独山子区","point":"POINT (84.8983 44.3336)","longitude":84.8983}],"centerY":45.446010320866435,"centerX":85.1694460113506,"angle":1},{"cluster":[{"code":"2693A","city":"博州","latitude":44.9079,"station":"博乐市西郊区","point":"POINT (82.0485 44.9079)","longitude":82.0485},{"code":"2694A","city":"博州","latitude":44.8969,"station":"市环保局","point":"POINT (82.0806 44.8969)","longitude":82.0806}],"centerY":44.73734089035971,"centerX":82.12236781021181,"angle":1},{"cluster":[{"code":"1956A","city":"库尔勒市","latitude":41.7511,"station":"孔雀公园","point":"POINT (86.1461 41.7511)","longitude":86.1461},{"code":"1957A","city":"库尔勒市","latitude":41.7192,"station":"棉纺厂","point":"POINT (86.2022 41.7192)","longitude":86.2022},{"code":"1958A","city":"库尔勒市","latitude":41.7128,"station":"经济开发区","point":"POINT (86.2381 41.7128)","longitude":86.2381}],"centerY":39.49807254093696,"centerX":87.47418447395657,"angle":2},{"cluster":[{"code":"2695A","city":"阿克苏地区","latitude":41.1636,"station":"电视台","point":"POINT (80.2828 41.1636)","longitude":80.2828},{"code":"2696A","city":"阿克苏地区","latitude":41.1933,"station":"艺术中心","point":"POINT (80.2956 41.1933)","longitude":80.2956}],"centerY":40.961583439271244,"centerX":81.55654857903464,"angle":1},{"cluster":[{"code":"2701A","city":"和田地区","latitude":37.1152,"station":"地区站","point":"POINT (79.9485 37.1152)","longitude":79.9485},{"code":"2702A","city":"和田地区","latitude":37.1013,"station":"古江巴格乡院内","point":"POINT (79.9117 37.1013)","longitude":79.9117}],"centerY":37.07636221473472,"centerX":80.92700299425222,"angle":3},
+
+    {
+    "cluster":[{"code":"2703A","city":"伊犁哈萨克州","latitude":43.9404,"station":"市环保局","point":"POINT (81.2815 43.9404)","longitude":81.2815},{"code":"2704A","city":"伊犁哈萨克州","latitude":43.895,"station":"新政府片区","point":"POINT (81.2867 43.895)","longitude":81.2867},{"code":"2705A","city":"伊犁哈萨克州","latitude":43.941,"station":"第二水厂","point":"POINT (81.3364 43.941)","longitude":81.3364}],"centerY":43.46412943531677,"centerX":82.11668673611187,"angle":1
+    }
+
+    ] ....
      */
 
     @RequestMapping(value = "cluster.do", method = RequestMethod.POST)
@@ -138,9 +144,45 @@ public class ClusterController {
                     }
                 }
                 if(oneCluster.length() != 0) {
-                    cluster.append("centerX", cityArea.get(i).getCentroid().getX());
-                    cluster.append("centerY", cityArea.get(i).getCentroid().getY());
-                    cluster.append("cluster", oneCluster);
+                    cluster.put("centerX", cityArea.get(i).getCentroid().getX());
+                    cluster.put("centerY", cityArea.get(i).getCentroid().getY());
+
+                    //计算对应的角度,从北方向偏西22.5度开始为0, 每45度增加1
+                    GeodeticCalculator calc = new GeodeticCalculator();
+                    calc.setStartingGeographicPoint(cityArea.get(i).getCentroid().getX(), cityArea.get(i).getCentroid().getY());
+                    calc.setDestinationGeographicPoint(centerLon, cityArea.get(i).getCentroid().getY());
+                    double deltaX = calc.getOrthodromicDistance();
+                    if(cityArea.get(i).getCentroid().getX() < centerLon)
+                        deltaX = - deltaX;
+                    calc.setStartingGeographicPoint(centerLon, cityArea.get(i).getCentroid().getY());
+                    calc.setDestinationGeographicPoint(centerLon, centerLat);
+                    double deltaY = calc.getOrthodromicDistance();
+                    if(cityArea.get(i).getCentroid().getY() < centerLat)
+                        deltaY = - deltaY;
+                    //http://stackoverflow.com/questions/17574424/how-to-use-atan2-in-combination-with-other-radian-angle-systems
+                    double angle = Math.toDegrees(Math.atan2(deltaX, deltaY));
+                    if(angle < 0 )
+                        angle += 360;
+//                    cluster.append("angle", (angle));
+//                    System.out.println((angle)+":"+deltaY+":"+deltaX);
+                    if((angle >= 0 && angle < 22.5) || (angle >= 337.5 && angle <= 360)){
+                        cluster.put("angle", 0);
+                    }else if(angle >= 22.5 && angle < 67.5){
+                        cluster.put("angle", 1);
+                    }else if(angle >= 67.5 && angle < 112.5){
+                        cluster.put("angle", 2);
+                    }else if(angle >= 112.5 && angle < 157.5){
+                        cluster.put("angle", 3);
+                    }else if(angle >= 157.5 && angle < 202.5){
+                        cluster.put("angle", 4);
+                    }else if(angle >= 202.5 && angle < 247.5){
+                        cluster.put("angle", 5);
+                    }else if(angle >= 247.5 && angle < 292.5) {
+                        cluster.put("angle", 6);
+                    }else if(angle >= 292.5 && angle < 337.5) {
+                        cluster.put("angle", 7);
+                    }
+                    cluster.put("cluster", oneCluster);
                     result.put(cluster);
                 }
 
@@ -150,5 +192,63 @@ public class ClusterController {
             e.printStackTrace();
         }
         return "nothing1";
+    }
+
+    /**
+     * 根据codes返回codes的themeriver数据
+     * @param codes
+     * @param startTime
+     * @param endTime
+     * @param index 方向的index
+     * @return
+     */
+    @RequestMapping(value = "themeriverdata.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    //TODO
+    String themeriverdata(String[] codes, String startTime, String endTime, int index) {
+        if(codes == null || codes.length == 0)
+            return "";
+        MongoClient client = new MongoClient();
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection("pmdata_day");
+        Calendar cal = Calendar.getInstance();
+        //TODO time zone problem
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
+
+        Document filter = new Document();
+
+        ArrayList<String> codeFilter = new ArrayList<String>();
+        for(int i = 0; i < codes.length; i ++){
+            codeFilter.add(codes[i]);
+        }
+        try {
+            filter.append("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
+            filter.append("code", new Document().append("$in", codeFilter));
+        }catch(ParseException pe){
+            pe.printStackTrace();
+        }
+//        System.out.println(filter.toString());
+        MongoCursor cur = coll.find(filter).iterator();
+
+        JSONObject result = new JSONObject();
+        JSONArray res = new JSONArray();
+
+        while(cur.hasNext()){
+            Document d = (Document)cur.next();
+            d.put("time", d.get("time"));
+            d.put("pm25", d.get("pm25"));
+            d.put("code", d.get("code"));
+            d.put("city", d.get("city"));
+            res.put(d);
+//            res.put(cur.next());
+        }
+        try {
+            result.put("result", res);
+            result.put("index", index);
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+        return result.toString();
     }
 }
