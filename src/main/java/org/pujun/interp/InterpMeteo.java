@@ -14,14 +14,15 @@ import java.util.SimpleTimeZone;
  *
  */
 public class InterpMeteo {
-    private double[][] spdPoints;
-    private double[][] dirPoints;
-    private double[] spds;
-    private double[] dirs;
-    Date date;
+    private static final String NEW_DB_NAME = "airdb";
+    public double[][] spdPoints;
+    public double[][] dirPoints;
+    public double[] spds;
+    public double[] dirs;
+    public Date date;
 
     MongoClient client = new MongoClient("127.0.0.1", 27017);
-    DB db = client.getDB("alldata");
+    DB db = client.getDB(NEW_DB_NAME);
     DBCollection meteoCollection = db.getCollection("meteo_data");
     DBCollection meteoStationCollection = db.getCollection("meteo_stations");
 
@@ -122,8 +123,8 @@ public class InterpMeteo {
 
 
     public double spd(double interpLat, double interpLon) {
-        RBF_multiquadric rbf_multiquadric = new RBF_multiquadric(2);
-        RBF_interp rbf_interp_multiquadric = new RBF_interp(spdPoints,spds,rbf_multiquadric);
+        RBF_linear rbf_linear = new RBF_linear();
+        RBF_interp rbf_interp_multiquadric = new RBF_interp(spdPoints,spds,rbf_linear);
         double[] pt = {interpLat,interpLon};
         double interpSpd = rbf_interp_multiquadric.interp(pt);
 
@@ -131,8 +132,8 @@ public class InterpMeteo {
     }
 
     public double dir(double interpLat, double interpLon) {
-        RBF_multiquadric rbf_multiquadric = new RBF_multiquadric(2);
-        RBF_interp rbf_interp_multiquadric = new RBF_interp(dirPoints,dirs,rbf_multiquadric);
+        RBF_linear rbf_linear = new RBF_linear();
+        RBF_interp rbf_interp_multiquadric = new RBF_interp(dirPoints,dirs,rbf_linear);
         double[] pt = {interpLat,interpLon};
         double interpDir = rbf_interp_multiquadric.interp(pt);
 

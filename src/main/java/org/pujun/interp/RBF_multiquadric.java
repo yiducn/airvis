@@ -16,10 +16,12 @@ public class RBF_multiquadric implements RBF_fn{
     }
 
     public RBF_multiquadric(final double scale){
-        r0 = pow((scale),2);
+        //r0 = pow((scale),2);
+        r0 = scale;
     }
 
     public double rbf(final double r) {
-        return sqrt(pow(r,2) + r0);
+        //return sqrt(pow(r,2) + r0);
+        return sqrt(1 + pow(r0 * r, 2));
     }
 }
