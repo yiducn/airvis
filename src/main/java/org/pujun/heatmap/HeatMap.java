@@ -46,7 +46,7 @@ public class HeatMap {
         for (int i = 0; i < interpPm.pm25s.length; i++) {
             dg.outpng="/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/outimageorigin.png";
             dg.graphics.setColor(useColor(interpPm.pm25s[i]));
-            System.out.println(interpPm.pm25s[i]);
+            //System.out.println(interpPm.pm25s[i]);
             dg.drawEllipse(interpPm.pm25Points[i][0], interpPm.pm25Points[i][1]);
         }
 
