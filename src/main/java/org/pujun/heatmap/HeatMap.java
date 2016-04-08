@@ -99,7 +99,7 @@ public class HeatMap {
 
     public static void main(String[] args) throws IOException, ParseException {
         HeatMap heatMap = new HeatMap("2013-12-18 06:00:00");
-        //heatMap.drawInterpPm25(200, 0);
+        heatMap.drawInterpPm25(200, 0);
         heatMap.drawPm25(200,0);
 
     }
