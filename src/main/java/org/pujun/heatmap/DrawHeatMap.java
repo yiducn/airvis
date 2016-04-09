@@ -57,7 +57,7 @@ public class DrawHeatMap{
         outImage("PNG", outpng);
     }
 
-    private void outImage(String type,String filePath) throws IOException {
+    public void outImage(String type,String filePath) throws IOException {
         ImageIO.write(image, type, new File(filePath));
     }
 
