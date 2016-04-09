@@ -27,8 +27,8 @@ import static java.lang.Math.ceil;
  */
 public class HeatMap {
     private String timePoint;
-    private Color maxColor = new Color(255,0,0,100);
-    private Color minColor = new Color(127,255,0,100);
+    private Color maxColor = new Color(255,0,0,50);
+    private Color minColor = new Color(127,255,0,50);
     private double minValue,maxValue;
     private static final String CITY_PATH = "/Users/milletpu/airvis/src/main/webapp/maps/china_cities.json";
 
