@@ -17,9 +17,13 @@ import static java.lang.Math.abs;
 public class DrawHeatMap{
     public BufferedImage image;
     public Graphics2D graphics;
-    public String png = "/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/china-map-screenshot.png";
-    public String outpng = "/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/outimage.png";
+    public String png;
+    public String outpng;
 
+    public DrawHeatMap(String inputImage, String outputImage){
+        png = inputImage;
+        outpng = outputImage;
+    }
 
     /**
      * 读入png地图图片

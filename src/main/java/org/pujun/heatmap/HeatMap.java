@@ -31,11 +31,11 @@ public class HeatMap {
     private Color minColor = new Color(127,255,0,50);
     private double minValue,maxValue;
     private static final String CITY_PATH = "/Users/milletpu/airvis/src/main/webapp/maps/china_cities.json";
+    private static final String INPUT_IMAGE= "/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/china-map-screenshot.png";
 
     public HeatMap(String timePoint) {
         this.timePoint = timePoint;
     }
-
     /**
      * 在地图上画出pm2.5历史数据，数据从mongodb中取
      * @param maxValue 历史数据最大值（对应最大颜色）
@@ -46,10 +46,11 @@ public class HeatMap {
     public void drawPm25(double maxValue,double minValue) throws ParseException, IOException {
         this.maxValue = maxValue;
         this.minValue = minValue;
+        String pm25Image = "/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/pm25Image.png";
 
-        DrawHeatMap dg = new DrawHeatMap();     //实例化 画heatmap
+        //画heatmap
+        DrawHeatMap dg = new DrawHeatMap(INPUT_IMAGE, pm25Image);     //实例化 画heatmap
         dg.init();      //初始化读入地图背景，png
-        dg.outpng = "/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/outimageorigin.png";
         InterpPm interpPm = new InterpPm(timePoint);
         for (int i = 0; i < interpPm.pm25s.length; i++) {
             dg.graphics.setColor(useColor(interpPm.pm25s[i]));
@@ -69,14 +70,16 @@ public class HeatMap {
     public void drawInterpPm25(double maxValue, double minValue) throws IOException, ParseException {
         this.minValue = minValue;
         this.maxValue = maxValue;
+        String pm25InterpImage ="/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/pm25InterpImage.png";
+
         //获取全国所有城市的坐标
         FeatureJSON fj = new FeatureJSON();
         FeatureCollection fc = fj.readFeatureCollection(new FileInputStream(new File(CITY_PATH)));
         FeatureIterator iterator = fc.features();
 
-        DrawHeatMap dg = new DrawHeatMap();     //实例化 画heatmap
+        //画heatmap
+        DrawHeatMap dg = new DrawHeatMap(INPUT_IMAGE,pm25InterpImage);
         dg.init();      //初始化读入地图背景，png
-        dg.outpng="/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/outimage.png";
         InterpPm interpPm = new InterpPm(timePoint);
         while (iterator.hasNext()) {
             Feature feature = iterator.next();
@@ -88,11 +91,6 @@ public class HeatMap {
 
             dg.graphics.setColor(useColor(thisPm25));
             dg.drawEllipse(thisLat, thisLon);
-
-
-//            System.out.println("lat:"+ thisLat + "lon:" + thisLon);
-//            System.out.println(interpPm.pm10(thisLat, thisLon));
-//            System.out.println(interpPm.pm25(thisLat, thisLon));
         }
     }
 
@@ -116,6 +114,5 @@ public class HeatMap {
         HeatMap heatMap = new HeatMap("2013-12-18 06:00:00");
         heatMap.drawInterpPm25(200, 0);
         heatMap.drawPm25(200,0);
-
     }
 }
