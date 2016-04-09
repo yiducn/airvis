@@ -57,13 +57,7 @@ public class DrawHeatMap{
         outImage("PNG", outpng);
     }
 
-    /**
-     * 输出画好后的新图片
-     * @param type 图片格式
-     * @param filePath 新图片地址
-     * @throws IOException
-     */
-    public void outImage(String type,String filePath) throws IOException {
+    private void outImage(String type,String filePath) throws IOException {
         ImageIO.write(image, type, new File(filePath));
     }
 
