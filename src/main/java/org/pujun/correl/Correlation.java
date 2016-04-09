@@ -13,6 +13,12 @@ public class Correlation {
     private double pearsonsResult;
     private double[] lagResult ={0,0};
 
+    /**
+     * Input two time series and get correlation value in return
+     * @param x
+     * @param y
+     * @return
+     */
     public double getPearsonsResult(double[] x, double[] y){
 
         PearsonsCorrelation pearsonsCorrelation = new PearsonsCorrelation();
@@ -22,7 +28,7 @@ public class Correlation {
     }
 
     /**
-     * Input two time seires then get the best lag and its corresponding correlation value
+     * Input two time seires then get the best lag and its correlation value in return
      * @param x
      * @param y
      * @return LagResult[0]: best lag, lagResult[1]: correlation value
@@ -43,13 +49,13 @@ public class Correlation {
         return lagResult;
     }
 
-    public static void main(String[] args) {
-        double[] y = {1,2,3,4,5,6,7,8,9,10};
-        double[] x = {12,1,8,7,6,5,4,3,2,1};
-        Correlation correlation = new Correlation();
-        System.out.println(correlation.getLagResult(x,y)[0]);
-        System.out.println(correlation.getLagResult(x,y)[1]);
-
-    }
+//    public static void main(String[] args) {
+//        double[] y = {1,2,3,4,5,6,7,8,9,10};
+//        double[] x = {12,1,8,7,6,5,4,3,2,1};
+//        Correlation correlation = new Correlation();
+//        System.out.println(correlation.getLagResult(x,y)[0]);
+//        System.out.println(correlation.getLagResult(x,y)[1]);
+//
+//    }
 
 }
