@@ -19,12 +19,24 @@ public class DrawHeatMap{
     public Graphics2D graphics;
     public String png = "/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/china-map-screenshot.png";
     public String outpng = "/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/outimage.png";
+
+
+    /**
+     * 读入png地图图片
+     * @throws IOException
+     */
     public void init() throws IOException {
         File f = new File(png);
         image = ImageIO.read(f);
         graphics = (Graphics2D)image.getGraphics();
     }
 
+    /**
+     * 在地图图片上画点
+     * @param lat 纬度
+     * @param lon 经度
+     * @throws IOException
+     */
     public void drawEllipse(double lat, double lon) throws IOException {    //左上角起始坐标lat54.1, lon72.3
         double x,y;
         x = abs(lon - 72.3) * 17.1;
@@ -38,12 +50,15 @@ public class DrawHeatMap{
 
         Ellipse2D ellipse = new Ellipse2D.Double(x,y,20,20);
         graphics.fill(ellipse);
-        //graphics.setColor(new Color(255,0,0,100));
-        //graphics.draw(ellipse);   //描边
-        //graphics.dispose();
         outImage("PNG", outpng);
     }
 
+    /**
+     * 输出画好后的新图片
+     * @param type 图片格式
+     * @param filePath 新图片地址
+     * @throws IOException
+     */
     public void outImage(String type,String filePath) throws IOException {
         ImageIO.write(image, type, new File(filePath));
     }

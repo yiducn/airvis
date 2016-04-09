@@ -36,15 +36,22 @@ public class HeatMap {
         this.timePoint = timePoint;
     }
 
+    /**
+     * 在地图上画出pm2.5历史数据，数据从mongodb中取
+     * @param maxValue 历史数据最大值（对应最大颜色）
+     * @param minValue 历史数据最小值（对应最小颜色）
+     * @throws ParseException
+     * @throws IOException
+     */
     public void drawPm25(double maxValue,double minValue) throws ParseException, IOException {
         this.maxValue = maxValue;
         this.minValue = minValue;
-        InterpPm interpPm = new InterpPm(timePoint);
 
         DrawHeatMap dg = new DrawHeatMap();     //实例化 画heatmap
         dg.init();      //初始化读入地图背景，png
+        dg.outpng = "/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/outimageorigin.png";
+        InterpPm interpPm = new InterpPm(timePoint);
         for (int i = 0; i < interpPm.pm25s.length; i++) {
-            dg.outpng="/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/outimageorigin.png";
             dg.graphics.setColor(useColor(interpPm.pm25s[i]));
             //System.out.println(interpPm.pm25s[i]);
             dg.drawEllipse(interpPm.pm25Points[i][0], interpPm.pm25Points[i][1]);
@@ -52,18 +59,25 @@ public class HeatMap {
 
     }
 
+    /**
+     * 画出全中国所有城市的pm2.5插值数据
+     * @param maxValue
+     * @param minValue
+     * @throws IOException
+     * @throws ParseException
+     */
     public void drawInterpPm25(double maxValue, double minValue) throws IOException, ParseException {
         this.minValue = minValue;
         this.maxValue = maxValue;
         //获取全国所有城市的坐标
-        InterpPm interpPm = new InterpPm(timePoint);
         FeatureJSON fj = new FeatureJSON();
         FeatureCollection fc = fj.readFeatureCollection(new FileInputStream(new File(CITY_PATH)));
         FeatureIterator iterator = fc.features();
 
         DrawHeatMap dg = new DrawHeatMap();     //实例化 画heatmap
         dg.init();      //初始化读入地图背景，png
-
+        dg.outpng="/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/outimage.png";
+        InterpPm interpPm = new InterpPm(timePoint);
         while (iterator.hasNext()) {
             Feature feature = iterator.next();
             String[] thisLocation = feature.getProperty("cp").getValue().toString().split(",");
@@ -71,8 +85,9 @@ public class HeatMap {
             double thisLat = Double.parseDouble(thisLocation[1].replace("]", ""));
             double thisPm25 = interpPm.pm25(thisLat, thisLon);
             //System.out.println(thisPm25);
+
             dg.graphics.setColor(useColor(thisPm25));
-            dg.drawEllipse(thisLat, thisLon);//取出全国所有城市的坐标，在地图png上画点
+            dg.drawEllipse(thisLat, thisLon);
 
 
 //            System.out.println("lat:"+ thisLat + "lon:" + thisLon);
