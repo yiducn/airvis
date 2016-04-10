@@ -31,7 +31,9 @@ public class InterpMeteo {
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         df.setCalendar(new GregorianCalendar(new SimpleTimeZone(0, "GMT")));
         date = df.parse(timePoint);
+    }
 
+    public void searchData() {
         //查询所有站点在此时间下的meteo数据
         BasicDBObject queryData = new BasicDBObject();
         queryData.put("time", date);
@@ -123,6 +125,7 @@ public class InterpMeteo {
 
 
     public double spd(double interpLat, double interpLon) {
+        searchData();
         RBF_linear rbf_linear = new RBF_linear();
         RBF_interp rbf_interp_multiquadric = new RBF_interp(spdPoints,spds,rbf_linear);
         double[] pt = {interpLat,interpLon};
@@ -132,6 +135,7 @@ public class InterpMeteo {
     }
 
     public double dir(double interpLat, double interpLon) {
+        searchData();
         RBF_linear rbf_linear = new RBF_linear();
         RBF_interp rbf_interp_multiquadric = new RBF_interp(dirPoints,dirs,rbf_linear);
         double[] pt = {interpLat,interpLon};
