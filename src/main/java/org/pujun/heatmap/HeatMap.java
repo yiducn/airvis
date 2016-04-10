@@ -96,6 +96,7 @@ public class HeatMap {
 
     public Color useColor(double value){
         Color thisColor;
+
         int selectCorlor = (int) ceil((value - minValue) / (maxValue - minValue) * 383);    //383种渐变颜色
         if(selectCorlor >= 0 && selectCorlor <= 127){
             thisColor = new Color(minColor.getRed()+selectCorlor,255,0,50);
