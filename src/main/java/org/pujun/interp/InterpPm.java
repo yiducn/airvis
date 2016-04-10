@@ -30,7 +30,9 @@ public class InterpPm {
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         df.setCalendar(new GregorianCalendar(new SimpleTimeZone(0, "GMT")));
         date = df.parse(timePoint);
+    }
 
+    public void searchData() {
         //查询所有站点在此时间下的pm数据
         BasicDBObject queryData = new BasicDBObject();
         queryData.put("time", date);
@@ -64,7 +66,7 @@ public class InterpPm {
                     double thisLat = Double.parseDouble(thisStation.get("lat").toString());
                     double thisLon = Double.parseDouble(thisStation.get("lon").toString());
                     double[] thisPoint = {thisLat, thisLon};
-                    for (int i=0; i<pm25Point.size(); i++) {
+                    for (int i = 0; i < pm25Point.size(); i++) {
                         if (pm25Point.get(i)[0] == thisPoint[0] && pm25Point.get(i)[1] == thisPoint[1]) {
                             status = 1;
                         }
@@ -85,7 +87,7 @@ public class InterpPm {
                     double thisLat = Double.parseDouble(thisStation.get("lat").toString());
                     double thisLon = Double.parseDouble(thisStation.get("lon").toString());
                     double[] thisPoint = {thisLat, thisLon};
-                    for (int i=0; i<pm10Point.size(); i++) {
+                    for (int i = 0; i < pm10Point.size(); i++) {
                         if (pm10Point.get(i)[0] == thisPoint[0] && pm10Point.get(i)[1] == thisPoint[1]) {
                             status = 1;
                         }
@@ -123,7 +125,9 @@ public class InterpPm {
         }
     }
 
+
     public double pm25(double interpLat, double interpLon) {
+        searchData();
         RBF_multiquadric rbf_linear = new RBF_multiquadric(20);
         RBF_interp rbf_interp_multiquadric = new RBF_interp(pm25Points,pm25s,rbf_linear);
         double[] pt = {interpLat, interpLon};
@@ -133,6 +137,7 @@ public class InterpPm {
     }
 
     public double pm10(double interpLat, double interpLon) {
+        searchData();
         RBF_linear rbf_linear = new RBF_linear();
         RBF_interp rbf_interp_multiquadric = new RBF_interp(pm10Points,pm10s,rbf_linear);
         double[] pt = {interpLat, interpLon};
