@@ -103,8 +103,10 @@ public class HeatMap {
         }else if(selectCorlor >=128 && selectCorlor <= 383){
             thisColor = new Color(255,minColor.getGreen()-(selectCorlor-128),0,50);
             return thisColor;
+        }else if(selectCorlor > 383 && selectCorlor <800){
+            return maxColor;
         }else{
-            return minColor;
+            return new Color(0, 0, 0, 0);//异常点白色
         }
     }
 
