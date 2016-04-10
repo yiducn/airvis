@@ -27,8 +27,8 @@ import static java.lang.Math.ceil;
  */
 public class HeatMap {
     private String timePoint;
-    private Color maxColor = new Color(255,0,0,50);
-    private Color minColor = new Color(127,255,0,50);
+    private Color maxColor = new Color(255,0,0,100);
+    private Color minColor = new Color(127,255,0,100);
     private double minValue,maxValue;
     private static final String CITY_PATH = "/Users/milletpu/airvis/src/main/webapp/maps/china_cities.json";
     private static final String INPUT_IMAGE= "/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/china-map-screenshot.png";
@@ -99,10 +99,10 @@ public class HeatMap {
 
         int selectCorlor = (int) ceil((value - minValue) / (maxValue - minValue) * 383);    //383种渐变颜色
         if(selectCorlor >= 0 && selectCorlor <= 127){
-            thisColor = new Color(minColor.getRed()+selectCorlor,255,0,50);
+            thisColor = new Color(minColor.getRed()+selectCorlor,255,0,100);
             return thisColor;
         }else if(selectCorlor >=128 && selectCorlor <= 383){
-            thisColor = new Color(255,minColor.getGreen()-(selectCorlor-128),0,50);
+            thisColor = new Color(255,minColor.getGreen()-(selectCorlor-128),0,100);
             return thisColor;
         }else if(selectCorlor > 383 && selectCorlor < 800){
             return maxColor;
