@@ -106,6 +106,10 @@ public class STLController {
         }
 //        System.out.println(time.size()+":"+value.size());
         final StlDecomposition stl = new StlDecomposition(24);
+        //outer 10几乎能够保证收敛
+        stl.getConfig().setNumberOfRobustnessIterations(10);
+//        stl.getConfig().setLoessRobustnessIterations(2);
+//        stl.getConfig().setNumberOfInnerLoopPasses(20);
         StlResult deResult = stl.decompose(time, value);
         try {
             for(int i = 0; i < deResult.getRemainder().length; i ++){
