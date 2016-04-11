@@ -95,11 +95,10 @@ public class Correlation {
 
     public static void main(String[] args) throws ParseException {
         double[] x,y;
-        DataCorrelation dataCorrelation = new DataCorrelation();
-        x = dataCorrelation.getInterpPM25TimeSeries(40.0239, 116.2202, "2013-12-18 09:00:00", "2014-01-18 09:00:00");
-        y = dataCorrelation.getInterpPM25TimeSeries(38.1006, 114.4995, "2013-12-18 09:00:00", "2014-01-18 09:00:00");
-
         Correlation correlation = new Correlation();
+        x = correlation.getInterpPM25TimeSeries(40.0239, 116.2202, "2013-12-18 09:00:00", "2014-01-18 09:00:00");
+        y = correlation.getInterpPM25TimeSeries(38.1006, 114.4995, "2013-12-18 09:00:00", "2014-01-18 09:00:00");
+
         double[] lag = correlation.getLagResult(x,y);
         System.out.println(lag[0]);
         System.out.println(lag[1]);
