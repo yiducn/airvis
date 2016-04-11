@@ -85,6 +85,7 @@ public class Correlation {
             startDate = cal.getTime();
             //历史数据中不存在的日期，直接取前一天的数据；存在的可直接计算出？？？
             //如果起始日期就没有，那岂不是完蛋了？？！更改！！
+            //可以对已有时间点的数据作为已知，不存在的时间点可以插值出来
         }
         double[] interpPm25Result = new double[interpPm25ResultList.size()];
         for (int i = 0; i < interpPm25ResultList.size(); i++) {
