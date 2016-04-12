@@ -24,13 +24,16 @@ import org.json.JSONObject;
 import org.opengis.feature.Feature;
 import org.pujun.interp.InterpMeteo;
 import org.pujun.interp.InterpPm;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.InputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -39,10 +42,37 @@ import java.util.*;
  * Created by yidu on 3/29/16.
  */
 @Controller
+@Scope("singleton")
 public class ClusterController {
     private static final String NEW_DB_NAME = "airdb";
-    private static final String CITY_PATH = "/Users/yidu/dev/airvis/src/main/webapp/maps/china_cities.json";
-    private static String[] metoStations = null;
+//    private static final String CITY_PATH = "/Users/yidu/dev/airvis/src/main/webapp/maps/china_cities.json";
+    private static final String CITY_PATH_RELATIVE = "/../../maps/china_cities.json";
+    private static ArrayList<Geometry> cityArea;
+    private static String[] metoStations;
+
+    @PostConstruct
+    public void  init(){
+        if(metoStations != null) {
+            return;
+        }
+        FeatureJSON fj = new FeatureJSON();
+        cityArea = new ArrayList<Geometry>();
+        FeatureCollection fc = null;
+        try{
+            fc = fj.readFeatureCollection(this.getClass().getResourceAsStream(CITY_PATH_RELATIVE));//new FileInputStream(new File(CITY_PATH)));
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+        FeatureIterator iterator = fc.features();
+        while( iterator.hasNext() ){
+            Feature feature = iterator.next();
+            Geometry value = (Geometry)feature.getDefaultGeometryProperty().getValue();
+            cityArea.add(value);
+        }
+        metoStations = getNearestStation(cityArea);
+        System.out.println("init complete");
+    }
+
 
     /**
      * String[] codes = {"1001A", "1002A"};
@@ -103,7 +133,6 @@ public class ClusterController {
                 if(self)
                     continue;
 
-
                 oneStation = new JSONObject();
                 GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
                 oneStation.put("city", d.getString("city"));
@@ -117,18 +146,8 @@ public class ClusterController {
                 filtered.add(oneStation);
             }
 
-            FeatureJSON fj = new FeatureJSON();
-            FeatureCollection fc = fj.readFeatureCollection(new FileInputStream(new File(CITY_PATH)));
-            FeatureIterator iterator = fc.features();
-            ArrayList<Geometry> cityArea = new ArrayList<Geometry>();
             JSONObject cluster ;
             JSONArray result = new JSONArray();
-            while( iterator.hasNext() ){
-                Feature feature = iterator.next();
-                Geometry value = (Geometry)feature.getDefaultGeometryProperty().getValue();
-                cityArea.add(value);
-            }
-
             for(int i = 0; i < cityArea.size(); i ++){
                 //判断是否正确图形
                 IsValidOp isValidOp = new IsValidOp(cityArea.get(i));
@@ -162,8 +181,6 @@ public class ClusterController {
                     double angle = Math.toDegrees(Math.atan2(deltaX, deltaY));
                     if(angle < 0 )
                         angle += 360;
-//                    cluster.append("angle", (angle));
-//                    System.out.println((angle)+":"+deltaY+":"+deltaX);
                     if((angle >= 0 && angle < 22.5) || (angle >= 337.5 && angle <= 360)){
                         cluster.put("angle", 0);
                     }else if(angle >= 22.5 && angle < 67.5){
@@ -253,18 +270,8 @@ public class ClusterController {
                 filtered.add(oneStation);
             }
 
-            FeatureJSON fj = new FeatureJSON();
-            FeatureCollection fc = fj.readFeatureCollection(new FileInputStream(new File(CITY_PATH)));
-            FeatureIterator iterator = fc.features();
-            ArrayList<Geometry> cityArea = new ArrayList<Geometry>();
             JSONObject cluster ;
             JSONArray result = new JSONArray();
-            while( iterator.hasNext() ){
-                Feature feature = iterator.next();
-                Geometry value = (Geometry)feature.getDefaultGeometryProperty().getValue();
-                cityArea.add(value);
-            }
-
 
             //计算气象情况
             if(metoStations == null)
@@ -371,7 +378,7 @@ public class ClusterController {
      * @param g
      * @return
      */
-    String[] getNearestStation(ArrayList<Geometry> g){
+    static String[] getNearestStation(ArrayList<Geometry> g){
         MongoClient client = new MongoClient();
         MongoDatabase db = client.getDatabase(NEW_DB_NAME);
         MongoCollection coll = db.getCollection("meteo_stations");

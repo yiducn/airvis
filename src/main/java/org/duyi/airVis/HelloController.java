@@ -26,7 +26,7 @@ import java.text.*;
 @Controller
 public class HelloController {
     private String SERVER_IP = "127.0.0.1";//192.168.16.71
-    private static final String CITY_PATH = "d:\\city.txt";//home/duyi/city.txt;
+//    private static final String CITY_PATH = "d:\\city.txt";//home/duyi/city.txt;
     private static MongoClient client = new MongoClient("127.0.0.1");
     //a variable used to store all station info
     private HashMap<String, StationInfo> stations = null;
@@ -626,63 +626,6 @@ public class HelloController {
         }
 
         return "";
-    }
-
-    /**
-     * @param cities 城市名数组
-     * @return 返回特定城市的经纬度
-     * 20150120
-     * 未测试
-     */
-    @RequestMapping("getCityLocation.do")
-    public @ResponseBody String getCityLocation(String[] cities) {
-        List<String> array = getCities();
-        Iterator itr = array.iterator();
-        JSONArray result = new JSONArray();
-        JSONObject oneResult;
-        //String[] cities={"天津","石家庄"};
-        //String s="天津";
-        String cityDetail;
-        String city;
-        String[] detail;
-        for (String s : cities) {
-            while (itr.hasNext()) {
-                cityDetail = (String) itr.next();
-                detail = cityDetail.split(",");
-                city = detail[0];
-                try {
-                    if (s.equals(city)) {
-                        oneResult = new JSONObject();
-                        oneResult.put("city", s);
-                        oneResult.put("station", detail[1]);
-                        oneResult.put("lon", Double.parseDouble(detail[2]));
-                        oneResult.put("lat", Double.parseDouble(detail[3]));
-                        oneResult.put("code", detail[4]);
-                        result.put(oneResult);
-                    }
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        return result.toString();
-    }
-
-
-
-    /**
-     * 返回所有城市的List，包括城市名、经纬度
-     *
-     * @return
-     */
-    private List<String> getCities() {
-        List<String> cities = null;
-        try {
-            cities = FileUtils.readLines(new File(CITY_PATH), "utf-8");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return cities;
     }
 
     /**
