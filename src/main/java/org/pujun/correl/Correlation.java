@@ -80,12 +80,11 @@ public class Correlation {
             interpPm.date = startDate;
             double n = interpPm.pm25(lat, lon);
             interpPm25ResultList.add(n); //记录下此时间的插值计算结果
-
-            cal.add(Calendar.DATE, 1);
+            System.out.println(n);
+            cal.add(Calendar.HOUR, 1);
             startDate = cal.getTime();
-            //历史数据中不存在的日期，直接取前一天的数据；存在的可直接计算出？？？
-            //如果起始日期就没有，那岂不是完蛋了？？！更改！！
-            //可以对已有时间点的数据作为已知，不存在的时间点可以插值出来
+            //历史数据中不存在的日期，直接取前一天的数据；存在的可直接计算出？？？第一天不存在？
+
         }
         double[] interpPm25Result = new double[interpPm25ResultList.size()];
         for (int i = 0; i < interpPm25ResultList.size(); i++) {
@@ -97,10 +96,10 @@ public class Correlation {
     public static void main(String[] args) throws ParseException {
         double[] x,y;
         Correlation correlation = new Correlation();
-        x = correlation.getInterpPM25TimeSeries(40.0239, 116.2202, "2013-12-18 09:00:00", "2014-01-18 09:00:00");
-        y = correlation.getInterpPM25TimeSeries(38.1006, 114.4995, "2013-12-18 09:00:00", "2014-01-18 09:00:00");
+        x = correlation.getInterpPM25TimeSeries(40.0239, 116.2202, "2015-02-08 00:00:00", "2015-02-11 09:00:00");
+        y = correlation.getInterpPM25TimeSeries(38.1006, 114.4995, "2015-02-08 00:00:00", "2015-02-11 09:00:00");
 
-        double[] lag = correlation.getLagResult(x,y);
+        double[] lag = correlation.getLagResult(y, x);
         System.out.println(lag[0]);
         System.out.println(lag[1]);
         //1分钟
