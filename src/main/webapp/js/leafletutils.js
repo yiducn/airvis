@@ -11,6 +11,7 @@ var provinceBoundaryOverlay, cityBoundaryOverlay, contextRing, scatterGroup, clu
 var provinceValueOverlay, cityValueOverlay;
 
 var overAllBrush;
+var detailBrush;
 var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 var unfilteredData = [];//经过过滤后剩下的数据,结构同filteredData
 
@@ -60,7 +61,7 @@ var outerRadius;
 var innerRadius;
 
 var clusterResult;
-
+var clusterCircles;// 用来实现cluster的动画
 //八边形从北开始顺时针,各个格子在屏幕中的位置
 var octagonLocationScreen = [];
 
@@ -69,6 +70,8 @@ function initUIs(){
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
     map = L.mapbox.map('map', 'mapbox.streets')
         .setView([23, 120], 4);
+    //map = new L.Map("map", {center: [23, 120], zoom: 4})
+    //    .addLayer(new L.TileLayer("http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"));
     map.options.minZoom = 4;
     map.options.maxZoom = 13;
 
@@ -81,7 +84,7 @@ function initUIs(){
     meteorologicalStationLayer.addTo(map);
 
     //TODO createProvinceSelControl();
-    L.control.layers(map).addTo(map);
+    //L.control.layers(map).addTo(map);
 
     piemenu = new wheelnav('piemenu');
     //piemenu.slicePathFunction = slicePath().DonutSlice;
@@ -749,8 +752,11 @@ function activeFreeDraw(){
  * deactive free draw function
  */
 function deactiveFreeDraw(){
-    if(freedrawLayer != null)
+    if(freedrawLayer != null){
+        freedrawLayer.destroyD3();
+        freedrawLayer.destroyPolygon(freedrawLayer);
         map.removeLayer(freedrawLayer);
+    }
 }
 
 /**
@@ -1247,6 +1253,23 @@ function createCircleView2() {
                     return d.seasonal;
                 })));
 
+
+                var brush = d3.svg.brush()
+                    .x(x)
+                    .on("brush", brushed)
+                    .on("brushend", brushend);
+
+                function brushed() {
+                }
+                function brushend(){
+                    //do not paint when brush doesn't change
+                    if(detailBrush != null && detailBrush[0] == brush.extent()[0] && detailBrush[1] == brush.extent()[1])
+                        return;
+                    detailBrush = brush.empty() ? x.domain() : brush.extent();
+                    clusterWithCorrelation();
+                }
+
+
                 //绘制border
                 trend.append("g")
                     .append("line")
@@ -1305,8 +1328,18 @@ function createCircleView2() {
 
                 trend.append("g")
                     .attr("class", "x axis")
+                    .attr("id", "detailBrush")
                     .attr("transform", "translate("+0+"," + 0 + ")")
-                    .call(xAxis);
+                    .call(xAxis)
+                    .append("g")
+                    .attr("class", "x brush")
+                    .call(brush)
+                    .selectAll("rect")
+                    .attr("y", -200)
+                    .attr("height", 200);
+                d3.select("#detailBrush").on("mouseover", function(){map.dragging.disable()});
+                d3.select("#detailBrush").on("mouseout", function(){map.dragging.enable()});
+
                 trend.append("g")
                     .attr("class", "y axis")
                     .attr("transform", "translate("+0+"," + 0 + ")")
@@ -1370,6 +1403,48 @@ function createCircleView2() {
 
     contextRing.addTo(map);
     drawScatterGroup();
+}
+
+/**
+ * 根据cluster的结果,以及detailBrush,
+ * 计算各个cluster的相关性
+ * 然后根据相关性数值重置cluster大小
+ */
+function clusterWithCorrelation(){
+    //如果没有显示cluster 不计算相关性
+    if(clusterLayer == null ||
+        !$("#controlCluster").is(":checked") ||
+        detailBrush == null)
+        return;
+    //TODO 如果cluster为空应先创建cluster
+    if(clusterResult == null && $("#controlCluster").is(":checked")){
+        controlCluster();
+    }
+    var codes = "";
+    for(var i = 0; i < filteredData.length; i ++){
+        codes += ("codes="+filteredData[i].code + "&");
+    }
+    $.ajax({
+        url: "correlation.do",
+        type:"post",
+        data: "cluster="+
+            JSON.stringify(clusterResult) +
+            "&startTime="+new Date(detailBrush[0])+
+            "&endTime="+new Date(detailBrush[1])+
+            "&" + codes,
+        success: function (returnData) {
+            var data = JSON.parse(returnData);
+            clusterCircles.transition()
+                .attr("r", function(d){
+                    for(var i = 0; i < data.length; i ++){
+                        if(data[i].id == d.id)
+                            return 15 + data[i].correlation * 10;
+                    }
+                    console.log("no correlation");
+                    return 10;
+                });
+        }
+    });
 }
 
 /**
@@ -1454,7 +1529,10 @@ function drawScatterGroup(){
                         return colorScale(0);
                     return colorScale(d.pm25);
                 })
-                .attr('stroke-width', 1);
+                .attr('stroke-width', 1)
+                .on('mouseover', function(d){
+                    console.log("over:"+d.pm25);
+                });
         }
     });
     scatterGroup.addTo(map);
@@ -1576,8 +1654,10 @@ function cluster(){
     param += "maxDistance="+maxDis+"&";
     param += "centerLon=" + centerX+"&";
     param += "centerLat=" + centerY+"&";
+    param += "startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
     $.ajax({
-        url:"cluster.do",
+        //url:"cluster.do",
+        url: "clusterWithWind.do",
         type:"post",
         data: param,
         success: function (returnData) {
@@ -1589,14 +1669,16 @@ function cluster(){
             }
 
             clusterLayer = L.d3SvgOverlay(function(sel, proj) {
-                sel.append("svg:marker")
-                    .attr("id", "triangle")
+                sel.append("g").selectAll(".clusterWind").data(data)
+                    .enter()
+                    .append("svg:marker")
+                    .attr("id", function(d){return "triangle"+ d.cluster[0].code;})
                     .attr("viewBox", "0 0 15 10")
                     .attr("refX", "0")
                     .attr("refY", "5")
                     .attr("markerWidth", "3")
                     .attr("markerHeight", "3")
-                    .attr("orient", "auto")
+                    .attr("orient", function(d){return d.dir+"deg";})
                     .append("path")
                     .attr("d", "M 0 0 L 15 5 L 0 10 z");
 
@@ -1618,11 +1700,12 @@ function cluster(){
                         (d.centerY - center.lat) /
                         Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
                 }
-                sel.append("g").selectAll(".cluster").data(data)
+                clusterCircles = sel.append("g").selectAll(".cluster").data(data)
                     .enter()
                     .append("circle")
+                    .attr('id', function(d){return d.cluster.id;})
                     .attr('r', function (d) {
-                        return d.cluster.length*5;
+                        return 15;//d.cluster.length*5;
                     })
                     .attr('cx', stationX)
                     .attr('cy', stationY)
@@ -1638,14 +1721,15 @@ function cluster(){
                     .attr('y1', stationY)
                     .attr("x2", stationX)
                     .attr("y2", stationY)
-                    .attr("marker-end", "url(#triangle)")
+                    .attr("marker-end", function(d){return "url(#triangle"+d.cluster[0].code+")";})
                     .attr("stroke", "black")
                     .attr("stroke-width", function(d){return d.cluster.length;})
                     .attr('fill-opacity', '0.8');
 
             });
             clusterLayer.addTo(map);
-        }
+        },
+        async:false
     });
 }
 
@@ -1732,10 +1816,8 @@ function clusterAndThemeRiver(){
         }
     }
     for(var i = 0; i < 8; i ++){
-        //if(param.length > 0)
-        //    param[i] = param[i].substring(0, param[i].length-6);
-        //console.log(":"+param[i]);
         param[i] += "&startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
+        //param[i] += "&startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
         param[i] += "&index="+i;
     }
 
@@ -1942,8 +2024,11 @@ function cityValueControl(){
 }
 
 function controlContextRing(){
-    if(contextRing != null)
+    if(contextRing != null) {
         map.removeLayer(contextRing);
+        if(scatterGroup != null)
+            map.removeLayer(scatterGroup);
+    }
     if($("#controlContextRing").is(":checked")){
         createCircleView2();
     }

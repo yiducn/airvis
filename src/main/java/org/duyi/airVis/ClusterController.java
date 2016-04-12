@@ -33,10 +33,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 /**
  * Created by yidu on 3/29/16.
@@ -45,6 +42,8 @@ import java.util.Random;
 public class ClusterController {
     private static final String NEW_DB_NAME = "airdb";
     private static final String CITY_PATH = "/Users/yidu/dev/airvis/src/main/webapp/maps/china_cities.json";
+    private static String[] metoStations = null;
+
     /**
      * String[] codes = {"1001A", "1002A"};
      * double maxDistance = 200000;//最大距离约束
@@ -146,6 +145,173 @@ public class ClusterController {
                 if(oneCluster.length() != 0) {
                     cluster.put("centerX", cityArea.get(i).getCentroid().getX());
                     cluster.put("centerY", cityArea.get(i).getCentroid().getY());
+                    cluster.put("id", "cluster"+i);
+                    //计算对应的角度,从北方向偏西22.5度开始为0, 每45度增加1
+                    GeodeticCalculator calc = new GeodeticCalculator();
+                    calc.setStartingGeographicPoint(cityArea.get(i).getCentroid().getX(), cityArea.get(i).getCentroid().getY());
+                    calc.setDestinationGeographicPoint(centerLon, cityArea.get(i).getCentroid().getY());
+                    double deltaX = calc.getOrthodromicDistance();
+                    if(cityArea.get(i).getCentroid().getX() < centerLon)
+                        deltaX = - deltaX;
+                    calc.setStartingGeographicPoint(centerLon, cityArea.get(i).getCentroid().getY());
+                    calc.setDestinationGeographicPoint(centerLon, centerLat);
+                    double deltaY = calc.getOrthodromicDistance();
+                    if(cityArea.get(i).getCentroid().getY() < centerLat)
+                        deltaY = - deltaY;
+                    //http://stackoverflow.com/questions/17574424/how-to-use-atan2-in-combination-with-other-radian-angle-systems
+                    double angle = Math.toDegrees(Math.atan2(deltaX, deltaY));
+                    if(angle < 0 )
+                        angle += 360;
+//                    cluster.append("angle", (angle));
+//                    System.out.println((angle)+":"+deltaY+":"+deltaX);
+                    if((angle >= 0 && angle < 22.5) || (angle >= 337.5 && angle <= 360)){
+                        cluster.put("angle", 0);
+                    }else if(angle >= 22.5 && angle < 67.5){
+                        cluster.put("angle", 1);
+                    }else if(angle >= 67.5 && angle < 112.5){
+                        cluster.put("angle", 2);
+                    }else if(angle >= 112.5 && angle < 157.5){
+                        cluster.put("angle", 3);
+                    }else if(angle >= 157.5 && angle < 202.5){
+                        cluster.put("angle", 4);
+                    }else if(angle >= 202.5 && angle < 247.5){
+                        cluster.put("angle", 5);
+                    }else if(angle >= 247.5 && angle < 292.5) {
+                        cluster.put("angle", 6);
+                    }else if(angle >= 292.5 && angle < 337.5) {
+                        cluster.put("angle", 7);
+                    }
+                    cluster.put("cluster", oneCluster);
+                    result.put(cluster);
+                }
+
+            }
+            client.close();
+            return result.toString();
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+        return "nothing1";
+    }
+
+    @RequestMapping(value = "clusterWithWind.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    String clusterWithWind(String[] codes, double maxDistance, double centerLon, double centerLat, String startTime, String endTime) {
+        //input : codeList  distance
+        //output : cluster
+        //计算codeList的中心,可以在前端计算好
+        //循环,找到所有满足要求的点
+        //循环feature,对每一个feature,判断点是否在范围内,如果在,聚类
+
+        MongoClient client = new MongoClient("127.0.0.1");
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection("pm_stations");
+        MongoCursor cur = coll.find().iterator();
+        JSONObject oneStation;
+        ArrayList<JSONObject> filtered = new ArrayList<JSONObject>();
+        Calendar cal = Calendar.getInstance();
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
+
+        //中心 经度\纬度116°23′17〃，北纬：39°54′27;116.5, 40
+        try {
+            Document d;
+            while(cur.hasNext()){
+                d = (Document)cur.next();
+                double lon = d.getDouble("lon");
+                double lat = d.getDouble("lat");
+                GeodeticCalculator calc = new GeodeticCalculator();
+                // mind, this is lon/lat
+                calc.setStartingGeographicPoint(lon, lat);
+                calc.setDestinationGeographicPoint(centerLon, centerLat);//116.4, 40);
+                double distance = calc.getOrthodromicDistance();
+
+                //距离在最大距离之外的去除
+                if(distance > maxDistance)
+                    continue;
+
+                //去除自己
+                boolean self = false;
+                for(int i = 0; i < codes.length; i ++) {
+                    if (d.get("code").equals(codes[i]))
+                        self = true;
+                }
+                if(self)
+                    continue;
+
+
+                oneStation = new JSONObject();
+                GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+                oneStation.put("city", d.getString("city"));
+                oneStation.put("station", d.getString("name"));
+                oneStation.put("longitude", d.getDouble("lon"));
+                oneStation.put("latitude", d.getDouble("lat"));
+                oneStation.put("code", d.getString("code"));
+                Coordinate coord = new Coordinate(d.getDouble("lon"), d.getDouble("lat"), 0);
+                Point point = geometryFactory.createPoint(coord);
+                oneStation.put("point", point);
+                filtered.add(oneStation);
+            }
+
+            FeatureJSON fj = new FeatureJSON();
+            FeatureCollection fc = fj.readFeatureCollection(new FileInputStream(new File(CITY_PATH)));
+            FeatureIterator iterator = fc.features();
+            ArrayList<Geometry> cityArea = new ArrayList<Geometry>();
+            JSONObject cluster ;
+            JSONArray result = new JSONArray();
+            while( iterator.hasNext() ){
+                Feature feature = iterator.next();
+                Geometry value = (Geometry)feature.getDefaultGeometryProperty().getValue();
+                cityArea.add(value);
+            }
+
+
+            //计算气象情况
+            if(metoStations == null)
+                metoStations = getNearestStation(cityArea);
+            MongoCollection colMeteo = db.getCollection("meteodata_day");
+
+
+            for(int i = 0; i < cityArea.size(); i ++){
+                //判断是否正确图形
+                IsValidOp isValidOp = new IsValidOp(cityArea.get(i));
+                if(!isValidOp.isValid())
+                    continue;
+                cluster = new JSONObject();
+                JSONArray oneCluster = new JSONArray();
+
+                for(int j = 0; j < filtered.size(); j ++){
+                    if(cityArea.get(i).contains((Geometry)filtered.get(j).get("point"))){
+                        oneCluster.put(filtered.get(j));
+                    }
+                }
+
+                if(oneCluster.length() != 0) {
+                    cluster.put("centerX", cityArea.get(i).getCentroid().getX());
+                    cluster.put("centerY", cityArea.get(i).getCentroid().getY());
+                    cluster.put("id", "cluster"+i);
+
+                    if(metoStations[i] != null) {
+                        List<Document> query = new ArrayList<Document>();
+                        //计算气象情况
+                        Document match;
+                        Document sort = new Document("$sort", new Document("time", 1));
+                        Document group = new Document().append("$group",
+                                new Document().append("_id", "$usaf")
+                                        .append("dir", new Document("$avg", "$dir"))
+                                        .append("spd", new Document("$avg", "$spd")));
+                        match = new Document("$match", new Document("time",
+                                new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)))
+                                .append("usaf", new Document("$in", Arrays.asList(Integer.parseInt(metoStations[i])))));
+                        query.add(match);
+                        query.add(group);
+                        MongoCursor curMeteo = colMeteo.aggregate(query).iterator();
+                        if (curMeteo.hasNext()) {
+                            Document dd = (Document) curMeteo.next();
+                            cluster.put("spd", dd.getDouble("spd"));
+                            cluster.put("dir", dd.getDouble("dir"));
+                        }
+                    }
 
                     //计算对应的角度,从北方向偏西22.5度开始为0, 每45度增加1
                     GeodeticCalculator calc = new GeodeticCalculator();
@@ -187,11 +353,77 @@ public class ClusterController {
                 }
 
             }
+
+            client.close();
             return result.toString();
         }catch(Exception e){
             e.printStackTrace();
         }
+
+
         return "nothing1";
+
+//        meteodata_day
+    }
+
+    /**
+     * 返回省份对应的气象站点,有可能返回空的数据,表示该city没有站点
+     * @param g
+     * @return
+     */
+    String[] getNearestStation(ArrayList<Geometry> g){
+        MongoClient client = new MongoClient();
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection("meteo_stations");
+        MongoCursor cur = coll.find().iterator();
+        String[] ids = new String[g.size()];
+        GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+
+        while(cur.hasNext()){
+            Document d = (Document)cur.next();
+            for(int i = 0; i < g.size(); i ++){
+                Coordinate coord = new Coordinate(d.getDouble("lon"), d.getDouble("lat"), 0);
+                Point point = geometryFactory.createPoint(coord);
+                //判断是否正确图形
+                IsValidOp isValidOp = new IsValidOp(g.get(i));
+                if(!isValidOp.isValid())
+                    continue;
+                if(g.get(i).contains(point)) {
+                    ids[i] = d.getInteger("usaf").toString();
+                    break;
+                }
+            }
+        }
+        client.close();
+        return ids;
+    }
+
+    /**
+     * 计算平均风速
+     * @param wind
+     * @return
+     */
+    //TODO 新方法
+    double calOverAllWindSpeedByTime(double[] wind){
+        double sum = 0;
+        for(int i = 0; i < wind.length; i ++){
+            sum += wind[i];
+        }
+        return sum/ wind.length;
+    }
+
+    /**
+     * 计算平均风向
+     * @param wind
+     * @return
+     */
+    //TODO 新方法
+    double calOverAllWindDirByTime(double[] wind){
+        double sum = 0;
+        for(int i = 0; i < wind.length; i ++){
+            sum += wind[i];
+        }
+        return sum/ wind.length;
     }
 
     /**
@@ -205,7 +437,7 @@ public class ClusterController {
     @RequestMapping(value = "themeriverdata.do", method = RequestMethod.POST)
     public
     @ResponseBody
-    //TODO
+    //TODO 差值缺失数据
     String themeriverdata(String[] codes, String startTime, String endTime, int index) {
         if(codes == null || codes.length == 0)
             return "";
@@ -228,7 +460,6 @@ public class ClusterController {
         }catch(ParseException pe){
             pe.printStackTrace();
         }
-//        System.out.println(filter.toString());
         MongoCursor cur = coll.find(filter).iterator();
 
         JSONObject result = new JSONObject();
@@ -241,7 +472,6 @@ public class ClusterController {
             d.put("code", d.get("code"));
             d.put("city", d.get("city"));
             res.put(d);
-//            res.put(cur.next());
         }
         try {
             result.put("result", res);
@@ -249,6 +479,42 @@ public class ClusterController {
         }catch(Exception e){
             e.printStackTrace();
         }
+        client.close();
         return result.toString();
     }
+
+    /**
+     * 根据cluster结果 计算相关性
+     * 从每个cluster中选择一个站点(任选),计算该站点在选定时间内,与中心区域某一个站点(任选)的相关性
+     * @param cluster
+     * @param startTime detailBrush选定的开始时间
+     * @param endTime detailBrush选定的结束时间
+     * @param codes 中心区域的站点
+     * @return
+     */
+    @RequestMapping(value = "correlation.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+        //TODO
+    String correlation(String cluster, String startTime, String endTime, String[] codes) {
+        try {
+            JSONArray jsonCluster = new JSONArray(cluster);
+            SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
+            Calendar cal = Calendar.getInstance();
+            cal.setTime(df.parse(startTime));
+            for(int i = 0; i < jsonCluster.length(); i ++){
+                //TODO 计算correlation
+                ((JSONObject)jsonCluster.get(i)).put("correlation", Math.random());
+            }
+
+            return jsonCluster.toString();
+
+        }catch(JSONException je){
+            je.printStackTrace();
+        }catch(ParseException pe){
+            pe.printStackTrace();
+        }
+        return "exception";
+    }
 }
+
