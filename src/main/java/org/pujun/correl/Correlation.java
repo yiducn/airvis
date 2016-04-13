@@ -80,7 +80,7 @@ public class Correlation {
             interpPm.date = startDate;
             double n = interpPm.pm25(lat, lon);
             interpPm25ResultList.add(n); //记录下此时间的插值计算结果
-            System.out.println(n);
+            //System.out.println(n);
             cal.add(Calendar.HOUR, 1);
             startDate = cal.getTime();
             //历史数据中不存在的日期，直接取前一天的数据；存在的可直接计算出？？？第一天不存在？
