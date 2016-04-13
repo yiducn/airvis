@@ -334,6 +334,41 @@ public class HelloController {
     }
 
     /**
+     * 根据站点代码,时间,返回这些站点当月数据
+     * @param codes 站点代码
+     * @param month 月份
+     * @param year 年份
+     * @return
+     */
+    @RequestMapping(value = "monthValue.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    String getMonthValue(@RequestParam(value="codes", required=true)String[] codes,
+                         @RequestParam(value="month", required=true)String month,
+                         @RequestParam(value="year", required=true)String year) {
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_MONTH);
+
+        Document find;
+        find = new Document("_id.year", Integer.parseInt(year));
+        find.append("_id.month", Integer.parseInt(month));
+        find.append("_id.code", new Document("$in", Arrays.asList(codes)));
+
+        MongoCursor cur = coll.find(find).iterator();
+        JSONObject result = new JSONObject();
+        Document d;
+        while(cur.hasNext()){
+            try {
+                d = ((Document) cur.next());
+                result.put(((Document)d.get("_id")).getString("code"), d.getDouble("pm25"));
+            }catch(JSONException je){
+                je.printStackTrace();
+            }
+        }
+        return result.toString();
+    }
+
+    /**
      * 根据时间区间、城市代码返回日趋势
      * 但是不同的站点分别返回
      *

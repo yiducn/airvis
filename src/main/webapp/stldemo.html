@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+        .axis path,
+        .axis line {
+            fill: none;
+            stroke: #000;
+            shape-rendering: crispEdges;
+        }
+    </style>
+</head>
+<body>
+<script src="http://d3js.org/d3.v2.js"></script>
+<script src="js/jquery-2.1.3/jquery-2.1.3.js"></script>
+
+<div class="chart"></div>
+<script>
+
+    //绘制中心的趋势图
+    var cities = "codes=1001A&codes=1002A";
+    //&codes=1003A&codes=1004A&codes=1005A&codes=1006A&codes=1007A&codes=1008A&codes=1009A&codes=1010A&codes=1011A&codes=1012A
+    var timeRange = "startTime=Mon Mar 01 2015 00:00:00 GMT+0800 (EST)&endTime=Wed Mar 31 2015 23:59:59 GMT+0800 (EST)";
+    var margin = {top: 50, right: 40, bottom: 30, left: 50};
+    var width = document.body.clientWidth - margin.left - margin.right;
+    var height = 400 - margin.top - margin.bottom;
+    $.ajax({
+        url:"stl.do",
+        type:"post",
+        data: cities+"&"+timeRange,
+        success: function (returnData) {
+            var data = JSON.parse(returnData);
+
+            var trend = d3.select(".chart").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g").attr("id", "trendsCenter")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            var x = d3.time.scale().range([0, width]);
+            var yY = d3.scale.linear().range([ height*1/4, 0]);
+            var yTrend = d3.scale.linear().range([ height*2/4, height*1/4]);
+            var yReminder = d3.scale.linear().range([ height*3/4, height*2/4]);
+            var ySeasonal = d3.scale.linear().range([ height, height*3/4]);
+
+            var xAxis = d3.svg.axis().scale(x).orient("bottom").tickFormat(d3.time.format("%b%d"));
+            var yYAxis = d3.svg.axis().scale(yY).orient("left").ticks(4);
+            var yTrendAxis = d3.svg.axis().scale(yTrend).orient("left").ticks(4);
+            var yReminderAxis = d3.svg.axis().scale(yReminder).orient("left").ticks(4);
+            var ySeasonalAxis = d3.svg.axis().scale(ySeasonal).orient("left").ticks(4);
+
+            var lineY = d3.svg.line()
+                    .interpolate("linear")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return yY(d.value);
+                    });
+            var lineTrend = d3.svg.line()
+                    .interpolate("linear")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return yTrend(d.trend);
+                    });
+            var lineReminder = d3.svg.line()
+                    .interpolate("linear")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return yReminder(d.reminder);
+                    });
+            var lineSeasonal = d3.svg.line()
+                    .interpolate("linear")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return ySeasonal(d.seasonal);
+                    });
+
+            var color = d3.scale.category10();
+            //color.domain(d3.keys(data[0]).filter(function (key) {
+            //    return key === "pm25";
+            //}));
+
+            x.domain(d3.extent(data.map(function (d) {
+                return new Date(d.time);
+            })));
+
+            //TODO 固定y轴最大数值
+            yY.domain(d3.extent(data.map(function (d) {
+                return d.value;
+            })));
+            yTrend.domain(d3.extent(data.map(function (d) {
+                return d.trend;
+            })));
+            yReminder.domain(d3.extent(data.map(function (d) {
+                return d.reminder;
+            })));
+            ySeasonal.domain(d3.extent(data.map(function (d) {
+                return d.seasonal;
+            })));
+
+            //绘制border
+            trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1", height*2/4)
+                    .attr("x2", width)
+                    .attr("y2", height*2/4)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+            trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1", height*1/4)
+                    .attr("x2", width)
+                    .attr("y2", height*1/4)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+            trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1",  height*3/4)
+                    .attr("x2", width)
+                    .attr("y2",  height*3/4)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+            trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1",  height)
+                    .attr("x2", width)
+                    .attr("y2",  height)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+            trend.append("g")
+                    .append("line")
+                    .attr("x1", width)
+                    .attr("y1", 0)
+                    .attr("x2", width)
+                    .attr("y2",  height)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+            trend.append("g")
+                    .append("line")
+                    .attr("x1", width)
+                    .attr("y1", height)
+                    .attr("x2", 0)
+                    .attr("y2",  height)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+
+            trend.append("g")
+                    .attr("class", "x axis")
+                    .attr("transform", "translate("+0+"," + height + ")")
+                    .call(xAxis);
+            trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(yYAxis);
+            trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(ySeasonalAxis);
+            trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(yReminderAxis);
+            trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(yTrendAxis);
+
+            trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('fill',"none")
+                    .attr('d', lineY);
+            trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('fill',"none")
+                    .attr('d', lineTrend);
+            trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('fill',"none")
+                    .attr('d', lineSeasonal);
+            trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('fill',"none")
+                    .attr('d', lineReminder);
+
+        }});
+
+</script>
+</body>
+</html>

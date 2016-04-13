@@ -7,10 +7,11 @@ var map;
 
 //各种叠加图层
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
-var provinceBoundaryOverlay, cityBoundaryOverlay, contextRing, clusterLayer, themeLayer, gridsView, windsView;
+var provinceBoundaryOverlay, cityBoundaryOverlay, contextRing, scatterGroup, clusterLayer, themeLayer, gridsView, windsView;
 var provinceValueOverlay, cityValueOverlay;
 
 var overAllBrush;
+var detailBrush;
 var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 var unfilteredData = [];//经过过滤后剩下的数据,结构同filteredData
 
@@ -49,7 +50,7 @@ var CALENDAR_HEIGHT_DEFAULT = 600;
 
 //overall color scale
 var colors = ["#FF0000","#FFFF00","00FF00"]
-var colorScale = d3.scale.linear().domain([150, 0]).range(colors);
+var colorScale = d3.scale.linear().domain([200, 0]).range(colors);
 
 //当前选择的月份
 var currentSelectedDate = new Date("2015-10-01");
@@ -60,7 +61,7 @@ var outerRadius;
 var innerRadius;
 
 var clusterResult;
-
+var clusterCircles;// 用来实现cluster的动画
 //八边形从北开始顺时针,各个格子在屏幕中的位置
 var octagonLocationScreen = [];
 
@@ -69,6 +70,8 @@ function initUIs(){
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
     map = L.mapbox.map('map', 'mapbox.streets')
         .setView([23, 120], 4);
+    //map = new L.Map("map", {center: [23, 120], zoom: 4})
+    //    .addLayer(new L.TileLayer("http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"));
     map.options.minZoom = 4;
     map.options.maxZoom = 13;
 
@@ -81,7 +84,7 @@ function initUIs(){
     meteorologicalStationLayer.addTo(map);
 
     //TODO createProvinceSelControl();
-    L.control.layers(map).addTo(map);
+    //L.control.layers(map).addTo(map);
 
     piemenu = new wheelnav('piemenu');
     //piemenu.slicePathFunction = slicePath().DonutSlice;
@@ -99,8 +102,8 @@ function initUIs(){
         controlThemeRiver();
 
         if($("#controlContextRing").is(":checked")){
-            $( "#slider" ).slider( "option", "min", minDis );
-            $( "#slider" ).slider( "option", "max", maxDis );
+            //$( "#slider" ).slider( "option", "min", minDis );
+            //$( "#slider" ).slider( "option", "max", maxDis );
             $("#maxDistance").text(parseInt(maxDis/1000) + "km");
             $("#minDistance").text(parseInt(minDis/1000) + "km");
         }
@@ -117,9 +120,9 @@ function initUIs(){
 
         if($("#controlContextRing").is(":checked")){
             //$( "#slider" ).slider( "option", "min", minDis );
-            $( "#slider" ).slider( "option", "max", maxDis );
+            //$( "#slider" ).slider( "option", "max", maxDis );
             $("#maxDistance").text(parseInt(maxDis/1000) + "km");
-            //$("#minDistance").text(parseInt(minDis/1000) + "km");
+            $("#minDistance").text(parseInt(minDis/1000) + "km");
         }
         //updateBounds4Grids();
     });
@@ -247,6 +250,7 @@ function createCityMap(){
  * 按城市填充中国地图颜色
  */
 function createCityValue(){
+    //TODO 如果空 则创建,如果非空,则更新
 
     var cities = [];
     cityValueOverlay = L.d3SvgOverlay(function(sel, proj) {
@@ -748,8 +752,11 @@ function activeFreeDraw(){
  * deactive free draw function
  */
 function deactiveFreeDraw(){
-    if(freedrawLayer != null)
+    if(freedrawLayer != null){
+        freedrawLayer.destroyD3();
+        freedrawLayer.destroyPolygon(freedrawLayer);
         map.removeLayer(freedrawLayer);
+    }
 }
 
 /**
@@ -948,7 +955,7 @@ function linearTime(){
             }
 
             var line = d3.svg.line()
-                .interpolate("monotone")
+                .interpolate("basis")
                 .x(function(d) {return x(new Date(d.time)); })
                 .y(function(d) { return y(d.pm25); });
 
@@ -1065,6 +1072,18 @@ function createCircleView2() {
     //}
 
     contextRing = L.d3SvgOverlay(function(sel, proj) {
+        var cities = "";
+        if(filteredData.length != 0){
+            cities += ("codes="+filteredData[0].code);
+            if(filteredData.length > 1){
+                var i;
+                for(i = 1; i < filteredData.length; i ++){
+                    cities += ("&codes="+filteredData[i].code);
+                }
+            }
+        }
+
+
 
         var centerScreen = proj.latLngToLayerPoint(center);
         //计算context ring的path
@@ -1098,6 +1117,22 @@ function createCircleView2() {
 
             return path;
         };
+        var pathInner = function(){
+            var path = "M ";
+            for(var i = 0; i < 7; i ++) {
+                var p1X = centerScreen.x + innerRadius * Math.sin(parts[i].angle);
+                var p1Y = centerScreen.y - innerRadius * Math.cos(parts[i].angle);
+                path += p1X + " ";
+                path += p1Y + " L ";
+            }
+            var p1X = centerScreen.x + innerRadius * Math.sin(parts[i].angle);
+            var p1Y = centerScreen.y - innerRadius * Math.cos(parts[i].angle);
+            path += p1X + " ";
+            path += p1Y ;
+            path += " Z ";
+            return path;
+        };
+
         var contextRingId = function(d){
             return "contextRing" + d.dir;
         }
@@ -1121,6 +1156,12 @@ function createCircleView2() {
             .attr("fill", "gray")
             .attr('stroke', 'black')
             .attr('fill-opacity', '0.7');
+
+        sel.select("g").append("path")
+            .attr("d", pathInner)
+            .attr("fill", "white")
+            .attr('stroke', 'black')
+            .attr('fill-opacity', '0.5');
         //var themeRivers = sel.append("g")
         //    .attr("id", "themeRivers");
         //themeRivers.selectAll("g").data(parts)
@@ -1129,108 +1170,373 @@ function createCircleView2() {
         //    .attr("id", themeRiverId)
         //    .append("")
 
-        var stationX = function(d){
-            var r = (innerRadius + (d.distance - minDis)/(maxDis-minDis) * (outerRadius - innerRadius));
-            //
-            return centerScreen.x + r *
-                (d.longitude - center.lng) /
-                Math.sqrt((d.latitude - center.lat)*(d.latitude - center.lat) + (d.longitude - center.lng)*(d.longitude - center.lng));
-        }
-        var stationY = function(d){
-            var r = (innerRadius + (d.distance - minDis)/(maxDis-minDis) * (outerRadius - innerRadius));
-            return centerScreen.y - r *
-                (d.latitude - center.lat) /
-                Math.sqrt((d.latitude - center.lat)*(d.latitude - center.lat) + (d.longitude - center.lng)*(d.longitude - center.lng));
-        }
-        sel.append("g").selectAll(".contextScatter").data(unfilteredData)
-            .enter()
-            .append("circle")
-            .filter(function(d){return d.distance > minDis && d.distance < maxDis;})
-            .attr('r',function(d){return 1;})
-            .attr('cx', stationX)
-            .attr('cy',stationY)
-            .attr('stroke','black')
-            .attr('stroke-width',1);
 
 
         //绘制中心的趋势图
-        //var cities = "";
-        //if(filteredData.length != 0){
-        //    cities += ("codes[]="+filteredData[0].code);
-        //    if(filteredData.length > 1){
-        //        var i;
-        //        for(i = 1; i < filteredData.length; i ++){
-        //            cities += ("&codes[]="+filteredData[i].code);
-        //        }
-        //    }
-        //}
-        ////TODO
-        //var timeRange = "&startTime=2015-01-01&endTime=2015-01-03";
-        //$.ajax({
-        //    url:"hourTrends2.do",
-        //    type:"post",
-        //    data: cities+"&"+timeRange,
-        //    success: function (returnData) {
-        //        var data = JSON.parse(returnData);
-        //
-        //        var trend = sel.append("g").attr("id", "trendsCenter")
-        //            .attr("transform", "translate("+(centerScreen.x-150)+"," + centerScreen.y + ")");
-        //
-        //        var x = d3.time.scale().range([0, 300]),
-        //            y = d3.scale.linear().range([ -50, 0]);
-        //
-        //        var xAxis = d3.svg.axis().scale(x).orient("bottom").ticks(4).tickFormat(d3.time.format("%b%d %H")),
-        //            yAxis = d3.svg.axis().scale(y).orient("left");
-        //
-        //        var line = d3.svg.line()
-        //            .interpolate("monotone")
-        //            .x(function (d) {
-        //                return x(new Date(d.time.$date));
-        //            })
-        //            .y(function (d) {
-        //                return y(d.pm25);
-        //            });
-        //        var color = d3.scale.category10();
-        //        color.domain(d3.keys(data[0]).filter(function (key) {
-        //            return key === "pm25";
-        //        }));
-        //
-        //        x.domain(d3.extent(data.map(function (d) {
-        //            return new Date(d.time.$date);
-        //        })));
-        //
-        //        //TODO 固定y轴最大数值
-        //        y.domain([0, 150]);
-        //
-        //        trend.append("g")
-        //            .attr("class", "x axis")
-        //            .attr("transform", "translate("+0+"," + 0 + ")")
-        //            .call(xAxis);
-        //
-        //        trend.append("path")
-        //            .datum(data)
-        //            .attr("class", "line")
-        //            .attr("d", line);
-        //
-        //    }});
+        //TODO
+        var timeRange = "startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
+        $.ajax({
+            url:"stl.do",
+            type:"post",
+            data: cities+"&"+timeRange,
+            success: function (returnData) {
+                var data = JSON.parse(returnData);
 
-        ////绘制theme river
-        //$.ajax({
-        //    url:"rangetrend.do",
-        //    type:"post",
-        //    data: "",
-        //    success: function (returnData) {
-        //
-        //    }});
+                var trend = sel.append("g").attr("id", "trendsCenter")
+                    .attr("transform", "translate("+(centerScreen.x-175)+"," + (centerScreen.y+100) + ")");
+
+                var x = d3.time.scale().range([0, 350]);
+                var yY = d3.scale.linear().range([ -150, -200]);
+                var yTrend = d3.scale.linear().range([ -100, -150]);
+                var yReminder = d3.scale.linear().range([ -50, -100]);
+                var ySeasonal = d3.scale.linear().range([ 0, -50]);
+
+                var xAxis = d3.svg.axis().scale(x).orient("bottom").ticks(4).tickFormat(d3.time.format("%b%d %H"));
+                var yYAxis = d3.svg.axis().scale(yY).orient("left").ticks(4);
+                var yTrendAxis = d3.svg.axis().scale(yTrend).orient("left").ticks(4);
+                var yReminderAxis = d3.svg.axis().scale(yReminder).orient("left").ticks(4);
+                var ySeasonalAxis = d3.svg.axis().scale(ySeasonal).orient("left").ticks(4);
+
+                var lineY = d3.svg.line()
+                    .interpolate("monotone")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return yY(d.value);
+                    });
+                var lineTrend = d3.svg.line()
+                    .interpolate("monotone")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return yTrend(d.trend);
+                    });
+                var lineReminder = d3.svg.line()
+                    .interpolate("monotone")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return yReminder(d.reminder);
+                    });
+                var lineSeasonal = d3.svg.line()
+                    .interpolate("monotone")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return ySeasonal(d.seasonal);
+                    });
+
+                var color = d3.scale.category10();
+                //color.domain(d3.keys(data[0]).filter(function (key) {
+                //    return key === "pm25";
+                //}));
+
+                x.domain(d3.extent(data.map(function (d) {
+                    return new Date(d.time);
+                })));
+
+                //TODO 固定y轴最大数值
+                yY.domain(d3.extent(data.map(function (d) {
+                    return d.value;
+                })));
+                yTrend.domain(d3.extent(data.map(function (d) {
+                    return d.trend;
+                })));
+                yReminder.domain(d3.extent(data.map(function (d) {
+                    return d.reminder;
+                })));
+                ySeasonal.domain(d3.extent(data.map(function (d) {
+                    return d.seasonal;
+                })));
+
+
+                var brush = d3.svg.brush()
+                    .x(x)
+                    .on("brush", brushed)
+                    .on("brushend", brushend);
+
+                function brushed() {
+                }
+                function brushend(){
+                    //do not paint when brush doesn't change
+                    if(detailBrush != null && detailBrush[0] == brush.extent()[0] && detailBrush[1] == brush.extent()[1])
+                        return;
+                    detailBrush = brush.empty() ? x.domain() : brush.extent();
+                    clusterWithCorrelation();
+                }
+
+
+                //绘制border
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1", -100)
+                    .attr("x2", 350)
+                    .attr("y2", -100)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1", -50)
+                    .attr("x2", 350)
+                    .attr("y2", -50)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1", -150)
+                    .attr("x2", 350)
+                    .attr("y2", -150)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1", -200)
+                    .attr("x2", 350)
+                    .attr("y2", -200)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 350)
+                    .attr("y1", 0)
+                    .attr("x2", 350)
+                    .attr("y2", -200)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 350)
+                    .attr("y1", -200)
+                    .attr("x2", 0)
+                    .attr("y2", -200)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+
+                trend.append("g")
+                    .attr("class", "x axis")
+                    .attr("id", "detailBrush")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(xAxis)
+                    .append("g")
+                    .attr("class", "x brush")
+                    .call(brush)
+                    .selectAll("rect")
+                    .attr("y", -200)
+                    .attr("height", 200);
+                d3.select("#detailBrush").on("mouseover", function(){map.dragging.disable()});
+                d3.select("#detailBrush").on("mouseout", function(){map.dragging.enable()});
+
+                trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(yYAxis);
+                trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(ySeasonalAxis);
+                trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(yReminderAxis);
+                trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(yTrendAxis);
+
+                trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('d', lineY);
+                trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('d', lineTrend);
+                trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('d', lineSeasonal);
+                trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('d', lineReminder);
+
+                //var brush = d3.svg.brush()
+                //    .x(x);
+                //    //.on("brush", brushed)
+                //    //.on("brushend", brushend);
+                //trend.append("g")
+                //    .attr("class", "x brush")
+                //    .call(brush)
+                //    .selectAll("rect")
+                //    .attr("y", -6)
+                //    .attr("height", 30 + 7);
+
+            }});
 
     });
 
     contextRing.addTo(map);
-
-
+    drawScatterGroup();
 }
 
+/**
+ * 根据cluster的结果,以及detailBrush,
+ * 计算各个cluster的相关性
+ * 然后根据相关性数值重置cluster大小
+ */
+function clusterWithCorrelation(){
+    //如果没有显示cluster 不计算相关性
+    if(clusterLayer == null ||
+        !$("#controlCluster").is(":checked") ||
+        detailBrush == null)
+        return;
+    //TODO 如果cluster为空应先创建cluster
+    if(clusterResult == null && $("#controlCluster").is(":checked")){
+        controlCluster();
+    }
+    var codes = "";
+    for(var i = 0; i < filteredData.length; i ++){
+        codes += ("codes="+filteredData[i].code + "&");
+    }
+    $.ajax({
+        url: "correlation.do",
+        type:"post",
+        data: "cluster="+
+            JSON.stringify(clusterResult) +
+            "&startTime="+new Date(detailBrush[0])+
+            "&endTime="+new Date(detailBrush[1])+
+            "&" + codes,
+        success: function (returnData) {
+            var data = JSON.parse(returnData);
+            clusterCircles.transition()
+                .attr("r", function(d){
+                    for(var i = 0; i < data.length; i ++){
+                        if(data[i].id == d.id)
+                            return 15 + data[i].correlation * 10;
+                    }
+                    console.log("no correlation");
+                    return 10;
+                });
+        }
+    });
+}
 
+/**
+ * 绘制站点
+ */
+function drawScatterGroup(){
+    if(scatterGroup != null)
+        map.removeLayer(scatterGroup);
+
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
+
+    sizeScreen = map.getPixelBounds().getSize();
+    outerRadius = sizeScreen.y / 2-50;
+    innerRadius = outerRadius -  200;
+
+    scatterGroup = L.d3SvgOverlay(function(sel, proj) {
+        var centerScreen = proj.latLngToLayerPoint(center);
+        //绘制站点
+        if ($("#controlCluster").is(":checked")) {
+            //如果聚类,则不用绘制点
+        } else {
+            var unfilteredCities = "";
+            if (unfilteredData.length != 0) {
+                unfilteredCities += ("codes=" + unfilteredData[0].code);
+                if (unfilteredData.length > 1) {
+                    var i;
+                    for (i = 1; i < unfilteredData.length; i++) {
+                        unfilteredCities += ("&codes=" + unfilteredData[i].code);
+                    }
+                }
+            }
+
+            $.ajax({
+                url: "monthValue.do",
+                type: "post",
+                data: unfilteredCities + "&" + "month=" + (new Date(overAllBrush[0]).getUTCMonth() + 1) + "&year=" + new Date(overAllBrush[0]).getUTCFullYear(),
+                success: function (returnData) {
+                    var data = JSON.parse(returnData);
+                    for (var i = 0; i < unfilteredData.length; i++) {
+                        unfilteredData[i].pm25 = data[unfilteredData[i].code];
+                    }
+                },
+                async: false
+            });
+            var stationX = function (d) {
+                var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
+                //
+                return centerScreen.x + r *
+                    (d.longitude - center.lng) /
+                    Math.sqrt((d.latitude - center.lat) * (d.latitude - center.lat) + (d.longitude - center.lng) * (d.longitude - center.lng));
+            }
+            var stationY = function (d) {
+                var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
+                return centerScreen.y - r *
+                    (d.latitude - center.lat) /
+                    Math.sqrt((d.latitude - center.lat) * (d.latitude - center.lat) + (d.longitude - center.lng) * (d.longitude - center.lng));
+            }
+            sel.append("g")
+                .attr("id", "scattergroup")
+                .selectAll(".contextScatter")
+                .data(unfilteredData)
+                .enter()
+                .append("circle")
+                .filter(function (d) {
+                    return d.distance > minDis && d.distance < maxDis;
+                })
+                .attr('r', function (d) {
+                    return 1.5;
+                })
+                .attr('cx', stationX)
+                .attr('cy', stationY)
+                .attr('stroke', function (d) {
+                    //TODO
+                    if(d.pm25 == null)
+                        return colorScale(0);
+                    return colorScale(d.pm25);
+                })
+                .attr('fill', function (d) {
+                    //TODO
+                    if(d.pm25 == null)
+                        return colorScale(0);
+                    return colorScale(d.pm25);
+                })
+                .attr('stroke-width', 1)
+                .on('mouseover', function(d){
+                    console.log("over:"+d.pm25);
+                });
+        }
+    });
+    scatterGroup.addTo(map);
+}
 
 /**
  * create the grids view
@@ -1319,160 +1625,6 @@ function createWindsView(){
     windsView.addTo(map);
 }
 
-/////////Followings are controller to control the visibility of layers//////
-//下面是控制各种层显示与否的方法
-
-
-/**
- * control the visiliblity of calendar
- */
-function controlCalendar(){
-
-    paintControl.calendar = $("#controlCalendar").is( ':checked' );
-    if($("#controlCalendar").is( ':checked' )){
-        disableCalendarView();
-        $("#calendar").show();
-        $("#calendar").css("visibility", "visible");
-    }else{
-        enableCalendarView();
-        $("#calendar").hide();
-    }
-}
-//TODO
-function disableCalendarView(){
-
-}
-//TODO
-function enableCalendarView(){
-
-}
-
-/**
- * control the visibility of trends
- */
-function controlTrend(){
-    paintControl.trend = $("#controlTrend").is( ':checked' );
-    if($("#controlTrend").is( ':checked' )){
-        $("#trendpanel").show();
-        $("#trendpanel").css("visibility", "visible");
-    }else{
-        $("#trendpanel").hide();
-    }
-}
-
-function pointControl(){
-    paintControl.stations = $("#pointcontrol").is( ':checked' );
-    if($("#pointcontrol").is( ':checked' )){
-        displayPoints();
-    }else{
-        hidePoints();
-    }
-}
-
-
-function meteorologicalStationControl(){
-    paintControl.mstations = $("#meteorologicalStationControl").is( ':checked' );
-    if($("#meteorologicalStationControl").is( ':checked' )){
-        displayMeteorologicalStations();
-    }else{
-        hideMeteorologicalStations();
-    }
-}
-
-function provinceBoundaryControl(){
-    if($("#provinceBoundary").is( ':checked' )){
-        createChinamap();
-    }else{
-        map.removeLayer(provinceBoundaryOverlay);
-    }
-}
-
-function provinceValueControl(){
-    if($("#provinceValue").is( ':checked' )){
-        if(provinceValueOverlay != null)
-            map.removeLayer(provinceValueOverlay);
-        createProvinceValue();
-    }else{
-        if(provinceValueOverlay != null)
-            map.removeLayer(provinceValueOverlay);
-    }
-}
-
-function cityValueControl(){
-    if($("#cityValue").is( ':checked' )){
-        if(cityValueOverlay != null)
-            map.removeLayer(cityValueOverlay);
-        createCityValue();
-    }else{
-        if(provinceValueOverlay != null)
-            map.removeLayer(cityValueOverlay);
-    }
-}
-
-function controlContextRing(){
-    if(contextRing != null)
-        map.removeLayer(contextRing);
-    if($("#controlContextRing").is(":checked")){
-        createCircleView2();
-    }
-}
-
-function controlThemeRiver(){
-    for(var i = 0; i < 8; i ++){
-        $("#themeriver"+i).empty();
-    }
-    if(themeLayer != null){
-        for(var i = 0; i < 8; i ++){
-            if(themeLayer[i] != null)
-                map.removeLayer(themeLayer[i]);
-        }
-    }
-    if($("#controlThemeRiver").is(":checked")){
-        clusterAndThemeRiver();
-    }
-}
-
-function controlCluster(){
-    if(clusterLayer != null)
-        map.removeLayer(clusterLayer);
-    if($("#controlCluster").is(":checked")){
-        cluster();
-    }
-}
-
-function controlGrids(){
-    if(gridsView != null)
-        map.removeLayer(gridsView);
-    if($("#controlGrids").is(":checked")){
-        createGridsView();
-    }
-}
-
-function controlWinds(){
-    if(windsView != null){
-        map.removeLayer(windsView);
-
-    }
-    if($("#controlWinds").is(":checked")){
-        createWindsView();
-    }
-}
-
-function cityBoundaryControl(){
-    if($("#cityBoundary").is( ':checked' )){
-        createCityMap();
-    }else{
-        map.removeLayer(cityBoundaryOverlay);
-    }
-}
-
-function hideMeteorologicalStations(){
-    meteorologicalStationLayer.clearLayers();
-}
-
-function hidePoints(){
-    locationLayer.clearLayers();
-}
 
 /**将unfiltereddata进行聚类
  * 首先根据city区域进行聚类
@@ -1502,8 +1654,10 @@ function cluster(){
     param += "maxDistance="+maxDis+"&";
     param += "centerLon=" + centerX+"&";
     param += "centerLat=" + centerY+"&";
+    param += "startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
     $.ajax({
-        url:"cluster.do",
+        //url:"cluster.do",
+        url: "clusterWithWind.do",
         type:"post",
         data: param,
         success: function (returnData) {
@@ -1515,14 +1669,16 @@ function cluster(){
             }
 
             clusterLayer = L.d3SvgOverlay(function(sel, proj) {
-                sel.append("svg:marker")
-                    .attr("id", "triangle")
+                sel.append("g").selectAll(".clusterWind").data(data)
+                    .enter()
+                    .append("svg:marker")
+                    .attr("id", function(d){return "triangle"+ d.cluster[0].code;})
                     .attr("viewBox", "0 0 15 10")
                     .attr("refX", "0")
                     .attr("refY", "5")
                     .attr("markerWidth", "3")
                     .attr("markerHeight", "3")
-                    .attr("orient", "auto")
+                    .attr("orient", function(d){return d.dir+"deg";})
                     .append("path")
                     .attr("d", "M 0 0 L 15 5 L 0 10 z");
 
@@ -1544,11 +1700,12 @@ function cluster(){
                         (d.centerY - center.lat) /
                         Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
                 }
-                sel.append("g").selectAll(".cluster").data(data)
+                clusterCircles = sel.append("g").selectAll(".cluster").data(data)
                     .enter()
                     .append("circle")
+                    .attr('id', function(d){return d.cluster.id;})
                     .attr('r', function (d) {
-                        return d.cluster.length*5;
+                        return 15;//d.cluster.length*5;
                     })
                     .attr('cx', stationX)
                     .attr('cy', stationY)
@@ -1564,14 +1721,15 @@ function cluster(){
                     .attr('y1', stationY)
                     .attr("x2", stationX)
                     .attr("y2", stationY)
-                    .attr("marker-end", "url(#triangle)")
+                    .attr("marker-end", function(d){return "url(#triangle"+d.cluster[0].code+")";})
                     .attr("stroke", "black")
                     .attr("stroke-width", function(d){return d.cluster.length;})
                     .attr('fill-opacity', '0.8');
 
             });
             clusterLayer.addTo(map);
-        }
+        },
+        async:false
     });
 }
 
@@ -1658,10 +1816,8 @@ function clusterAndThemeRiver(){
         }
     }
     for(var i = 0; i < 8; i ++){
-        //if(param.length > 0)
-        //    param[i] = param[i].substring(0, param[i].length-6);
-        //console.log(":"+param[i]);
         param[i] += "&startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
+        //param[i] += "&startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
         param[i] += "&index="+i;
     }
 
@@ -1774,4 +1930,170 @@ function assignDefaultValues( dataset )
     //}
     //console.log("after:"+dataset.concat(newData).sort(sortByDate).length);
     //return dataset.concat(newData).sort(sortByDate);
+}
+
+
+/////////Followings are controller to control the visibility of layers//////
+//下面是控制各种层显示与否的方法
+
+
+/**
+ * control the visiliblity of calendar
+ */
+function controlCalendar(){
+
+    paintControl.calendar = $("#controlCalendar").is( ':checked' );
+    if($("#controlCalendar").is( ':checked' )){
+        disableCalendarView();
+        $("#calendar").show();
+        $("#calendar").css("visibility", "visible");
+    }else{
+        enableCalendarView();
+        $("#calendar").hide();
+    }
+}
+//TODO
+function disableCalendarView(){
+
+}
+//TODO
+function enableCalendarView(){
+
+}
+
+/**
+ * control the visibility of trends
+ */
+function controlTrend(){
+    paintControl.trend = $("#controlTrend").is( ':checked' );
+    if($("#controlTrend").is( ':checked' )){
+        $("#trendpanel").show();
+        $("#trendpanel").css("visibility", "visible");
+    }else{
+        $("#trendpanel").hide();
+    }
+}
+
+function pointControl(){
+    paintControl.stations = $("#pointcontrol").is( ':checked' );
+    if($("#pointcontrol").is( ':checked' )){
+        displayPoints();
+    }else{
+        hidePoints();
+    }
+}
+
+
+function meteorologicalStationControl(){
+    paintControl.mstations = $("#meteorologicalStationControl").is( ':checked' );
+    if($("#meteorologicalStationControl").is( ':checked' )){
+        displayMeteorologicalStations();
+    }else{
+        hideMeteorologicalStations();
+    }
+}
+
+function provinceBoundaryControl(){
+    if($("#provinceBoundary").is( ':checked' )){
+        createChinamap();
+    }else{
+        map.removeLayer(provinceBoundaryOverlay);
+    }
+}
+
+function provinceValueControl(){
+    if($("#provinceValue").is( ':checked' )){
+        if(provinceValueOverlay != null)
+            map.removeLayer(provinceValueOverlay);
+        createProvinceValue();
+    }else{
+        if(provinceValueOverlay != null)
+            map.removeLayer(provinceValueOverlay);
+    }
+}
+
+function cityValueControl(){
+    if($("#cityValue").is( ':checked' )){
+        if(cityValueOverlay != null)
+            map.removeLayer(cityValueOverlay);
+        createCityValue();
+    }else{
+        if(cityValueOverlay != null)
+            map.removeLayer(cityValueOverlay);
+    }
+}
+
+function controlContextRing(){
+    if(contextRing != null) {
+        map.removeLayer(contextRing);
+        if(scatterGroup != null)
+            map.removeLayer(scatterGroup);
+    }
+    if($("#controlContextRing").is(":checked")){
+        createCircleView2();
+    }
+}
+
+function controlThemeRiver(){
+    for(var i = 0; i < 8; i ++){
+        $("#themeriver"+i).empty();
+    }
+    if(themeLayer != null){
+        for(var i = 0; i < 8; i ++){
+            if(themeLayer[i] != null)
+                map.removeLayer(themeLayer[i]);
+        }
+    }
+    if($("#controlThemeRiver").is(":checked")){
+        clusterAndThemeRiver();
+    }
+}
+
+function controlCluster(){
+    if(clusterLayer != null){
+        if($("#controlContextRing").is(":checked") && $("#scattergroup").length == 0){
+            drawScatterGroup();
+        }
+        map.removeLayer(clusterLayer);
+    }
+    if($("#controlCluster").is(":checked")){
+        cluster();
+        if($("#scattergroup").length != 0){
+            $("#scattergroup").remove();
+        }
+    }
+}
+
+function controlGrids(){
+    if(gridsView != null)
+        map.removeLayer(gridsView);
+    if($("#controlGrids").is(":checked")){
+        createGridsView();
+    }
+}
+
+function controlWinds(){
+    if(windsView != null){
+        map.removeLayer(windsView);
+
+    }
+    if($("#controlWinds").is(":checked")){
+        createWindsView();
+    }
+}
+
+function cityBoundaryControl(){
+    if($("#cityBoundary").is( ':checked' )){
+        createCityMap();
+    }else{
+        map.removeLayer(cityBoundaryOverlay);
+    }
+}
+
+function hideMeteorologicalStations(){
+    meteorologicalStationLayer.clearLayers();
+}
+
+function hidePoints(){
+    locationLayer.clearLayers();
 }
