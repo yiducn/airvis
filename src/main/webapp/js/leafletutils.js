@@ -930,6 +930,9 @@ function linearTime(){
         data: cities,
         success: function (returnData) {
             var data = JSON.parse(returnData);
+            for(var i = 0; i < data.length; i ++){
+                data[i].time = new Date(data[i]._id.year+"-"+data[i]._id.month+"-01");
+            }
 
             var x = d3.time.scale().range([0, width]),
                 y = d3.scale.linear().range([height, 0]);
@@ -1675,12 +1678,12 @@ function cluster(){
                     .attr("id", function(d){return "triangle"+ d.cluster[0].code;})
                     .attr("viewBox", "0 0 15 10")
                     .attr("refX", "0")
-                    .attr("refY", "5")
+                    .attr("refY", "3")
                     .attr("markerWidth", "3")
                     .attr("markerHeight", "3")
                     .attr("orient", function(d){return d.dir+"deg";})
                     .append("path")
-                    .attr("d", "M 0 0 L 15 5 L 0 10 z");
+                    .attr("d", "M 0 0 L 10 3 L 0 6 z");
 
                 var centerScreen = proj.latLngToLayerPoint(center);
 
@@ -1723,7 +1726,7 @@ function cluster(){
                     .attr("y2", stationY)
                     .attr("marker-end", function(d){return "url(#triangle"+d.cluster[0].code+")";})
                     .attr("stroke", "black")
-                    .attr("stroke-width", function(d){return d.cluster.length;})
+                    .attr("stroke-width", function(d){return 5;})
                     .attr('fill-opacity', '0.8');
 
             });
