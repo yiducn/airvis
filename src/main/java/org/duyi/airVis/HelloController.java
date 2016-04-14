@@ -295,23 +295,24 @@ public class HelloController {
     public
     @ResponseBody
     String getMonthTrendsV2(@RequestParam(value="codes[]", required=false)String[] codes) {
-        MongoCollection coll = getCollection(COL_AVG_MONTH);
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_MONTH);
 
         Document match;
-        Document sort = new Document("$sort", new Document("time", 1));
+        Document sort = new Document("$sort", new Document("_id.year", 1).append("_id.month", 1));
         Document group = new Document().append("$group",
                 new Document().append("_id",
-                        new Document().append("month", new Document("$month", "$time"))
-                                .append("year", new Document("$year","$time")))
-                        .append("time", new Document("$first", "$time"))
-                        .append("aqi", new Document("$avg", "$aqi"))
-                        .append("aqi", new Document("$avg", "$aqi"))
-                        .append("co", new Document("$avg", "$co"))
-                        .append("no2", new Document("$avg", "$no2"))
-                        .append("o3", new Document("$avg", "$o3"))
-                        .append("pm10", new Document("$avg", "$pm10"))
-                        .append("pm25", new Document("$avg", "$pm25"))
-                        .append("so2", new Document("$avg", "$so2")));
+                        new Document().append("month", "$_id.month")
+                                .append("year", "$_id.year"))
+//                        .append("time", new Document("$first", "$time"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("co", new Document("$avg", "$co"))
+//                        .append("no2", new Document("$avg", "$no2"))
+//                        .append("o3", new Document("$avg", "$o3"))
+//                        .append("pm10", new Document("$avg", "$pm10"))
+                        .append("pm25", new Document("$avg", "$pm25")));
+//                        .append("so2", new Document("$avg", "$so2")));
         List<Document> query = new ArrayList<Document>();
         MongoCursor cur;
         JSONArray result = new JSONArray();
@@ -321,7 +322,7 @@ public class HelloController {
             cur = coll.aggregate(query).iterator();
         }
         else {
-            match = new Document("$match",new Document("code", new Document("$in", Arrays.asList(codes))));
+            match = new Document("$match",new Document("_id.code", new Document("$in", Arrays.asList(codes))));
             query.add(match);
             query.add(group);
             query.add(sort);
@@ -330,6 +331,7 @@ public class HelloController {
         while(cur.hasNext()){
             result.put(cur.next());
         }
+
         return result.toString();
     }
 
