@@ -15,7 +15,6 @@ import static java.lang.Math.abs;
 public class Correlation {
     private double pearsonsResult;
     private double[] lagResult = {0,0};
-    //test
 
     /**
      * Input two time series and get correlation value in return
