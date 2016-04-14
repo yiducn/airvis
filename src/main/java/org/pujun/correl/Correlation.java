@@ -18,7 +18,7 @@ public class Correlation {
 
     /**
      * Input two time series and get correlation value in return
-     * 输入两个数组，计算出其相关
+     * 输入两个数组，计算出其相关性
      * @param x
      * @param y
      * @return
