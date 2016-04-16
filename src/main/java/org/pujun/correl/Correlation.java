@@ -135,7 +135,7 @@ public class Correlation {
         double[] codeTimeSeriesDouble = new double[codeTimeSeries.size()];
         for (int i = 0; i < codeTimeSeries.size(); i++) {
             codeTimeSeriesDouble[i] = codeTimeSeries.get(i);
-            //System.out.println(clusterTimeSeries.get(i));
+            //System.out.println(codeTimeSeries.get(i));
         }
         //System.out.println(clusterTimeSeries.size());
         //System.out.println(codeTimeSeries.size());
