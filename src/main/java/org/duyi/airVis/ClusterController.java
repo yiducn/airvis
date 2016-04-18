@@ -366,11 +366,7 @@ public class ClusterController {
         }catch(Exception e){
             e.printStackTrace();
         }
-
-
         return "nothing1";
-
-//        meteodata_day
     }
 
     /**
@@ -507,11 +503,11 @@ public class ClusterController {
         try {
             //获取cluster中第一个台站的的code
             JSONArray jsonCluster = new JSONArray(cluster);
-            String oneCluster = jsonCluster.getJSONObject(0).getString("code");
 
             //日期格式、时区设置
-            SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            df.setCalendar(new GregorianCalendar(new SimpleTimeZone(0, "GMT")));
+            //TODO time zone problem
+            SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
+//            df.setCalendar(new GregorianCalendar(new SimpleTimeZone(0, "GMT")));
             Calendar cal = Calendar.getInstance();
 
             //连接数据库
@@ -522,28 +518,8 @@ public class ClusterController {
             //初始化日期循环
             Date thisDate;
             Date endDate = df.parse(endTime);
-            ArrayList<Double> clusterTimeSeries = new ArrayList<Double>();
             ArrayList<Double> codeTimeSeries = new ArrayList<Double>();
 
-            //查询cluster[0]的各时刻历史数据
-            thisDate = df.parse(startTime);
-            cal.setTime(thisDate);
-            BasicDBObject queryCluster = new BasicDBObject();
-            double thisClusterPM25, lastClusterPM25 = 0;
-            while(thisDate.before(endDate)) {
-                queryCluster.put("time", thisDate);
-                queryCluster.put("code", oneCluster);
-                DBCursor cur = pmCollection.find(queryCluster);
-                if (cur.hasNext()) {    //若存在此时刻的历史数据，则直接将历史数据加入list中
-                    thisClusterPM25 = Double.parseDouble(cur.next().get("pm25").toString());
-                    clusterTimeSeries.add(thisClusterPM25);
-                    lastClusterPM25 = thisClusterPM25;
-                } else {    //若不存在这个时间，则复制前一个时刻的历史数值（存入在lastClusterPM25）
-                    clusterTimeSeries.add(lastClusterPM25);
-                }
-                cal.add(Calendar.HOUR, 1);  //时间+1h循环
-                thisDate = cal.getTime();
-            }
 
             //查询code[0]的各时刻历史数据
             thisDate = df.parse(startTime);
@@ -551,8 +527,8 @@ public class ClusterController {
             BasicDBObject queryCode = new BasicDBObject();
             double thisCodePM25, lastCodePM25=0;
             while(thisDate.before(endDate)) {
-                queryCode.put("time", thisDate);
-                queryCode.put("code", codes[0]);
+                queryCode.append("time", new Document("$gte", thisDate).append("$lt", new Date(thisDate.getTime()+24*60*60*1000)));
+                queryCode.append("code", codes[0]);
                 DBCursor cur = pmCollection.find(queryCode);
                 if (cur.hasNext()) {    //若存在此时刻的历史数据，则直接将历史数据加入list中
                     thisCodePM25 = Double.parseDouble(cur.next().get("pm25").toString());
@@ -565,23 +541,48 @@ public class ClusterController {
                 thisDate = cal.getTime();
             }
 
-            //ArrayList转double数组
-            double[] clusterTimeSeriesDouble = new double[clusterTimeSeries.size()];
-            for (int m = 0; m < clusterTimeSeries.size(); m++) {
-                clusterTimeSeriesDouble[m] = clusterTimeSeries.get(m);
-            }
+
             double[] codeTimeSeriesDouble = new double[codeTimeSeries.size()];
             for (int n = 0; n < codeTimeSeries.size(); n++) {
                 codeTimeSeriesDouble[n] = codeTimeSeries.get(n);
             }
 
-            //计算相关性，[0]为最优lag，[1]为对应相关度
-            Correlation correlation = new Correlation();
-            double[] lagCorrelation = correlation.getLagResult(clusterTimeSeriesDouble, codeTimeSeriesDouble);
-
             for(int i = 0; i < jsonCluster.length(); i ++){
+                String oneCluster = jsonCluster.getJSONObject(i).getJSONArray("cluster").getJSONObject(0).getString("code");
+                ArrayList<Double> clusterTimeSeries = new ArrayList<Double>();
+                //查询cluster[0]的各时刻历史数据
+                thisDate = df.parse(startTime);
+                cal.setTime(thisDate);
+                BasicDBObject queryCluster = new BasicDBObject();
+                double thisClusterPM25, lastClusterPM25 = 0;
+                while(thisDate.before(endDate)) {
+                    queryCluster.append("time", new Document("$gte", thisDate).append("$lt", new Date(thisDate.getTime()+24*60*60*1000)));
+                    queryCluster.append("code", oneCluster);
+                    DBCursor cur = pmCollection.find(queryCluster);
+                    if (cur.hasNext()) {    //若存在此时刻的历史数据，则直接将历史数据加入list中
+                        thisClusterPM25 = Double.parseDouble(cur.next().get("pm25").toString());
+                        clusterTimeSeries.add(thisClusterPM25);
+                        lastClusterPM25 = thisClusterPM25;
+                    } else {    //若不存在这个时间，则复制前一个时刻的历史数值（存入在lastClusterPM25）
+                        clusterTimeSeries.add(lastClusterPM25);
+                    }
+                    cal.add(Calendar.HOUR, 1);  //时间+1h循环
+                    thisDate = cal.getTime();
+                }
+
+                //ArrayList转double数组
+                double[] clusterTimeSeriesDouble = new double[clusterTimeSeries.size()];
+                for (int m = 0; m < clusterTimeSeries.size(); m++) {
+                    clusterTimeSeriesDouble[m] = clusterTimeSeries.get(m);
+                }
+
+                //计算相关性，[0]为最优lag，[1]为对应相关度
+                Correlation correlation = new Correlation();
+                double[] lagCorrelation = correlation.getLagResult(clusterTimeSeriesDouble, codeTimeSeriesDouble);
+
                 //TODO 计算correlation
                 ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
+                ((JSONObject) jsonCluster.get(i)).put("lag", lagCorrelation[0]);
             }
 
             return jsonCluster.toString();

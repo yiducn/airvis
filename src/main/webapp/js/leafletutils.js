@@ -1047,7 +1047,7 @@ function createCircleView2() {
 
     sizeScreen = map.getPixelBounds().getSize();
     outerRadius = sizeScreen.y / 2-50;
-    outerRadius4Octagonal = outerRadius + 50;
+    //outerRadius4Octagonal = outerRadius + 50;
     innerRadius = outerRadius -  200;
 
     //将初始化minDis和maxDis的操作在缩放之后进行,移动到zoomAndCenter
@@ -1098,17 +1098,30 @@ function createCircleView2() {
             var p1Y = centerScreen.y - innerRadius * Math.cos(d.angle);
             var p2X = centerScreen.x + innerRadius * Math.sin(d.angle + intervalAngle);
             var p2Y = centerScreen.y - innerRadius * Math.cos(d.angle + intervalAngle);
-            var p3X = centerScreen.x + outerRadius4Octagonal * Math.sin(d.angle + intervalAngle);
-            var p3Y = centerScreen.y - outerRadius4Octagonal * Math.cos(d.angle + intervalAngle);
-            var p4X = centerScreen.x + outerRadius4Octagonal * Math.sin(d.angle);
-            var p4Y = centerScreen.y - outerRadius4Octagonal * Math.cos(d.angle);
+            var p3X = centerScreen.x + outerRadius * Math.sin(d.angle + intervalAngle);
+            var p3Y = centerScreen.y - outerRadius * Math.cos(d.angle + intervalAngle);
+            var p4X = centerScreen.x + outerRadius * Math.sin(d.angle);
+            var p4Y = centerScreen.y - outerRadius * Math.cos(d.angle);
+            //path += p1X + " ";
+            //path += p1Y + " L ";
+            //path += p2X + " ";
+            //path += p2Y + " L ";
+            //path += p3X + " ";
+            //path += p3Y + " L ";
+            //path += p4X + " ";
+            //path += p4Y + " ";
+            //path += " Z ";
             path += p1X + " ";
-            path += p1Y + " L ";
-            path += p2X + " ";
+            path += p1Y + " A ";
+            path += innerRadius+","+innerRadius+ " ";
+            path += "0 0,1 ";
+            path += p2X + ",";
             path += p2Y + " L ";
             path += p3X + " ";
-            path += p3Y + " L ";
-            path += p4X + " ";
+            path += p3Y + " A ";
+            path += outerRadius+","+outerRadius+ " ";
+            path += "0 0,0 ";
+            path += p4X + ",";
             path += p4Y + " ";
             path += " Z ";
             var centerXGrid = (p1X + p2X + p3X + p4X) / 4;
@@ -1120,6 +1133,8 @@ function createCircleView2() {
 
             return path;
         };
+
+        //绘制内圈的方法
         var pathInner = function(){
             var path = "M ";
             for(var i = 0; i < 7; i ++) {
@@ -1160,11 +1175,13 @@ function createCircleView2() {
             .attr('stroke', 'black')
             .attr('fill-opacity', '0.7');
 
-        sel.select("g").append("path")
-            .attr("d", pathInner)
-            .attr("fill", "white")
-            .attr('stroke', 'black')
-            .attr('fill-opacity', '0.5');
+
+        //sel.select("g").append("path")
+        //    .attr("d", pathInner)
+        //    .attr("fill", "white")
+        //    .attr('stroke', 'black')
+        //    .attr('fill-opacity', '0.5');
+
         //var themeRivers = sel.append("g")
         //    .attr("id", "themeRivers");
         //themeRivers.selectAll("g").data(parts)
@@ -1812,11 +1829,12 @@ function clusterAndThemeRiver(){
     for(var i = 0; i < 8; i ++){
         param[i] = "";
     }
+    //TODO 只取cluster中的第一个station
     for(var i = 0; i < clusterResult.length; i ++){
         //param[clusterResult[i].angle] += "&cities="+clusterResult[i].cluster[0].city;
-        for(var j = 0; j < clusterResult[i].cluster.length; j ++){
-            param[clusterResult[i].angle] += ("&codes="+clusterResult[i].cluster[j].code)
-        }
+        //for(var j = 0; j < clusterResult[i].cluster.length; j ++){
+            param[clusterResult[i].angle] += ("&codes="+clusterResult[i].cluster[0].code)
+        //}
     }
     for(var i = 0; i < 8; i ++){
         param[i] += "&startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
