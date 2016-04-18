@@ -1457,11 +1457,14 @@ function clusterWithCorrelation(){
             clusterCircles.transition()
                 .attr("r", function(d){
                     for(var i = 0; i < data.length; i ++){
-                        if(data[i].id == d.id)
-                            return 15 + data[i].correlation * 10;
+                        if(data[i].id == d.id) {
+                            if(data[i].correlation < 0)
+                                return 5;//负相关
+                            return 5 + data[i].correlation * 30;
+                        }
                     }
                     console.log("no correlation");
-                    return 10;
+                    return 5;
                 });
         }
     });
@@ -1720,10 +1723,15 @@ function cluster(){
                         (d.centerY - center.lat) /
                         Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
                 }
+                // Define the div for the tooltip
+                var div = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .style("opacity", 0);
+
                 clusterCircles = sel.append("g").selectAll(".cluster").data(data)
                     .enter()
                     .append("circle")
-                    .attr('id', function(d){return d.cluster.id;})
+                    .attr('id', function(d){return d.id;})
                     .attr('r', function (d) {
                         return 15;//d.cluster.length*5;
                     })
@@ -1732,7 +1740,20 @@ function cluster(){
                     .attr('fill', 'yellow')
                     .attr('opacity', '1')
                     .attr('stroke', 'black')
-                    .attr('stroke-width', 1);
+                    .attr('stroke-width', 1)
+                    .on("mouseover", function(d) {
+                        div.transition()
+                            .duration(100)
+                            .style("opacity", .9);
+                        div	.html(d.cluster[0].city )
+                            .style("left", (d3.event.pageX) + "px")
+                            .style("top", (d3.event.pageY - 28) + "px");
+                    })		        .on("mouseout", function(d) {
+                        div.transition()
+                            .duration(500)
+                            .style("opacity", 0);
+                    });
+                ;
                 //TODO
                 sel.append("g").selectAll(".clusterWind").data(data)
                     .enter()

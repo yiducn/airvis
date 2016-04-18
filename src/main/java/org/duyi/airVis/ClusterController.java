@@ -317,6 +317,7 @@ public class ClusterController {
                             Document dd = (Document) curMeteo.next();
                             cluster.put("spd", dd.getDouble("spd"));
                             cluster.put("dir", dd.getDouble("dir"));
+                            cluster.put("metostation", metoStations[i]);
                         }
                     }
 
@@ -487,6 +488,59 @@ public class ClusterController {
     }
 
     /**
+     * 根据当前的起始时间,更新风向\风速
+     * @param cluster
+     * @param startTime
+     * @param endTime
+     * @return
+     */
+    private String updateWind(String cluster, String startTime, String endTime){
+        JSONArray jsonCluster = null;
+        try {
+            SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
+            jsonCluster = new JSONArray(cluster);
+            //连接数据库
+            MongoClient client = new MongoClient("127.0.0.1", 27017);
+            MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+            MongoCollection colMeteo = db.getCollection("meteodata_day");
+
+            for(int i = 0; i < jsonCluster.length(); i ++){
+                JSONObject oneCluster = jsonCluster.getJSONObject(i);
+                if(!oneCluster.has("metostation"))
+                    continue;
+                if(oneCluster.get("metostation") != null) {
+                    List<Document> query = new ArrayList<Document>();
+                    //计算气象情况
+                    Document match;
+                    Document sort = new Document("$sort", new Document("time", 1));
+                    Document group = new Document().append("$group",
+                            new Document().append("_id", "$usaf")
+                                    .append("dir", new Document("$avg", "$dir"))
+                                    .append("spd", new Document("$avg", "$spd")));
+                    match = new Document("$match", new Document("time",
+                            new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)))
+                            .append("usaf", new Document("$in", Arrays.asList(Integer.parseInt(oneCluster.getString("metostation"))))));
+                    query.add(match);
+                    query.add(group);
+                    MongoCursor curMeteo = colMeteo.aggregate(query).iterator();
+                    if (curMeteo.hasNext()) {
+                        Document dd = (Document) curMeteo.next();
+                        oneCluster.remove("spd");
+                        oneCluster.remove("dir");
+                        oneCluster.put("spd", dd.getDouble("spd"));
+                        oneCluster.put("dir", dd.getDouble("dir"));
+                    }
+                }
+            }
+            return jsonCluster.toString();
+
+        }catch(Exception e){
+            e.printStackTrace();
+            return "exception";
+        }
+    }
+
+    /**
      * 根据cluster结果 计算相关性
      * 从每个cluster中选择一个站点(任选),计算该站点在选定时间内,与中心区域某一个站点(任选)的相关性
      * @param cluster
@@ -500,9 +554,10 @@ public class ClusterController {
     @ResponseBody
         //TODO
     String correlation(String cluster, String startTime, String endTime, String[] codes) {
+        String clusterAfterUpdateWind = updateWind(cluster, startTime, endTime);
         try {
             //获取cluster中第一个台站的的code
-            JSONArray jsonCluster = new JSONArray(cluster);
+            JSONArray jsonCluster = new JSONArray(clusterAfterUpdateWind);
 
             //日期格式、时区设置
             //TODO time zone problem
