@@ -1444,6 +1444,11 @@ function clusterWithCorrelation(){
     for(var i = 0; i < filteredData.length; i ++){
         codes += ("codes="+filteredData[i].code + "&");
     }
+    // Define the div for the tooltip
+    var div = d3.select("body").append("div")
+        .attr("class", "tooltip")
+        .style("opacity", 0);
+
     $.ajax({
         url: "correlation.do",
         type:"post",
@@ -1466,6 +1471,26 @@ function clusterWithCorrelation(){
                     console.log("no correlation");
                     return 5;
                 });
+
+            clusterCircles.on("mouseover", function(d) {
+                var cor = 0;
+                for(var i = 0; i < data.length; i ++){
+                    if(data[i].id == d.id) {
+                        cor = data[i].correlation;
+                    }
+                }
+                
+                div.transition()
+                    .duration(100)
+                    .style("opacity", .9);
+                div	.html(d.cluster[0].city +":"+ parseFloat(cor).toFixed(2))
+                    .style("left", (d3.event.pageX) + "px")
+                    .style("top", (d3.event.pageY - 28) + "px");
+            })		        .on("mouseout", function(d) {
+                div.transition()
+                    .duration(500)
+                    .style("opacity", 0);
+            });
         }
     });
 }
@@ -1723,10 +1748,6 @@ function cluster(){
                         (d.centerY - center.lat) /
                         Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
                 }
-                // Define the div for the tooltip
-                var div = d3.select("body").append("div")
-                    .attr("class", "tooltip")
-                    .style("opacity", 0);
 
                 clusterCircles = sel.append("g").selectAll(".cluster").data(data)
                     .enter()
@@ -1740,20 +1761,7 @@ function cluster(){
                     .attr('fill', 'yellow')
                     .attr('opacity', '1')
                     .attr('stroke', 'black')
-                    .attr('stroke-width', 1)
-                    .on("mouseover", function(d) {
-                        div.transition()
-                            .duration(100)
-                            .style("opacity", .9);
-                        div	.html(d.cluster[0].city )
-                            .style("left", (d3.event.pageX) + "px")
-                            .style("top", (d3.event.pageY - 28) + "px");
-                    })		        .on("mouseout", function(d) {
-                        div.transition()
-                            .duration(500)
-                            .style("opacity", 0);
-                    });
-                ;
+                    .attr('stroke-width', 1) ;
                 //TODO
                 sel.append("g").selectAll(".clusterWind").data(data)
                     .enter()
