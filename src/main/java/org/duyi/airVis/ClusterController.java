@@ -565,7 +565,7 @@ public class ClusterController {
                 thisDate = cal.getTime();
             }
 
-            //ArrayList转数组
+            //ArrayList转double数组
             double[] clusterTimeSeriesDouble = new double[clusterTimeSeries.size()];
             for (int m = 0; m < clusterTimeSeries.size(); m++) {
                 clusterTimeSeriesDouble[m] = clusterTimeSeries.get(m);
