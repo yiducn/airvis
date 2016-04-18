@@ -27,24 +27,32 @@ import static java.lang.Math.ceil;
  */
 public class HeatMap {
     private String timePoint;
-    private Color maxColor = new Color(255,0,0,50);
-    private Color minColor = new Color(127,255,0,50);
+    private Color maxColor = new Color(255,0,0,100);
+    private Color minColor = new Color(127,255,0,100);
     private double minValue,maxValue;
     private static final String CITY_PATH = "/Users/milletpu/airvis/src/main/webapp/maps/china_cities.json";
+    private static final String INPUT_IMAGE= "/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/china-map-screenshot.png";
 
     public HeatMap(String timePoint) {
         this.timePoint = timePoint;
     }
-
+    /**
+     * 在地图上画出pm2.5历史数据，数据从mongodb中取
+     * @param maxValue 历史数据最大值（对应最大颜色）
+     * @param minValue 历史数据最小值（对应最小颜色）
+     * @throws ParseException
+     * @throws IOException
+     */
     public void drawPm25(double maxValue,double minValue) throws ParseException, IOException {
         this.maxValue = maxValue;
         this.minValue = minValue;
-        InterpPm interpPm = new InterpPm(timePoint);
+        String pm25Image = "/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/pm25Image.png";
 
-        DrawHeatMap dg = new DrawHeatMap();     //实例化 画heatmap
+        //画heatmap
+        DrawHeatMap dg = new DrawHeatMap(INPUT_IMAGE, pm25Image);     //实例化 画heatmap
         dg.init();      //初始化读入地图背景，png
+        InterpPm interpPm = new InterpPm(timePoint);
         for (int i = 0; i < interpPm.pm25s.length; i++) {
-            dg.outpng="/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/outimageorigin.png";
             dg.graphics.setColor(useColor(interpPm.pm25s[i]));
             //System.out.println(interpPm.pm25s[i]);
             dg.drawEllipse(interpPm.pm25Points[i][0], interpPm.pm25Points[i][1]);
@@ -52,18 +60,27 @@ public class HeatMap {
 
     }
 
+    /**
+     * 画出全中国所有城市的pm2.5插值数据
+     * @param maxValue
+     * @param minValue
+     * @throws IOException
+     * @throws ParseException
+     */
     public void drawInterpPm25(double maxValue, double minValue) throws IOException, ParseException {
         this.minValue = minValue;
         this.maxValue = maxValue;
+        String pm25InterpImage ="/Users/milletpu/airvis/src/main/java/org/pujun/heatmap/pm25InterpImage.png";
+
         //获取全国所有城市的坐标
-        InterpPm interpPm = new InterpPm(timePoint);
         FeatureJSON fj = new FeatureJSON();
         FeatureCollection fc = fj.readFeatureCollection(new FileInputStream(new File(CITY_PATH)));
         FeatureIterator iterator = fc.features();
 
-        DrawHeatMap dg = new DrawHeatMap();     //实例化 画heatmap
+        //画heatmap
+        DrawHeatMap dg = new DrawHeatMap(INPUT_IMAGE,pm25InterpImage);
         dg.init();      //初始化读入地图背景，png
-
+        InterpPm interpPm = new InterpPm(timePoint);
         while (iterator.hasNext()) {
             Feature feature = iterator.next();
             String[] thisLocation = feature.getProperty("cp").getValue().toString().split(",");
@@ -71,29 +88,26 @@ public class HeatMap {
             double thisLat = Double.parseDouble(thisLocation[1].replace("]", ""));
             double thisPm25 = interpPm.pm25(thisLat, thisLon);
             //System.out.println(thisPm25);
+
             dg.graphics.setColor(useColor(thisPm25));
-            dg.drawEllipse(thisLat, thisLon);//取出全国所有城市的坐标，在地图png上画点
-
-
-//            System.out.println("lat:"+ thisLat + "lon:" + thisLon);
-//            System.out.println(interpPm.pm10(thisLat, thisLon));
-//            System.out.println(interpPm.pm25(thisLat, thisLon));
+            dg.drawEllipse(thisLat, thisLon);
         }
     }
 
     public Color useColor(double value){
         Color thisColor;
+
         int selectCorlor = (int) ceil((value - minValue) / (maxValue - minValue) * 383);    //383种渐变颜色
-        if (selectCorlor >= maxValue) {
-            return maxColor;
-        }else if(selectCorlor >= 0 && selectCorlor <= 127){
-            thisColor = new Color(minColor.getRed()+selectCorlor,255,0,50);
+        if(selectCorlor >= 0 && selectCorlor <= 127){
+            thisColor = new Color(minColor.getRed()+selectCorlor,255,0,100);
             return thisColor;
         }else if(selectCorlor >=128 && selectCorlor <= 383){
-            thisColor = new Color(255,minColor.getGreen()-(selectCorlor-128),0,50);
+            thisColor = new Color(255,minColor.getGreen()-(selectCorlor-128),0,100);
             return thisColor;
+        }else if(selectCorlor > 383 && selectCorlor < 800){
+            return maxColor;
         }else{
-            return minColor;
+            return new Color(0, 0, 0, 0);//异常点白色
         }
     }
 
@@ -101,6 +115,5 @@ public class HeatMap {
         HeatMap heatMap = new HeatMap("2013-12-18 06:00:00");
         heatMap.drawInterpPm25(200, 0);
         heatMap.drawPm25(200,0);
-
     }
 }
