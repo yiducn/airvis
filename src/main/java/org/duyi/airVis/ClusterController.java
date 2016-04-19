@@ -532,6 +532,7 @@ public class ClusterController {
                     }
                 }
             }
+            client.close();
             return jsonCluster.toString();
 
         }catch(Exception e){
@@ -639,7 +640,7 @@ public class ClusterController {
                 ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
                 ((JSONObject) jsonCluster.get(i)).put("lag", lagCorrelation[0]);
             }
-
+            client.close();
             return jsonCluster.toString();
 
         }catch(JSONException je){
