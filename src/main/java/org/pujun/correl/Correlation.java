@@ -5,6 +5,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import org.apache.commons.math3.stat.correlation.PearsonsCorrelation;
+import org.apache.commons.math3.stat.inference.TTest;
 import org.bson.Document;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -21,7 +22,7 @@ import static java.lang.Math.abs;
  */
 public class Correlation {
     private double pearsonsResult;
-    private double[] lagResult = {0,0};
+    private double[] lagResult = new double[3];
 
     /**
      * Input two time series and get correlation value in return
@@ -43,18 +44,22 @@ public class Correlation {
      * 输入两个数组，计算出最优lag和对应的相关性数值
      * @param x
      * @param y
-     * @return LagResult[0]: best lag, lagResult[1]: correlation value
+     * @return LagResult[0]: best lag, lagResult[1]: correlation value, lagResult[2]: p-value
      */
     public double[] getLagResult(double[] x, double[] y){  //arrayY后移lag位，arrayX前端截掉，arrayY后端截掉
         double thisLagResult = 0;
-        for (int i = 0; i < x.length/2; i++) {
-            x = Arrays.copyOfRange(x, i, x.length);
-            y = Arrays.copyOfRange(y, 0, y.length - i);
+        int length = x.length;
+        TTest tTest = new TTest();
+        for (int i = 0; i < length/2; i++) {
+            x = Arrays.copyOfRange(x, i, length);
+            y = Arrays.copyOfRange(y, 0, length - i);
+            System.out.println(tTest.pairedTTest(x, y));
             PearsonsCorrelation pearsonsCorrelation = new PearsonsCorrelation();
             thisLagResult = pearsonsCorrelation.correlation(x, y);
             if (abs(thisLagResult) > lagResult[1]){
                 lagResult[0] = i;
                 lagResult[1] = thisLagResult;
+                lagResult[2] = tTest.pairedTTest(x,y);
             }
         }
 
@@ -197,9 +202,10 @@ public class Correlation {
 //        //1分钟
 
         Correlation correlation = new Correlation();
-        double [] lag = correlation.getLagCorelPM25("1007A","1007A","2015-03-01 00:00:00","2015-04-01 00:00:00");
+        double [] lag = correlation.getLagCorelPM25("1007A","1030A","2015-03-16 00:00:00","2015-03-18 00:00:00");
         System.out.println(lag[0]);
         System.out.println(lag[1]);
+        System.out.println(lag[2]);
 
     }
 
