@@ -1047,7 +1047,7 @@ function createCircleView2() {
 
     sizeScreen = map.getPixelBounds().getSize();
     outerRadius = sizeScreen.y / 2-50;
-    outerRadius4Octagonal = outerRadius + 50;
+    //outerRadius4Octagonal = outerRadius + 50;
     innerRadius = outerRadius -  200;
 
     //将初始化minDis和maxDis的操作在缩放之后进行,移动到zoomAndCenter
@@ -1098,17 +1098,30 @@ function createCircleView2() {
             var p1Y = centerScreen.y - innerRadius * Math.cos(d.angle);
             var p2X = centerScreen.x + innerRadius * Math.sin(d.angle + intervalAngle);
             var p2Y = centerScreen.y - innerRadius * Math.cos(d.angle + intervalAngle);
-            var p3X = centerScreen.x + outerRadius4Octagonal * Math.sin(d.angle + intervalAngle);
-            var p3Y = centerScreen.y - outerRadius4Octagonal * Math.cos(d.angle + intervalAngle);
-            var p4X = centerScreen.x + outerRadius4Octagonal * Math.sin(d.angle);
-            var p4Y = centerScreen.y - outerRadius4Octagonal * Math.cos(d.angle);
+            var p3X = centerScreen.x + outerRadius * Math.sin(d.angle + intervalAngle);
+            var p3Y = centerScreen.y - outerRadius * Math.cos(d.angle + intervalAngle);
+            var p4X = centerScreen.x + outerRadius * Math.sin(d.angle);
+            var p4Y = centerScreen.y - outerRadius * Math.cos(d.angle);
+            //path += p1X + " ";
+            //path += p1Y + " L ";
+            //path += p2X + " ";
+            //path += p2Y + " L ";
+            //path += p3X + " ";
+            //path += p3Y + " L ";
+            //path += p4X + " ";
+            //path += p4Y + " ";
+            //path += " Z ";
             path += p1X + " ";
-            path += p1Y + " L ";
-            path += p2X + " ";
+            path += p1Y + " A ";
+            path += innerRadius+","+innerRadius+ " ";
+            path += "0 0,1 ";
+            path += p2X + ",";
             path += p2Y + " L ";
             path += p3X + " ";
-            path += p3Y + " L ";
-            path += p4X + " ";
+            path += p3Y + " A ";
+            path += outerRadius+","+outerRadius+ " ";
+            path += "0 0,0 ";
+            path += p4X + ",";
             path += p4Y + " ";
             path += " Z ";
             var centerXGrid = (p1X + p2X + p3X + p4X) / 4;
@@ -1120,6 +1133,8 @@ function createCircleView2() {
 
             return path;
         };
+
+        //绘制内圈的方法
         var pathInner = function(){
             var path = "M ";
             for(var i = 0; i < 7; i ++) {
@@ -1160,11 +1175,13 @@ function createCircleView2() {
             .attr('stroke', 'black')
             .attr('fill-opacity', '0.7');
 
-        sel.select("g").append("path")
-            .attr("d", pathInner)
-            .attr("fill", "white")
-            .attr('stroke', 'black')
-            .attr('fill-opacity', '0.5');
+
+        //sel.select("g").append("path")
+        //    .attr("d", pathInner)
+        //    .attr("fill", "white")
+        //    .attr('stroke', 'black')
+        //    .attr('fill-opacity', '0.5');
+
         //var themeRivers = sel.append("g")
         //    .attr("id", "themeRivers");
         //themeRivers.selectAll("g").data(parts)
@@ -1427,6 +1444,11 @@ function clusterWithCorrelation(){
     for(var i = 0; i < filteredData.length; i ++){
         codes += ("codes="+filteredData[i].code + "&");
     }
+    // Define the div for the tooltip
+    var div = d3.select("body").append("div")
+        .attr("class", "tooltip")
+        .style("opacity", 0);
+
     $.ajax({
         url: "correlation.do",
         type:"post",
@@ -1440,12 +1462,35 @@ function clusterWithCorrelation(){
             clusterCircles.transition()
                 .attr("r", function(d){
                     for(var i = 0; i < data.length; i ++){
-                        if(data[i].id == d.id)
-                            return 15 + data[i].correlation * 10;
+                        if(data[i].id == d.id) {
+                            if(data[i].correlation < 0)
+                                return 5;//负相关
+                            return 5 + data[i].correlation * 30;
+                        }
                     }
                     console.log("no correlation");
-                    return 10;
+                    return 5;
                 });
+
+            clusterCircles.on("mouseover", function(d) {
+                var cor = 0;
+                for(var i = 0; i < data.length; i ++){
+                    if(data[i].id == d.id) {
+                        cor = data[i].correlation;
+                    }
+                }
+                
+                div.transition()
+                    .duration(100)
+                    .style("opacity", .9);
+                div	.html(d.cluster[0].city +":"+ parseFloat(cor).toFixed(2))
+                    .style("left", (d3.event.pageX) + "px")
+                    .style("top", (d3.event.pageY - 28) + "px");
+            })		        .on("mouseout", function(d) {
+                div.transition()
+                    .duration(500)
+                    .style("opacity", 0);
+            });
         }
     });
 }
@@ -1703,10 +1748,11 @@ function cluster(){
                         (d.centerY - center.lat) /
                         Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
                 }
+
                 clusterCircles = sel.append("g").selectAll(".cluster").data(data)
                     .enter()
                     .append("circle")
-                    .attr('id', function(d){return d.cluster.id;})
+                    .attr('id', function(d){return d.id;})
                     .attr('r', function (d) {
                         return 15;//d.cluster.length*5;
                     })
@@ -1715,7 +1761,7 @@ function cluster(){
                     .attr('fill', 'yellow')
                     .attr('opacity', '1')
                     .attr('stroke', 'black')
-                    .attr('stroke-width', 1);
+                    .attr('stroke-width', 1) ;
                 //TODO
                 sel.append("g").selectAll(".clusterWind").data(data)
                     .enter()
@@ -1812,11 +1858,12 @@ function clusterAndThemeRiver(){
     for(var i = 0; i < 8; i ++){
         param[i] = "";
     }
+    //TODO 只取cluster中的第一个station
     for(var i = 0; i < clusterResult.length; i ++){
         //param[clusterResult[i].angle] += "&cities="+clusterResult[i].cluster[0].city;
-        for(var j = 0; j < clusterResult[i].cluster.length; j ++){
-            param[clusterResult[i].angle] += ("&codes="+clusterResult[i].cluster[j].code)
-        }
+        //for(var j = 0; j < clusterResult[i].cluster.length; j ++){
+            param[clusterResult[i].angle] += ("&codes="+clusterResult[i].cluster[0].code)
+        //}
     }
     for(var i = 0; i < 8; i ++){
         param[i] += "&startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
