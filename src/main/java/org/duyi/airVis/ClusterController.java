@@ -24,6 +24,7 @@ import org.opengis.feature.Feature;
 import org.pujun.correl.Correlation;
 import org.pujun.interp.InterpMeteo;
 import org.pujun.interp.InterpPm;
+import org.springframework.cglib.core.Local;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -228,7 +229,7 @@ public class ClusterController {
         JSONObject oneStation;
         ArrayList<JSONObject> filtered = new ArrayList<JSONObject>();
         Calendar cal = Calendar.getInstance();
-        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
 
         //中心 经度\纬度116°23′17〃，北纬：39°54′27;116.5, 40
         try {
@@ -450,7 +451,7 @@ public class ClusterController {
         MongoCollection coll = db.getCollection("pmdata_day");
         Calendar cal = Calendar.getInstance();
         //TODO time zone problem
-        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
 
         Document filter = new Document();
 
@@ -497,7 +498,7 @@ public class ClusterController {
     private String updateWind(String cluster, String startTime, String endTime){
         JSONArray jsonCluster = null;
         try {
-            SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
+            SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
             jsonCluster = new JSONArray(cluster);
             //连接数据库
             MongoClient client = new MongoClient("127.0.0.1", 27017);

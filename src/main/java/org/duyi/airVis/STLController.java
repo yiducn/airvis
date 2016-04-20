@@ -21,6 +21,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Created by yidu on 4/7/16.
@@ -51,7 +52,7 @@ public class STLController {
         MongoCollection coll = db.getCollection("pm_data");
         Calendar cal = Calendar.getInstance();
         //TODO time zone problem
-        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
 
         Document match;
         Document group = new Document().append("$group",
