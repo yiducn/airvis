@@ -86,22 +86,23 @@ public class Correlation {
      * @return LagResult[0]: best lag, lagResult[1]: correlation value, lagResult[2]: p-value
      */
     public double[] getLagResult(double[] x, double[] y){  //arrayY后移lag位，arrayX前端截掉，arrayY后端截掉
+        double[] result = new double[3];
         double thisLagResult;
         int length = x.length;
+        PearsonsCorrelation pearsonsCorrelation = new PearsonsCorrelation();
         TTest tTest = new TTest();
         for (int i = 0; i < length/2; i++) {
             double[] xx = Arrays.copyOfRange(x, i, length);
             double[] yy = Arrays.copyOfRange(y, 0, length - i);
-            PearsonsCorrelation pearsonsCorrelation = new PearsonsCorrelation();
             thisLagResult = pearsonsCorrelation.correlation(xx, yy);
-            if (abs(thisLagResult) > lagResult[1]){
-                lagResult[0] = i;
-                lagResult[1] = thisLagResult;
-                lagResult[2] = tTest.pairedTTest(xx,yy);
+            if (thisLagResult > abs(result[1])){    //不使用绝对值
+                result[0] = i;
+                result[1] = thisLagResult;
+                result[2] = tTest.pairedTTest(xx,yy);
             }
         }
 
-        return lagResult;
+        return result;
     }
 
     /**
@@ -196,51 +197,56 @@ public class Correlation {
      * @param y
      * @return
      */
-    public double[] getLagResultEarlier(double[] x, double[] y){  //arrayY后移lag位，arrayX前端截掉，arrayY后端截掉
+    public double[] getLagResultEarlier(double[] x, double[] y){  //y数组头部后移lag位，但长度始终与x相等；x不做任何变化
+        double[] result = new double[3];
         double thisLagResult;
         int xlength = x.length; //x数组一直保持不变
         int allLag = y.length - x.length;
         TTest tTest = new TTest();
-        for (int i = 0; i < allLag; i++) {
+        PearsonsCorrelation pearsonsCorrelation = new PearsonsCorrelation();
+        for (int i = 0; i <= allLag; i++) {
             double[] yy = Arrays.copyOfRange(y, i, i + xlength);    //y数组窗口后移，但长度始终和x一致
-            PearsonsCorrelation pearsonsCorrelation = new PearsonsCorrelation();
             thisLagResult = pearsonsCorrelation.correlation(x, yy);
-            if (abs(thisLagResult) > lagResult[1]){
-                lagResult[0] = i;
-                lagResult[1] = thisLagResult;
-                lagResult[2] = tTest.pairedTTest(x,yy);
+            //System.out.println(i + ", " + thisLagResult + ", " + tTest.pairedTTest(x,yy));
+            if (thisLagResult > result[1]){     //不使用绝对值，忽略负相关
+                result[0] = i;
+                result[1] = thisLagResult;
+                result[2] = tTest.pairedTTest(x,yy);
             }
         }
 
-        return lagResult;
+        return result;
     }
 
     /**
      *
-     * @param code1
-     * @param code2
-     * @param code1StartTime
-     * @param code2StartTime
+     * @param code1 cluster[0]
+     * @param code2 codes[0]
+     * @param startTime
      * @param endTime
      * @return
      * @throws ParseException
      */
-    public double[] getLagCorrelPM25Earlier(String code1, String code1StartTime, String code2, String code2StartTime, String endTime) throws ParseException {
+    public double[] getLagCorrelPM25Earlier(String code1, String startTime, String endTime, String code2) throws ParseException {
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         df.setCalendar(new GregorianCalendar(new SimpleTimeZone(0, "GMT")));
         Calendar cal = Calendar.getInstance();
+
         //连接数据库
         MongoClient client = new MongoClient("127.0.0.1", 27017);
         DB db = client.getDB("airdb");
         DBCollection pmCollection = db.getCollection("pm_data");
 
-        Date thisDate = df.parse(code1StartTime);
+
+        Date thisDate;
         Date endDate = df.parse(endTime);
         ArrayList<Double> clusterTimeSeries = new ArrayList<Double>();
         ArrayList<Double> codeTimeSeries = new ArrayList<Double>();
 
         //查询cluster0的各时刻历史数据
-        cal.setTime(df.parse(code1StartTime));
+        cal.setTime(df.parse(startTime));
+        cal.add(Calendar.DATE, -2);  //cluster提前两天
+        thisDate = cal.getTime();
         BasicDBObject queryCluster = new BasicDBObject();
         double thisClusterPM25, lastClusterPM25 = 0;
         int countMiss1 = 0;
@@ -265,12 +271,12 @@ public class Correlation {
             cal.add(Calendar.HOUR, 1);  //时间+1h循环
             thisDate = cal.getTime();
         }
-        System.out.println("countMiss1: " + countMiss1);
+        //System.out.println("countMiss1: " + countMiss1);
 
         //查询code[0]的各时刻历史数据
-        cal.setTime(df.parse(code2StartTime));
+        cal.setTime(df.parse(startTime));
         BasicDBObject queryCode = new BasicDBObject();
-        thisDate = df.parse(code2StartTime);
+        thisDate = df.parse(startTime);
         double thisCodePM25, lastCodePM25 = 0;
         int countMiss2 = 0;
         while(thisDate.before(endDate)) {
@@ -295,13 +301,13 @@ public class Correlation {
             cal.add(Calendar.HOUR, 1);  //时间+1h循环
             thisDate = cal.getTime();
         }
-        System.out.println("countMiss2: " + countMiss2);
+        //System.out.println("countMiss2: " + countMiss2);
 
         //ArrayList转数组
         double[] clusterTimeSeriesDouble = new double[clusterTimeSeries.size()];
         for (int i = 0; i < clusterTimeSeries.size(); i++) {
             clusterTimeSeriesDouble[i] = clusterTimeSeries.get(i);
-            System.out.println(clusterTimeSeries.get(i));
+            //System.out.println(clusterTimeSeries.get(i));
         }
         double[] codeTimeSeriesDouble = new double[codeTimeSeries.size()];
         for (int i = 0; i < codeTimeSeries.size(); i++) {
@@ -312,24 +318,15 @@ public class Correlation {
         //System.out.println(codeTimeSeries.size());
 
         //计算lag相关性
-        double[] lagCorrelation = getLagResultEarlier(clusterTimeSeriesDouble, codeTimeSeriesDouble);
+        double[] lagCorrelation = getLagResultEarlier(codeTimeSeriesDouble, clusterTimeSeriesDouble);
         return lagCorrelation;
 
     }
 
     public static void main(String[] args) throws ParseException {
-//        double[] x,y;
-//        Correlation correlation = new Correlation();
-//        x = correlation.getInterpPM25TimeSeries(40.0239, 116.2202, "2015-02-08 00:00:00", "2015-02-11 09:00:00");
-//        y = correlation.getInterpPM25TimeSeries(38.1006, 114.4995, "2015-02-08 00:00:00", "2015-02-11 09:00:00");
-//
-//        double[] lag = correlation.getLagResult(y, x);
-//        System.out.println(lag[0]);
-//        System.out.println(lag[1]);
-//        //1分钟
 
         Correlation correlation = new Correlation();
-        double[] lag = correlation.getLagCorrelPM25Earlier("1299A", "2015-03-12 00:00:00", "1823A", "2015-03-10 00:00:00", "2015-03-14 00:00:00");
+        double[] lag = correlation.getLagCorrelPM25Earlier("1299A", "2015-03-12 00:00:00", "2015-03-14 00:00:00", "1823A");
         System.out.println(lag[0]);
         System.out.println(lag[1]);
         System.out.println(lag[2]);
