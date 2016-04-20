@@ -974,24 +974,39 @@ function linearTime(){
             y.domain([0, 150]);
 
             //TODO
-            var imageDate = [new Date("2013-12-01"), new Date("2014-01-01"), new Date("2014-02-01")
-                ,new Date("2014-03-01"), new Date("2014-04-01"), new Date("2014-05-01")
-                ,new Date("2014-06-01"), new Date("2014-07-01"), new Date("2014-08-01")
-                ,new Date("2014-09-01"), new Date("2014-10-01"), new Date("2014-11-01")
-                ,new Date("2014-12-01"), new Date("2015-01-01"), new Date("2015-02-01")
-                ,new Date("2015-03-01"), new Date("2015-04-01"), new Date("2015-05-01")
-                ,new Date("2015-06-01"), new Date("2015-07-01"), new Date("2015-08-01")
-                ,new Date("2015-09-01"), new Date("2015-0=10-01")];
+            var imageDate = [{date:new Date("2013-12-01"), url:"2013-12"},
+                {date:new Date("2014-01-01"), url:"2015-01"},
+                {date:new Date("2014-02-01"), url:"2015-02"}
+                ,{date:new Date("2014-03-01"), url:"2015-03"},
+                {date:new Date("2014-04-01"), url:"2015-04"},
+                {date:new Date("2014-05-01"), url:"2015-05"}
+                ,{date:new Date("2014-06-01"), url:"2015-06"},
+                {date:new Date("2014-07-01"), url:"2015-07"},
+                {date:new Date("2014-08-01"), url:"2015-08"}
+                ,{date:new Date("2014-09-01"), url:"2015-09"},
+                {date:new Date("2014-10-01"), url:"2015-09"},
+                {date:new Date("2014-11-01"), url:"2015-09"}
+                ,{date:new Date("2014-12-01"), url:"2015-09"},
+                {date:new Date("2015-01-01"), url:"2015-01"},
+                {date:new Date("2015-02-01"), url:"2015-02"}
+                ,{date:new Date("2015-03-01"), url:"2015-03"},
+                {date:new Date("2015-04-01"), url:"2015-04"},
+                {date:new Date("2015-05-01"), url:"2015-05"}
+                ,{date:new Date("2015-06-01"), url:"2015-06"},
+                {date:new Date("2015-07-01"), url:"2015-07"},
+                {date:new Date("2015-08-01"), url:"2015-08"}
+                ,{date:new Date("2015-09-01"), url:"2015-09"},
+                {date:new Date("2015-10-01"), url:"2015-09"}];
             var imagePanel = context.append("g").attr("id", "image");
             imagePanel.selectAll("image")
                 .data(imageDate)
                 .enter()
                 .append("image")
-                .attr("x",function(d){return x(d);})
+                .attr("x",function(d){return x(d.date);})
                 .attr("y",0)
                 .attr("width", 100)
                 .attr("height", 100)
-                .attr("xlink:href", "../imgs/201401.png")
+                .attr("xlink:href", function(d){return "../imgs/"+ d.url +".png";})//"../imgs/201401.png"
                 .on("mouseup", function(){
                     console.log(this);
                     console.log(d3.select(this));
@@ -1479,7 +1494,7 @@ function clusterWithCorrelation(){
                         cor = data[i].correlation;
                     }
                 }
-                
+
                 div.transition()
                     .duration(100)
                     .style("opacity", .9);

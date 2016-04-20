@@ -534,6 +534,7 @@ public class ClusterController {
                     }
                 }
             }
+            client.close();
             return jsonCluster.toString();
 
         }catch(Exception e){
@@ -644,7 +645,7 @@ public class ClusterController {
                 ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
                 ((JSONObject) jsonCluster.get(i)).put("pvalue", lagCorrelation[2]);
             }
-
+            client.close();
             return jsonCluster.toString();
 
         }catch(JSONException je){
