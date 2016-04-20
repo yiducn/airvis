@@ -115,7 +115,7 @@ public class Correlation {
      * @return 返回: [0]=lag, [1]=correaltion value
      * @throws ParseException
      */
-    public double[] getLagCorrelPM25(String code1, String code2, String startTime, String endTime) throws ParseException {
+    public double[] getLagCorrelPM25(String code1, String startTime, String endTime, String code2) throws ParseException {
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         df.setCalendar(new GregorianCalendar(new SimpleTimeZone(0, "GMT")));
         Calendar cal = Calendar.getInstance();
@@ -207,7 +207,6 @@ public class Correlation {
         for (int i = 0; i <= allLag; i++) {
             double[] yy = Arrays.copyOfRange(y, i, i + xlength);    //y数组窗口后移，但长度始终和x一致
             thisLagResult = pearsonsCorrelation.correlation(x, yy);
-            //System.out.println(i + ", " + thisLagResult + ", " + tTest.pairedTTest(x,yy));
             if (thisLagResult > result[1]){     //不使用绝对值，忽略负相关
                 result[0] = i;
                 result[1] = thisLagResult;
@@ -326,10 +325,12 @@ public class Correlation {
     public static void main(String[] args) throws ParseException {
 
         Correlation correlation = new Correlation();
-        double[] lag = correlation.getLagCorrelPM25Earlier("1299A", "2015-03-12 00:00:00", "2015-03-14 00:00:00", "1823A");
+        //cluster time time codes。          cluster在前，主点在后
+        double[] lag = correlation.getLagCorrelPM25("1001A", "2015-03-01 00:00:00", "2015-04-01 00:00:00", "1013A");
         System.out.println(lag[0]);
         System.out.println(lag[1]);
         System.out.println(lag[2]);
+
 
 
     }
