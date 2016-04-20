@@ -9,6 +9,7 @@ import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.Point;
 import com.vividsolutions.jts.operation.valid.IsValidOp;
+import org.apache.commons.math3.stat.inference.TTest;
 import org.bson.Document;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.feature.FeatureIterator;
@@ -560,16 +561,16 @@ public class ClusterController {
             //获取cluster中第一个台站的的code
             JSONArray jsonCluster = new JSONArray(clusterAfterUpdateWind);
 
+            //连接数据库
+            MongoClient client = new MongoClient("127.0.0.1", 27017);
+            DB db = client.getDB(NEW_DB_NAME);
+            DBCollection pmCollection = db.getCollection("pm_data");
+
             //日期格式、时区设置
             //TODO time zone problem
             SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
 //            df.setCalendar(new GregorianCalendar(new SimpleTimeZone(0, "GMT")));
             Calendar cal = Calendar.getInstance();
-
-            //连接数据库
-            MongoClient client = new MongoClient("127.0.0.1", 27017);
-            DB db = client.getDB(NEW_DB_NAME);
-            DBCollection pmCollection = db.getCollection("pm_data");
 
             //初始化日期循环
             Date thisDate;
@@ -609,6 +610,8 @@ public class ClusterController {
                 //查询cluster[0]的各时刻历史数据
                 thisDate = df.parse(startTime);
                 cal.setTime(thisDate);
+                cal.add(Calendar.DATE, -2);     //cluster提前两天
+                thisDate = cal.getTime();
                 BasicDBObject queryCluster = new BasicDBObject();
                 double thisClusterPM25, lastClusterPM25 = 0;
                 while(thisDate.before(endDate)) {
@@ -632,13 +635,14 @@ public class ClusterController {
                     clusterTimeSeriesDouble[m] = clusterTimeSeries.get(m);
                 }
 
-                //计算相关性，[0]为最优lag，[1]为对应相关度
+                //计算相关性，[0]为最优lag，[1]为对应相关度，[2]为t检验的p值
                 Correlation correlation = new Correlation();
-                double[] lagCorrelation = correlation.getLagResult(clusterTimeSeriesDouble, codeTimeSeriesDouble);
+                double[] lagCorrelation = correlation.getLagResultEarlier(codeTimeSeriesDouble, clusterTimeSeriesDouble);
 
                 //TODO 计算correlation
-                ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
                 ((JSONObject) jsonCluster.get(i)).put("lag", lagCorrelation[0]);
+                ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
+                ((JSONObject) jsonCluster.get(i)).put("pvalue", lagCorrelation[2]);
             }
 
             return jsonCluster.toString();
