@@ -188,7 +188,7 @@ public class HelloController {
         MongoCollection coll = db.getCollection(COL_AVG_MONTH);
         Calendar cal = Calendar.getInstance();
         //TODO time zone problem
-        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss");
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
 
         Document match;
         Document group = new Document().append("$group",
