@@ -444,18 +444,27 @@ public class ClusterController {
     public
     @ResponseBody
     //TODO 差值缺失数据
-    String themeriverdata(String[] codes, String startTime, String endTime, int index) {
+    String themeriverdata(String[] codes, String startTime, String endTime, int index, String cluster) {
         if(codes == null || codes.length == 0)
             return "";
+        JSONArray jsonCluster = null;
+        try{
+            jsonCluster = new JSONArray(cluster);
+
+        }catch(JSONException e){
+            e.printStackTrace();
+        }
+
         MongoClient client = new MongoClient();
         MongoDatabase db = client.getDatabase(NEW_DB_NAME);
         MongoCollection coll = db.getCollection("pmdata_day");
+        MongoCollection collStation = db.getCollection("pm_stations");
+
         Calendar cal = Calendar.getInstance();
         //TODO time zone problem
         SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
 
         Document filter = new Document();
-
         ArrayList<String> codeFilter = new ArrayList<String>();
         for(int i = 0; i < codes.length; i ++){
             codeFilter.add(codes[i]);
@@ -466,6 +475,19 @@ public class ClusterController {
         }catch(ParseException pe){
             pe.printStackTrace();
         }
+
+        //找经纬度的filter
+        HashMap<String, Double> latMap = new HashMap<String, Double>();
+        HashMap<String, Double> lonMap = new HashMap<String, Double>();
+        Document llFilter = new Document();
+        llFilter.append("code", new Document().append("$in", codeFilter));
+        MongoCursor curLL = collStation.find(llFilter).iterator();
+        while(curLL.hasNext()){
+            Document d = (Document)curLL.next();
+            latMap.put(d.getString("code"), d.getDouble("lat"));
+            lonMap.put(d.getString("code"), d.getDouble("lon"));
+        }
+
         MongoCursor cur = coll.find(filter).iterator();
 
         JSONObject result = new JSONObject();
@@ -477,6 +499,8 @@ public class ClusterController {
             d.put("pm25", d.get("pm25"));
             d.put("code", d.get("code"));
             d.put("city", d.get("city"));
+            d.put("lat", latMap.get(d.get("code")));
+            d.put("lon", lonMap.get(d.get("code")));
             res.put(d);
         }
         try {
@@ -484,6 +508,30 @@ public class ClusterController {
             result.put("index", index);
         }catch(Exception e){
             e.printStackTrace();
+        }
+        JSONObject oneLagCor;
+        JSONArray lagCor = new JSONArray();
+        //根据code,得到对应的lag和cor,赋值给result
+        try {
+            for (int i = 0; i < jsonCluster.length(); i++) {
+                JSONObject oneCluster = jsonCluster.getJSONObject(i);
+                JSONArray codeCluster = oneCluster.getJSONArray("cluster");
+                for(int j = 0; j < codeCluster.length(); j ++){
+                    for(int k = 0; k < codes.length; k ++){
+                        if(!codeCluster.getJSONObject(j).getString("code").equals(codes[k])){
+                            continue;
+                        }
+                        oneLagCor = new JSONObject();
+                        oneLagCor.put("code", codes[k]);
+                        oneLagCor.put("cor", oneCluster.getDouble("correlation"));
+                        oneLagCor.put("lag", oneCluster.getInt("lag"));
+                        lagCor.put(oneLagCor);
+                    }
+                }
+            }
+            result.put("lag", lagCor);
+        }catch(Exception ee){
+                ee.printStackTrace();
         }
         client.close();
         return result.toString();

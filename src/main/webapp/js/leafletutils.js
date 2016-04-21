@@ -1846,8 +1846,12 @@ function clusterAndThemeRiver(){
     var yAxis = d3.svg.axis()
         .scale(y);
 
-
+    var order = [];
     var stack = d3.layout.stack()
+        .order(function(d){
+            //根据距离远近进行排序
+            return order;
+        })
         .offset("silhouette")
         .values(function (d) {
             //console.log("value:"+ d.values);
@@ -1927,7 +1931,25 @@ function clusterAndThemeRiver(){
                         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
                     var entries = nest.entries(data);
+                    //输入entries
+                    var getOrder = function(data){//返回order
+                        var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+                        var center = bounds.getBounds().getCenter();
+                        var dis = [];
+                        for(var i = 0; i < data.length; i ++){
+                            dis[i] = L.latLng(data[i].values[0].lat, data[i].values[0].lon).distanceTo(center);
+                        }
+                        //根据距离远近给出order[100,20,200,300]返回[1,0,2,3]
+                        var result = [];
+                        for(var i = 0; i < data.length; i ++){
+                            var index = dis.indexOf(dis.min());
+                            result[index] = i;
+                            dis[index] = Number.MAX_VALUE;
+                        }
+                        return result;
+                    };
 
+                    order = getOrder(entries);
                     var layers = stack(entries);
 
                     x.domain(d3.extent(data, function (d) {
@@ -1954,7 +1976,10 @@ function clusterAndThemeRiver(){
                     //<stop offset="50%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
                     //<stop offset="51%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
                     grad.append("stop")
-                        .attr("offset", function(d){return xStartPercent;})
+                        .attr("offset", function(d){
+                            var nd = new Date(detailBrush[0]);
+                            nd.setHours(nd.getHours() - d.lag);
+                            return x(nd) / width;})
                         .attr("stop-color", function(d, i ){return z(i);})
                         .attr("stop-opacity", 1);
                     grad.append("stop")
@@ -1990,6 +2015,8 @@ function clusterAndThemeRiver(){
                             return "url(#"+"lag"+ d.key+")";
                             //console.log("d:"+i+":"+z(i));
                             //return z(i);
+                        }).on("mouseover", function(d) {
+                            console.log(d.values[0].city);
                         });
 
                     svg.append("g")
