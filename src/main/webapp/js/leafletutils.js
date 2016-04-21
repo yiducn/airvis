@@ -7,7 +7,7 @@ var map;
 
 //各种叠加图层
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
-var provinceBoundaryOverlay, cityBoundaryOverlay, contextRing, scatterGroup, clusterLayer, themeLayer, gridsView, windsView;
+var provinceBoundaryOverlay, cityBoundaryOverlay, contextRing, scatterGroup, clusterLayer, themeLayer,corHeatMapLayer, gridsView, windsView;
 var provinceValueOverlay, cityValueOverlay;
 
 var overAllBrush;
@@ -51,7 +51,7 @@ var CALENDAR_HEIGHT_DEFAULT = 600;
 //overall color scale
 var colors = ["#FF0000","#FFFF00","00FF00"]
 var colorScale = d3.scale.linear().domain([200, 0]).range(colors);
-
+var colorScaleCor = d3.scale.linear().domain([1, 0]).range(colors);
 //当前选择的月份
 var currentSelectedDate = new Date("2015-10-01");
 
@@ -64,6 +64,8 @@ var clusterResult;
 var clusterCircles;// 用来实现cluster的动画
 //八边形从北开始顺时针,各个格子在屏幕中的位置
 var octagonLocationScreen = [];
+//从北侧开始顺时针,各个区域的path
+var octagonPath = [];
 
 function initUIs(){
     $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
@@ -1145,7 +1147,7 @@ function createCircleView2() {
             octagonLocationScreen[d.dir] = {};
             octagonLocationScreen[d.dir].x = centerXGrid;
             octagonLocationScreen[d.dir].y = centerYGrid;
-
+            octagonPath[d.dir] = path;
             return path;
         };
 
@@ -1482,6 +1484,8 @@ function clusterWithCorrelation(){
                         if(data[i].id == d.id) {
                             if(data[i].correlation < 0)
                                 return 5;//负相关
+                            if(data[i].pvalue > 0.05)
+                                return 5;//不显著
                             return 5 + data[i].correlation * 30;
                         }
                     }
@@ -1491,16 +1495,18 @@ function clusterWithCorrelation(){
 
             clusterCircles.on("mouseover", function(d) {
                 var cor = 0;
+                var lag = 0;
                 for(var i = 0; i < data.length; i ++){
                     if(data[i].id == d.id) {
                         cor = data[i].correlation;
+                        lag = data[i].lag;
                     }
                 }
 
                 div.transition()
                     .duration(100)
                     .style("opacity", .9);
-                div	.html(d.cluster[0].city +":"+ parseFloat(cor).toFixed(2))
+                div	.html(d.cluster[0].city +":"+ parseFloat(cor).toFixed(2)+":"+(48-parseInt(lag)))
                     .style("left", (d3.event.pageX) + "px")
                     .style("top", (d3.event.pageY - 28) + "px");
             })		        .on("mouseout", function(d) {
@@ -1510,6 +1516,7 @@ function clusterWithCorrelation(){
             });
         }
     });
+
 }
 
 /**
@@ -1999,6 +2006,57 @@ function clusterAndThemeRiver(){
     //themeLayer.addTo(map);
 }
 
+function createCorHeatMapView(){
+    outerRadius = sizeScreen.y / 2-50;
+    innerRadius = outerRadius -  200;
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
+
+
+    corHeatMapLayer = L.d3SvgOverlay(function(sel, proj) {
+        var x = [], y = [], t = [];
+        $("circle").each(function() {
+            var id = $(this).attr("id");
+            for(var i = 0; i < clusterResult.length; i ++){
+                if(clusterResult[i].id != id)
+                    continue;
+                x.push($(this).attr("cx"));
+                y.push($(this).attr("cy"));
+                t.push(clusterResult[i].correlation);
+            }
+        });//TODO 一定特别注意坐标变换
+
+        var model = "exponential";
+        var sigma2 = 0, alpha = 100;
+        var variogram = kriging.train(t, x, y, model, sigma2, alpha);
+
+        for(var i = 0; i < 8; i ++) {
+            var bbox = Snap.path.getBBox(octagonPath[i]);
+            console.log(bbox.x+":"+bbox.y+":"+bbox.width+":"+bbox.height);
+            var g = sel.append("g")
+                .attr("id", "correlationHeatMap"+i)
+                .attr("transform", "translate(" + bbox.x + "," + bbox.y + ")");
+
+            for (var j = 1; j < bbox.width-1; j+=4) {
+                for (var k = 1; k < bbox.height-1; k+=4) {
+                    if (!Snap.path.isPointInside(octagonPath[i], bbox.x + j, bbox.y + k)) {
+                        continue;
+                    }
+                    var value = kriging.predict(bbox.x + j, bbox.y + k, variogram);
+                    g.append("rect")
+                        .attr("width", 5)
+                        .attr("height", 5)
+                        .attr("fill", colorScaleCor(value))
+                        .attr("transform", "translate(" + j + "," + k + ")");
+                    //console.log(value+":"+colorScaleCor(value));
+                }
+            }
+        }
+
+    });
+    corHeatMapLayer.addTo(map);
+
+}
 
 function assignDefaultValues( dataset )
 {
@@ -2174,6 +2232,14 @@ function controlCluster(){
         if($("#scattergroup").length != 0){
             $("#scattergroup").remove();
         }
+    }
+}
+
+function controlHeatMapCor(){
+    if(corHeatMapLayer != null)
+        map.removeLayer(corHeatMapLayer);
+    if($("#controlHeatMapCor").is(":checked")){
+        createCorHeatMapView();
     }
 }
 
