@@ -1190,12 +1190,12 @@ function createCircleView2() {
             .attr('stroke', 'black')
             .attr('fill-opacity', '0.7');
 
-
-        //sel.select("g").append("path")
-        //    .attr("d", pathInner)
-        //    .attr("fill", "white")
-        //    .attr('stroke', 'black')
-        //    .attr('fill-opacity', '0.5');
+        sel.select("g").append("circle")
+            .attr("cx", centerScreen.x)
+            .attr("cy", centerScreen.y)
+            .attr('r', innerRadius)
+            .attr('fill', "white")
+            .attr('fill-opacity', '0.5');
 
         //var themeRivers = sel.append("g")
         //    .attr("id", "themeRivers");
@@ -1302,6 +1302,7 @@ function createCircleView2() {
                         return;
                     detailBrush = brush.empty() ? x.domain() : brush.extent();
                     clusterWithCorrelation();
+                    controlThemeRiver();
                 }
 
 
@@ -1474,6 +1475,7 @@ function clusterWithCorrelation(){
             "&" + codes,
         success: function (returnData) {
             var data = JSON.parse(returnData);
+            clusterResult = data;
             clusterCircles.transition()
                 .attr("r", function(d){
                     for(var i = 0; i < data.length; i ++){
@@ -1886,19 +1888,22 @@ function clusterAndThemeRiver(){
         param[i] += "&index="+i;
     }
 
+
+
     //Uncaught TypeError: Cannot read property '1' of undefined
     //https://github.com/shutterstock/rickshaw/issues/108
     for(var i = 0; i < 8; i ++){
         $.ajax({
             url:"themeriverdata.do",
             type:"post",
-            data: param[i],
+            data: param[i]+"&cluster=" + JSON.stringify(clusterResult),
             success: function (returnData) {
                 themeLayer[i] = L.d3SvgOverlay(function(sel, proj) {
                     if (returnData == null || returnData == "")
                         return;
                     var dataAll = JSON.parse(returnData);
                     var data = dataAll.result;
+                    var dataLagCor = dataAll.lag;//array [{"code":"1009A","lag":0.7955870797707358,"cor":2},{"code":"1057A","lag":0.7781516905307961,"cor":0},{"code":"1062A","lag":0.7760953665976594,"cor":2}]
                     data = assignDefaultValues(data);
                     data.forEach(function (d) {
                         d.time = new Date(d.time);
@@ -1925,6 +1930,48 @@ function clusterAndThemeRiver(){
                         return d.y0 + d.y;
                     })]);
 
+                    //过滤后的detailBrush在整个时间上占的比例
+                    var xStartPercent = x(detailBrush[0]) / width;
+                    var xEndPercent = x(detailBrush[1]) / width;
+
+                    //id="grad1" x1="0%" y1="0%" x2="100%" y2="0%"
+                    var grad = svg.selectAll(".gradient")
+                        .data(dataLagCor)
+                        .enter().append("defs")
+                        .append("linearGradient")
+                        .attr("id", function(d){return "lag"+d.code;})
+                        .attr("x1", "0%")
+                        .attr("y1", "100%")
+                        .attr("x2", "100%")
+                        .attr("y2", "100%");
+                    //<stop offset="50%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
+                    //<stop offset="51%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
+                    grad.append("stop")
+                        .attr("offset", function(d){return xStartPercent;})
+                        .attr("stop-color", function(d, i ){return z(i);})
+                        .attr("stop-opacity", 1);
+                    grad.append("stop")
+                        .attr("offset", function(d){
+                            var nd = new Date(detailBrush[0]);
+                            nd.setHours(nd.getHours() - d.lag);
+                            return x(nd) / width+0.001;})
+                        .attr("stop-color", function(d){return "#FF00FF";})
+                        .attr("stop-opacity", 1);
+                    grad.append("stop")
+                        .attr("offset", function(d){
+                            var nd = new Date(detailBrush[1]);
+                            nd.setHours(nd.getHours() - d.lag);
+                            return x(nd) / width ;})
+                        .attr("stop-color", function(d){return "#FF00FF";})//TODO
+                        .attr("stop-opacity", 1);
+                    grad.append("stop")
+                        .attr("offset", function(d){
+                            var nd = new Date(detailBrush[1]);
+                            nd.setHours(nd.getHours() - d.lag);
+                            return x(nd) / width + 0.001; })
+                        .attr("stop-color", function(d, i){return z(i);})
+                        .attr("stop-opacity", 1);
+
                     svg.selectAll(".layer")
                         .data(layers)
                         .enter().append("path")
@@ -1933,8 +1980,9 @@ function clusterAndThemeRiver(){
                             return area(d.values);
                         })
                         .style("fill", function (d, i) {
+                            return "url(#"+"lag"+ d.key+")";
                             //console.log("d:"+i+":"+z(i));
-                            return z(i);
+                            //return z(i);
                         });
 
                     svg.append("g")
