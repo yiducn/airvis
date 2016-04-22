@@ -208,7 +208,7 @@ public class Correlation {
             double[] yy = Arrays.copyOfRange(y, i, i + xlength);    //y数组窗口后移，但长度始终和x一致
             thisLagResult = pearsonsCorrelation.correlation(x, yy);
             if (thisLagResult > result[1]){     //不使用绝对值，忽略负相关
-                result[0] = i;
+                result[0] = 48 - i;
                 result[1] = thisLagResult;
                 result[2] = tTest.pairedTTest(x,yy);
             }
@@ -326,7 +326,7 @@ public class Correlation {
 
         Correlation correlation = new Correlation();
         //cluster time time codes。          cluster在前，主点在后
-        double[] lag = correlation.getLagCorrelPM25("1001A", "2015-03-01 00:00:00", "2015-04-01 00:00:00", "1013A");
+        double[] lag = correlation.getLagCorrelPM25Earlier("1299A", "2015-03-12 00:00:00", "2015-03-14 00:00:00", "1823A");
         System.out.println(lag[0]);
         System.out.println(lag[1]);
         System.out.println(lag[2]);
