@@ -98,7 +98,7 @@ public class CorrelationTest {
         result[0] = getPearsonsResult(clusterTimeSeriesDouble, codeTimeSeriesDouble);
         TTest tTest = new TTest();
         result[1] = tTest.pairedTTest(clusterTimeSeriesDouble, codeTimeSeriesDouble);
-
+        client.close();
         return result;
 
     }
