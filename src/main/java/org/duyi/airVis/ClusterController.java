@@ -372,6 +372,184 @@ public class ClusterController {
         return "nothing1";
     }
 
+
+    @RequestMapping(value = "newclusterWithWind.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    String clusterWithWind2(String[] codes, double maxDistance, double centerLon, double centerLat, String startTime, String endTime) {
+        //input : codeList  distance
+        //output : cluster
+        //计算codeList的中心,可以在前端计算好
+        //循环,找到所有满足要求的点
+        //循环feature,对每一个feature,判断点是否在范围内,如果在,聚类
+
+        MongoClient client = new MongoClient("127.0.0.1");
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection("pm_stations");
+        MongoCollection collCluster = db.getCollection("cluster");
+        MongoCursor cur = coll.find().iterator();
+        JSONObject oneStation;
+//        ArrayList<JSONObject> filtered = new ArrayList<JSONObject>();
+        Calendar cal = Calendar.getInstance();
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
+
+        //中心 经度\纬度116°23′17〃，北纬：39°54′27;116.5, 40
+        try {
+            Document d;
+            HashMap<String, JSONObject> clusterResult = new HashMap<String, JSONObject>();
+            while(cur.hasNext()){
+                d = (Document)cur.next();
+                double lon = d.getDouble("lon");
+                double lat = d.getDouble("lat");
+                GeodeticCalculator calc = new GeodeticCalculator();
+                // mind, this is lon/lat
+                calc.setStartingGeographicPoint(lon, lat);
+                calc.setDestinationGeographicPoint(centerLon, centerLat);//116.4, 40);
+                double distance = calc.getOrthodromicDistance();
+
+                //距离在最大距离之外的去除
+                if(distance > maxDistance)
+                    continue;
+
+                //去除自己
+                boolean self = false;
+                for(int i = 0; i < codes.length; i ++) {
+                    if (d.get("code").equals(codes[i]))
+                        self = true;
+                }
+                if(self)
+                    continue;
+
+
+                oneStation = new JSONObject();
+                GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+                oneStation.put("city", d.getString("city"));
+                oneStation.put("station", d.getString("name"));
+                oneStation.put("longitude", d.getDouble("lon"));
+                oneStation.put("latitude", d.getDouble("lat"));
+                oneStation.put("code", d.getString("code"));
+                Coordinate coord = new Coordinate(d.getDouble("lon"), d.getDouble("lat"), 0);
+                Point point = geometryFactory.createPoint(coord);
+                oneStation.put("point", point);
+
+                //add clusterid
+                MongoCursor curCluster = collCluster.find(new Document("code",d.getString("code"))).iterator();
+//                System.out.println(new Document("code",d.getString("code")));
+                if(!curCluster.hasNext())//TODO
+                    continue;
+
+                String id = ((Document) curCluster.next()).getString("clusterid");
+                oneStation.put("clusterid", id);
+                if(clusterResult.containsKey(id)){
+                    JSONObject temp = clusterResult.get(id);
+                    temp.getJSONArray("cluster").put(oneStation);
+                }else{
+                    JSONObject temp = new JSONObject();
+                    JSONArray tempArray = new JSONArray();
+                    tempArray.put(oneStation);
+                    temp.put("cluster", tempArray);
+                    clusterResult.put(id, temp);
+                }
+//                filtered.add(oneStation);
+            }
+
+            JSONObject cluster ;
+            JSONArray result = new JSONArray();
+
+            //计算气象情况
+            if(metoStations == null)
+                metoStations = getNearestStation(cityArea);
+            MongoCollection colMeteo = db.getCollection("meteodata_day");
+            MongoCollection clusterMeteo = db.getCollection("clusterMeteo");
+
+            Iterator<String> clusterIds = clusterResult.keySet().iterator();
+            while(clusterIds.hasNext()){
+                String id = clusterIds.next();
+                cluster = clusterResult.get(id);
+                JSONArray oneCluster = cluster.getJSONArray("cluster");
+
+                double sumX = 0, sumY = 0;
+                for(int j = 0; j < oneCluster.length(); j ++){
+                    JSONObject station = oneCluster.getJSONObject(j);
+                    Point p = (Point)station.get("point");
+                    sumX += p.getX();
+                    sumY += p.getY();
+                }
+                cluster.put("centerX", sumX/oneCluster.length());
+                cluster.put("centerY", sumY/oneCluster.length());
+                cluster.put("id", id);
+
+                String  meteoStation = ((Document)clusterMeteo.find(new Document("clusterid", id)).iterator().next()).getInteger("usaf").toString();
+//                System.out.println("station:"+meteoStation);
+
+                List<Document> query = new ArrayList<Document>();
+                //计算气象情况
+                Document match;
+                Document sort = new Document("$sort", new Document("time", 1));
+                Document group = new Document().append("$group",
+                        new Document().append("_id", "$usaf")
+                                .append("dir", new Document("$avg", "$dir"))
+                                .append("spd", new Document("$avg", "$spd")));
+                match = new Document("$match", new Document("time",
+                        new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)))
+                        .append("usaf", new Document("$in", Arrays.asList(Integer.parseInt(meteoStation)))));
+                query.add(match);
+                query.add(group);
+                MongoCursor curMeteo = colMeteo.aggregate(query).iterator();
+                if (curMeteo.hasNext()) {
+                    Document dd = (Document) curMeteo.next();
+                    cluster.put("spd", dd.getDouble("spd"));
+                    cluster.put("dir", dd.getDouble("dir"));
+                    cluster.put("metostation", meteoStation);
+                }
+
+
+                //计算对应的角度,从北方向偏西22.5度开始为0, 每45度增加1
+                GeodeticCalculator calc = new GeodeticCalculator();
+                calc.setStartingGeographicPoint(oneCluster.getJSONObject(0).getDouble("longitude"), oneCluster.getJSONObject(0).getDouble("latitude"));
+                calc.setDestinationGeographicPoint(centerLon, oneCluster.getJSONObject(0).getDouble("latitude"));
+                double deltaX = calc.getOrthodromicDistance();
+                if(oneCluster.getJSONObject(0).getDouble("longitude") < centerLon)
+                    deltaX = - deltaX;
+                calc.setStartingGeographicPoint(centerLon, oneCluster.getJSONObject(0).getDouble("latitude"));
+                calc.setDestinationGeographicPoint(centerLon, centerLat);
+                double deltaY = calc.getOrthodromicDistance();
+                if(oneCluster.getJSONObject(0).getDouble("latitude") < centerLat)
+                    deltaY = - deltaY;
+                //http://stackoverflow.com/questions/17574424/how-to-use-atan2-in-combination-with-other-radian-angle-systems
+                double angle = Math.toDegrees(Math.atan2(deltaX, deltaY));
+                if(angle < 0 )
+                    angle += 360;
+//                    cluster.append("angle", (angle));
+//                    System.out.println((angle)+":"+deltaY+":"+deltaX);
+                if((angle >= 0 && angle < 22.5) || (angle >= 337.5 && angle <= 360)){
+                    cluster.put("angle", 0);
+                }else if(angle >= 22.5 && angle < 67.5){
+                    cluster.put("angle", 1);
+                }else if(angle >= 67.5 && angle < 112.5){
+                    cluster.put("angle", 2);
+                }else if(angle >= 112.5 && angle < 157.5){
+                    cluster.put("angle", 3);
+                }else if(angle >= 157.5 && angle < 202.5){
+                    cluster.put("angle", 4);
+                }else if(angle >= 202.5 && angle < 247.5){
+                    cluster.put("angle", 5);
+                }else if(angle >= 247.5 && angle < 292.5) {
+                    cluster.put("angle", 6);
+                }else if(angle >= 292.5 && angle < 337.5) {
+                    cluster.put("angle", 7);
+                }
+                result.put(cluster);
+            }
+
+            client.close();
+            return result.toString();
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+        return "nothing1";
+    }
+
     /**
      * 返回省份对应的气象站点,有可能返回空的数据,表示该city没有站点
      * @param g
@@ -403,6 +581,8 @@ public class ClusterController {
         client.close();
         return ids;
     }
+
+
 
     /**
      * 计算平均风速

@@ -24,7 +24,9 @@ var paintControl = {
 };
 
 //option of points
+//var optPoint = {fillColor:'#000000', fill:true, color:'#000000', fillOpacity:0.7, opacity:0.7, weight:1}; // for screenshot
 var optPoint = {fillColor:'#FF0000', fill:true, color:'#FF0000', fillOpacity:0.7, opacity:0.7};
+
 // option of meteorological station
 var meteorologicalStationOption = {fillColor:'#0000FF', fill:true, color:'#0000FF', fillOpacity:0.7, opacity:0.7};
 
@@ -167,7 +169,7 @@ function createChinamap(){
             .attr('d', proj.pathFromGeojson)
             .attr('stroke', 'black')
             .attr('fill-opacity', '0');
-        upd.attr('stroke-width', 1 / proj.scale);
+        upd.attr('stroke-width', 0.5 / proj.scale);
     });
 
     d3.json("maps/china_provinces.json",
@@ -1585,23 +1587,25 @@ function drawScatterGroup(){
                     return d.distance > minDis && d.distance < maxDis;
                 })
                 .attr('r', function (d) {
-                    return 1.5;
+                    return 1;
                 })
                 .attr('cx', stationX)
                 .attr('cy', stationY)
                 .attr('stroke', function (d) {
-                    //TODO
-                    if(d.pm25 == null)
-                        return colorScale(0);
-                    return colorScale(d.pm25);
+                    return "#000000";
+                    ////TODO
+                    //if(d.pm25 == null)
+                    //    return colorScale(0);
+                    //return colorScale(d.pm25);
                 })
                 .attr('fill', function (d) {
+                    return "#000000";
                     //TODO
-                    if(d.pm25 == null)
-                        return colorScale(0);
-                    return colorScale(d.pm25);
+                    //if(d.pm25 == null)
+                    //    return colorScale(0);
+                    //return colorScale(d.pm25);
                 })
-                .attr('stroke-width', 1)
+                .attr('stroke-width', 0.5)
                 .on('mouseover', function(d){
                     console.log("over:"+d.pm25);
                 });
@@ -1729,7 +1733,8 @@ function cluster(){
     param += "startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
     $.ajax({
         //url:"cluster.do",
-        url: "clusterWithWind.do",
+        //url: "clusterWithWind.do",
+        url:"newclusterWithWind.do",
         type:"post",
         data: param,
         success: function (returnData) {
@@ -1820,7 +1825,7 @@ function clusterAndThemeRiver(){
                 map.removeLayer(themeLayer[i]);
         }
     }
-    colorrange = ["#045A8D", "#2B8CBE", "#74A9CF", "#A6BDDB", "#D0D1E6", "#F1EEF6"];
+    colorrange = ["#A6BDDB", "#D0D1E6", "#F1EEF6"];//, "#045A8D", "#2B8CBE", "#74A9CF"];
     var strokecolor = colorrange[0];
     var margin = {top: 20, right: 40, bottom: 30, left: 30};
 
@@ -1852,7 +1857,7 @@ function clusterAndThemeRiver(){
             //根据距离远近进行排序
             return order;
         })
-        .offset("silhouette")
+        .offset("wiggle")
         .values(function (d) {
             //console.log("value:"+ d.values);
             return d.values;
@@ -1890,11 +1895,13 @@ function clusterAndThemeRiver(){
     for(var i = 0; i < clusterResult.length; i ++){
         //param[clusterResult[i].angle] += "&cities="+clusterResult[i].cluster[0].city;
         //for(var j = 0; j < clusterResult[i].cluster.length; j ++){
+        if(clusterResult[i].correlation > 0.6 && clusterResult[i].pvalue < 0.05)
             param[clusterResult[i].angle] += ("&codes="+clusterResult[i].cluster[0].code)
         //}
     }
     for(var i = 0; i < 8; i ++){
-        param[i] += "&startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
+        //TODO 把结束时间调整至detailBrush,但不是很恰当
+        param[i] += "&startTime="+overAllBrush[0]+"&endTime="+detailBrush[1];
         //param[i] += "&startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
         param[i] += "&index="+i;
     }

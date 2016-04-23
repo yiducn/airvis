@@ -26,6 +26,7 @@ import java.util.*;
 
 /**
  * Created by yidu on 4/22/16.
+ * 目前暂时使用离线计算
  */
 public class Clustering {
     private static final String CITY_PATH = "/Users/yidu/dev/airvisprocessing/src/main/java/org/duyi/china_cities.json";
@@ -147,9 +148,10 @@ public class Clustering {
                 clusterInOneCity(cResult, codes, 0);
                 for(int j = 0; j < cResult.size(); j ++){
                     clusterId ++;
-                    Document dd = new Document();
                     for(int k = 0; k < cResult.get(j).length; k ++){
-                        dd.put(cResult.get(j)[k], clusterId);
+                        Document dd = new Document();
+                        dd.put("code", cResult.get(j)[k]);
+                        dd.put("clusterid", "clusterid"+clusterId);
                         colCluster.insertOne(dd);
                     }
                 }
