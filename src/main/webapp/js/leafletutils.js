@@ -14,6 +14,7 @@ var overAllBrush;
 var detailBrush;
 var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 var unfilteredData = [];//经过过滤后剩下的数据,结构同filteredData
+var COR_THREADHOOD = 0.8;
 
 var paintControl = {
     calendar        :   false,
@@ -51,7 +52,8 @@ var CALENDAR_WIDTH_DEFAULT = 800;
 var CALENDAR_HEIGHT_DEFAULT = 600;
 
 //overall color scale
-var colors = ["#FF0000","#FFFF00","00FF00"]
+var colors = ["#FF0000","#FFFF00","00FF00"];
+//var colors = ["#f03b20", "#feb24c", "ffeda0"];
 var colorScale = d3.scale.linear().domain([200, 0]).range(colors);
 var colorScaleCor = d3.scale.linear().domain([1, 0]).range(colors);
 //当前选择的月份
@@ -95,10 +97,13 @@ function initUIs(){
     //操作-> group、ungroup(divided by province/county)
     //Analysis->trends, factors, factors with wind,  nearby
 
-    piemenu.createWheel(['zoom']);//, 'group', 'ungroup', 'factors', 'factors with wind', 'nearby']);
+    piemenu.createWheel(['zoom']);//, 'zoom&show']);//, 'group', 'ungroup', 'factors', 'factors with wind', 'nearby']);
     piemenu.navItems[0].navigateFunction = zoomAndCenter;
+    //piemenu.navItem[1].navigateFunction = activeContextRing;
     //TODO
     piemenu.wheelRadius = 50;
+
+
 
     map.on('zoomend', function() {
         controlContextRing();
@@ -137,6 +142,19 @@ function initUIs(){
             maxDis = ui.value;
             $("#maxDistance").text(parseInt(maxDis/1000) + "km");
             controlContextRing();//TODO
+            controlCluster();
+            controlThemeRiver();
+        }
+    );
+
+    $("#sliderCor").slider();
+    $( "#sliderCor" ).slider( "option", "min", 0.0 );
+    $( "#sliderCor" ).slider( "option", "max", 100 );
+
+    $( "#sliderCor" ).on( "slidechange",
+        function( event, ui ) {
+            $("#maxDistanceCor").text(ui.value/100);
+            COR_THREADHOOD = ui.value/100;
             controlCluster();
             controlThemeRiver();
         }
@@ -196,7 +214,7 @@ function createProvinceValue(){
             .attr("fill", function(d){
                 return colorScale(d.pm25);
             })
-            .attr('fill-opacity', '0.7');
+            .attr('fill-opacity', '0.9');
         //upd.attr('stroke-width', 1 / proj.scale);
 
     });
@@ -273,7 +291,7 @@ function createCityValue(){
             //    console.log(d);
             //    return d3.hsl(0.2 * 360, Math.random()*0.9, 0.5)
             //})
-            .attr('fill-opacity', '0.5');
+            .attr('fill-opacity', '0.9');
         upd.attr('stroke-width', 0.5 / proj.scale);
     });
 
@@ -282,7 +300,8 @@ function createCityValue(){
         time += "startTime="+overAllBrush[0] +"&endTime="+overAllBrush[1];
     }
     $.ajax({
-        url: "valueByCities.do",
+        //url: "valueByCities.do",
+        url: "valueByCities_daily.do",
         type: "post",
         data: time,
         success: function (resultData) {
@@ -1048,6 +1067,7 @@ function repaintAll(){
     createCalendarView();
     provinceValueControl();
     cityValueControl();
+    controlContextRing();
     controlCluster();
     controlThemeRiver();
 }
@@ -1466,6 +1486,7 @@ function clusterWithCorrelation(){
     }
     // Define the div for the tooltip
     var div = d3.select("body").append("div")
+        .attr("id", "tooltip")
         .attr("class", "tooltip")
         .style("opacity", 0);
 
@@ -1484,7 +1505,7 @@ function clusterWithCorrelation(){
                 .attr("r", function(d){
                     for(var i = 0; i < data.length; i ++){
                         if(data[i].id == d.id) {
-                            if(data[i].correlation < 0)
+                            if(data[i].correlation < COR_THREADHOOD)
                                 return 5;//负相关
                             if(data[i].pvalue > 0.05)
                                 return 5;//不显著
@@ -1493,6 +1514,18 @@ function clusterWithCorrelation(){
                     }
                     console.log("no correlation");
                     return 5;
+                })
+                .attr("fill", function(d){
+                    for(var i = 0; i < data.length; i ++){
+                        if(data[i].id == d.id) {
+                            if(data[i].correlation < 0)
+                                return colorScaleCor(0);//负相关
+                            if(data[i].pvalue > 0.05)
+                                return colorScaleCor(0);//不显著
+                            return colorScaleCor(data[i].correlation);
+                        }
+                    }
+
                 });
 
             clusterCircles.on("mouseover", function(d) {
@@ -1508,7 +1541,7 @@ function clusterWithCorrelation(){
                 div.transition()
                     .duration(100)
                     .style("opacity", .9);
-                div	.html(d.cluster[0].city +":"+ parseFloat(cor).toFixed(2)+":"+(48-parseInt(lag)))
+                div	.html(d.cluster[0].city +":"+ parseFloat(cor).toFixed(2)+":"+(parseInt(lag)))
                     .style("left", (d3.event.pageX) + "px")
                     .style("top", (d3.event.pageY - 28) + "px");
             })		        .on("mouseout", function(d) {
@@ -1587,25 +1620,25 @@ function drawScatterGroup(){
                     return d.distance > minDis && d.distance < maxDis;
                 })
                 .attr('r', function (d) {
-                    return 1;
+                    return 1.5;
                 })
                 .attr('cx', stationX)
                 .attr('cy', stationY)
                 .attr('stroke', function (d) {
-                    return "#000000";
+                    //return "#000000";
                     ////TODO
-                    //if(d.pm25 == null)
-                    //    return colorScale(0);
-                    //return colorScale(d.pm25);
+                    if(d.pm25 == null)
+                        return colorScale(0);
+                    return colorScale(d.pm25);
                 })
                 .attr('fill', function (d) {
-                    return "#000000";
+                    //return "#000000";
                     //TODO
-                    //if(d.pm25 == null)
-                    //    return colorScale(0);
-                    //return colorScale(d.pm25);
+                    if(d.pm25 == null)
+                        return colorScale(0);
+                    return colorScale(d.pm25);
                 })
-                .attr('stroke-width', 0.5)
+                .attr('stroke-width', 1)
                 .on('mouseover', function(d){
                     console.log("over:"+d.pm25);
                 });
@@ -1895,14 +1928,17 @@ function clusterAndThemeRiver(){
     for(var i = 0; i < clusterResult.length; i ++){
         //param[clusterResult[i].angle] += "&cities="+clusterResult[i].cluster[0].city;
         //for(var j = 0; j < clusterResult[i].cluster.length; j ++){
-        if(clusterResult[i].correlation > 0.6 && clusterResult[i].pvalue < 0.05)
+        if(clusterResult[i].correlation > COR_THREADHOOD && clusterResult[i].pvalue < 0.05)
             param[clusterResult[i].angle] += ("&codes="+clusterResult[i].cluster[0].code)
         //}
     }
     for(var i = 0; i < 8; i ++){
         //TODO 把结束时间调整至detailBrush,但不是很恰当
-        param[i] += "&startTime="+overAllBrush[0]+"&endTime="+detailBrush[1];
-        //param[i] += "&startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
+        var s = new Date(detailBrush[0]);
+        var e = new Date(detailBrush[1]);
+        //var nd = detailBrush[0];
+        param[i] += "&startTime="+(new Date(s.setHours(s.getHours()-72)))+"&endTime="+(new Date(e.setHours(e.getHours()+72)));
+        //param[i] += "&startTime="+overAllBrush[0]+"&endTime="+detailBrush[1];
         param[i] += "&index="+i;
     }
 
@@ -1994,14 +2030,16 @@ function clusterAndThemeRiver(){
                             var nd = new Date(detailBrush[0]);
                             nd.setHours(nd.getHours() - d.lag);
                             return x(nd) / width+0.001;})
-                        .attr("stop-color", function(d){return "#FF00FF";})
+                        .attr("stop-color", function(d){
+                            return colorScaleCor(d.cor);})
                         .attr("stop-opacity", 1);
                     grad.append("stop")
                         .attr("offset", function(d){
                             var nd = new Date(detailBrush[1]);
                             nd.setHours(nd.getHours() - d.lag);
                             return x(nd) / width ;})
-                        .attr("stop-color", function(d){return "#FF00FF";})//TODO
+                        .attr("stop-color", function(d){
+                            return colorScaleCor(d.cor);})//TODO
                         .attr("stop-opacity", 1);
                     grad.append("stop")
                         .attr("offset", function(d){
@@ -2010,6 +2048,7 @@ function clusterAndThemeRiver(){
                             return x(nd) / width + 0.001; })
                         .attr("stop-color", function(d, i){return z(i);})
                         .attr("stop-opacity", 1);
+
 
                     svg.selectAll(".layer")
                         .data(layers)
@@ -2023,7 +2062,36 @@ function clusterAndThemeRiver(){
                             //console.log("d:"+i+":"+z(i));
                             //return z(i);
                         }).on("mouseover", function(d) {
-                            console.log(d.values[0].city);
+                            if(d.values[0] == null)
+                                return;
+                            var cor = 0;
+                            var lag = 0;
+                            var city = "";
+                            for(var i = 0; i < clusterResult.length; i ++){
+                                for(var j = 0; j < clusterResult[i].cluster.length; j ++){
+                                    if(clusterResult[i].cluster[j].code == d.key) {
+                                        cor = clusterResult[i].correlation;
+                                        lag = clusterResult[i].lag;
+                                        city = clusterResult[i].cluster[j].city;
+                                        break;
+                                    }
+                                }
+                                if(cor != 0)
+                                    break;
+                            }
+                            var div = d3.select("#tooltip");
+                            div.transition()
+                                .duration(100)
+                                .style("opacity", .9);
+                            div	.html(city +":"+ parseFloat(cor).toFixed(2)+":"+(parseInt(lag)))
+                                .style("left", (d3.event.pageX) + "px")
+                                .style("top", (d3.event.pageY - 28) + "px");
+                            //console.log(d.values[0].city    );
+                        }).on("mouseout", function(d) {
+                            var div = d3.select("#tooltip");
+                            div.transition()
+                                .duration(500)
+                                .style("opacity", 0);
                         });
 
                     svg.append("g")
@@ -2239,6 +2307,15 @@ function controlContextRing(){
     }
 }
 
+function activeContextRing(){
+    if(!$("#controlContextRing").is(":checked")){
+
+    }else{
+        $("#controlContextRing").attr('checked', true);
+    }
+    controlContextRing();
+}
+
 function controlThemeRiver(){
     for(var i = 0; i < 8; i ++){
         $("#themeriver"+i).empty();
@@ -2263,6 +2340,9 @@ function controlCluster(){
     }
     if($("#controlCluster").is(":checked")){
         cluster();
+        if(detailBrush != null){
+            clusterWithCorrelation();
+        }
         if($("#scattergroup").length != 0){
             $("#scattergroup").remove();
         }
