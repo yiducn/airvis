@@ -920,7 +920,7 @@ public class ClusterController {
                 double[] lagCorrelation = correlation.getLagResultEarlier(codeTimeSeriesDouble, clusterTimeSeriesDouble);
 
                 //TODO 计算correlation
-                ((JSONObject) jsonCluster.get(i)).put("lag", lagCorrelation[0]);
+                ((JSONObject) jsonCluster.get(i)).put("lag", addition - lagCorrelation[0]);
                 ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
                 ((JSONObject) jsonCluster.get(i)).put("pvalue", lagCorrelation[2]);
             }
