@@ -865,7 +865,10 @@ public class ClusterController {
                 queryClusterMeteoData.append("usaf",clusterMeteo);
                 queryClusterMeteoData.append("time",new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
                 DBCursor curClusterMeteoData = meteoCollectionDaily.find(queryClusterMeteoData);
-                clusterSpd = Double.parseDouble(curClusterMeteoData.next().get("spd").toString());
+                if(!curClusterMeteoData.hasNext())
+                    clusterSpd = 0;
+                else
+                    clusterSpd = Double.parseDouble(curClusterMeteoData.next().get("spd").toString());
 
                 BasicDBObject queryClusterMeteoStation = new BasicDBObject();   //根据meteo站编号查询其经纬度
                 queryClusterMeteoStation.append("code",oneCluster);
