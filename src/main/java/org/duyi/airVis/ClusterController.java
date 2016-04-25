@@ -837,7 +837,7 @@ public class ClusterController {
             }
 
             BasicDBObject queryCenterMeteoStation = new BasicDBObject();   //圆心内站点的经纬度
-            queryCenterMeteoStation.append("code", codes);
+            queryCenterMeteoStation.append("code", codes[0]);
             DBCursor curCenterMeteoStation = pmStationCollection.find(queryCenterMeteoStation);
             DBObject thisCenterMeteoStation = curCenterMeteoStation.next();
             double centerLat = Double.parseDouble(thisCenterMeteoStation.get("lat").toString());
