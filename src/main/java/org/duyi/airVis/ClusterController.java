@@ -948,6 +948,8 @@ public class ClusterController {
     public
     @ResponseBody
     //TODO
-    String correlation(String cluster, String startTime, String endTime, String[] codes) {
+    String correlation2(String cluster, String startTime, String endTime, String[] codes) {
+    return "";
+    }
 }
 
