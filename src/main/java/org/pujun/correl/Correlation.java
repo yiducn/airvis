@@ -208,7 +208,7 @@ public class Correlation {
             double[] yy = Arrays.copyOfRange(y, i, i + xlength);    //y数组窗口后移，但长度始终和x一致
             thisLagResult = pearsonsCorrelation.correlation(x, yy);
             if (thisLagResult > result[1]){     //不使用绝对值，忽略负相关
-                result[0] = 48 - i;
+                result[0] = i;
                 result[1] = thisLagResult;
                 result[2] = tTest.pairedTTest(x,yy);
             }
