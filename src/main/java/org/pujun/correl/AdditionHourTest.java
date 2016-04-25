@@ -64,16 +64,17 @@ public class AdditionHourTest {
         double clusterLat = Double.parseDouble(thisClusterMeteoStation.get("lat").toString());
         double clusterLon = Double.parseDouble(thisClusterMeteoStation.get("lon").toString());
 
+
         GeodeticCalculator calc = new GeodeticCalculator();
         calc.setStartingGeographicPoint(clusterLon, clusterLat);
         calc.setDestinationGeographicPoint(centerLon, centerLat);
-        clusterDistance = calc.getOrthodromicDistance() / 1000;
+        clusterDistance = calc.getOrthodromicDistance() / 1609.344;
         System.out.println("------------------------" + clusterDistance);
 
         if (clusterSpd != 0 && clusterSpd != -1) {
             addition = (int) (clusterDistance / clusterSpd);
         } else {
-            addition = 0;
+            addition = 24;
         }
         System.out.println(addition);
 

@@ -875,12 +875,12 @@ public class ClusterController {
                 GeodeticCalculator calc = new GeodeticCalculator();
                 calc.setStartingGeographicPoint(clusterLon, clusterLat);
                 calc.setDestinationGeographicPoint(centerLon, centerLat);
-                clusterDistance = calc.getOrthodromicDistance() / 1000;
+                clusterDistance = calc.getOrthodromicDistance() / 1609.344;
 
                 if(clusterSpd != 0 && clusterSpd != -1) {
                     addition = (int) (clusterDistance / clusterSpd);
                 }else{
-                    addition = 0;
+                    addition = 24;
                 }
                 //－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
