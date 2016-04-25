@@ -794,6 +794,11 @@ public class ClusterController {
             MongoClient client = new MongoClient("127.0.0.1", 27017);
             DB db = client.getDB(NEW_DB_NAME);
             DBCollection pmCollection = db.getCollection("pm_data");
+            DBCollection pmStationCollection = db.getCollection("pm_stations");
+            DBCollection clusterCollection = db.getCollection("cluster");
+            DBCollection clusterMeteoCollection = db.getCollection("clusterMeteo");
+            DBCollection meteoStationCollection = db.getCollection("meteo_stations");
+            DBCollection meteoCollection = db.getCollection("meteo_data");
 
             //日期格式、时区设置
             //TODO time zone problem
@@ -805,7 +810,6 @@ public class ClusterController {
             Date thisDate;
             Date endDate = df.parse(endTime);
             ArrayList<Double> codeTimeSeries = new ArrayList<Double>();
-
 
             //查询code[0]的各时刻历史数据
             thisDate = df.parse(startTime);
@@ -827,19 +831,64 @@ public class ClusterController {
                 thisDate = cal.getTime();
             }
 
-
             double[] codeTimeSeriesDouble = new double[codeTimeSeries.size()];
             for (int n = 0; n < codeTimeSeries.size(); n++) {
                 codeTimeSeriesDouble[n] = codeTimeSeries.get(n);
             }
 
+            BasicDBObject queryCenterMeteoStation = new BasicDBObject();   //圆心内站点的经纬度
+            queryCenterMeteoStation.append("code", codes);
+            DBCursor curCenterMeteoStation = pmStationCollection.find(queryCenterMeteoStation);
+            DBObject thisCenterMeteoStation = curCenterMeteoStation.next();
+            double centerLat = Double.parseDouble(thisCenterMeteoStation.get("lat").toString());
+            double centerLon = Double.parseDouble(thisCenterMeteoStation.get("lon").toString());
+
             for(int i = 0; i < jsonCluster.length(); i ++){
+                //－－－－－－－－－－计算距离／查询风速＝往前推的时间－－－－－－－－－－－－
+                double clusterDistance, clusterSpd;
+                int addition = 0;
                 String oneCluster = jsonCluster.getJSONObject(i).getJSONArray("cluster").getJSONObject(0).getString("code");
+
+                BasicDBObject queryClusterID = new BasicDBObject();     //查询该站所在的cluster的编号clusterid
+                queryClusterID.append("code", oneCluster);
+                DBCursor curCluesterID = clusterCollection.find(queryClusterID);
+                String clusterID = curCluesterID.next().get("clusterid").toString();
+
+                BasicDBObject queryClusterMeteo = new BasicDBObject();      //查询此cluster对应的meteo站编号usaf
+                queryClusterMeteo.append("clusterid",clusterID);
+                DBCursor curClusterMeteo = clusterMeteoCollection.find(queryClusterMeteo);
+                int clusterMeteo = Integer.parseInt(curClusterMeteo.next().get("usaf").toString());
+
+                BasicDBObject queryClusterMeteoData = new BasicDBObject();  //根据meteo站编号和起始时间查询当地风速spd
+                queryClusterMeteoData.append("usaf",clusterMeteo);
+                queryClusterMeteoData.append("time",df.parse(startTime));
+                DBCursor curClusterMeteoData = meteoCollection.find(queryClusterMeteoData);
+                clusterSpd = Double.parseDouble(curClusterMeteoData.next().get("spd").toString());
+
+                BasicDBObject queryClusterMeteoStation = new BasicDBObject();   //根据meteo站编号查询其经纬度
+                queryClusterMeteoStation.append("code",oneCluster);
+                DBCursor curClusterMeteoStation = pmStationCollection.find(queryClusterMeteoStation);
+                DBObject thisClusterMeteoStation = curClusterMeteoStation.next();
+                double clusterLat = Double.parseDouble(thisClusterMeteoStation.get("lat").toString());
+                double clusterLon = Double.parseDouble(thisClusterMeteoStation.get("lon").toString());
+
+                GeodeticCalculator calc = new GeodeticCalculator();
+                calc.setStartingGeographicPoint(clusterLon, clusterLat);
+                calc.setDestinationGeographicPoint(centerLon, centerLat);
+                clusterDistance = calc.getOrthodromicDistance() / 1000;
+
+                if(clusterSpd != 0 && clusterSpd != -1) {
+                    addition = (int) (clusterDistance / clusterSpd);
+                }else{
+                    addition = 0;
+                }
+                //－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
                 ArrayList<Double> clusterTimeSeries = new ArrayList<Double>();
                 //查询cluster[0]的各时刻历史数据
                 thisDate = df.parse(startTime);
                 cal.setTime(thisDate);
-                cal.add(Calendar.DATE, -2);     //cluster提前两天
+                cal.add(Calendar.HOUR, -addition);     //cluster提前addition个小时
                 thisDate = cal.getTime();
                 BasicDBObject queryCluster = new BasicDBObject();
                 double thisClusterPM25, lastClusterPM25 = 0;
