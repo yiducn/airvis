@@ -208,7 +208,7 @@ public class Correlation {
             double[] yy = Arrays.copyOfRange(y, i, i + xlength);    //y数组窗口后移，但长度始终和x一致
             thisLagResult = pearsonsCorrelation.correlation(x, yy);
             if (thisLagResult > result[1]){     //不使用绝对值，忽略负相关
-                result[0] = 48 - i;
+                result[0] = i;
                 result[1] = thisLagResult;
                 result[2] = tTest.pairedTTest(x,yy);
             }
@@ -230,7 +230,7 @@ public class Correlation {
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         df.setCalendar(new GregorianCalendar(new SimpleTimeZone(0, "GMT")));
         Calendar cal = Calendar.getInstance();
-
+        Calendar cal2 = Calendar.getInstance();
         //连接数据库
         MongoClient client = new MongoClient("127.0.0.1", 27017);
         DB db = client.getDB("airdb");
@@ -246,6 +246,9 @@ public class Correlation {
         cal.setTime(df.parse(startTime));
         cal.add(Calendar.DATE, -2);  //cluster提前两天
         thisDate = cal.getTime();
+        cal2.setTime(df.parse(endTime));
+        cal2.add(Calendar.HOUR,48);
+        endDate = cal2.getTime();
         BasicDBObject queryCluster = new BasicDBObject();
         double thisClusterPM25, lastClusterPM25 = 0;
         int countMiss1 = 0;
@@ -276,6 +279,7 @@ public class Correlation {
         cal.setTime(df.parse(startTime));
         BasicDBObject queryCode = new BasicDBObject();
         thisDate = df.parse(startTime);
+        endDate = df.parse(endTime);
         double thisCodePM25, lastCodePM25 = 0;
         int countMiss2 = 0;
         while(thisDate.before(endDate)) {
@@ -308,11 +312,13 @@ public class Correlation {
             clusterTimeSeriesDouble[i] = clusterTimeSeries.get(i);
             //System.out.println(clusterTimeSeries.get(i));
         }
+
         double[] codeTimeSeriesDouble = new double[codeTimeSeries.size()];
         for (int i = 0; i < codeTimeSeries.size(); i++) {
             codeTimeSeriesDouble[i] = codeTimeSeries.get(i);
             //System.out.println(codeTimeSeries.get(i));
         }
+
         //System.out.println(clusterTimeSeries.size());
         //System.out.println(codeTimeSeries.size());
 
@@ -327,7 +333,7 @@ public class Correlation {
         Correlation correlation = new Correlation();
         //cluster time time codes。          cluster在前，主点在后
         double[] lag = correlation.getLagCorrelPM25Earlier("1299A", "2015-03-12 00:00:00", "2015-03-14 00:00:00", "1823A");
-        System.out.println(lag[0]);
+        System.out.println(48 - lag[0]);
         System.out.println(lag[1]);
         System.out.println(lag[2]);
 
