@@ -799,6 +799,7 @@ public class ClusterController {
             DBCollection clusterMeteoCollection = db.getCollection("clusterMeteo");
             DBCollection meteoStationCollection = db.getCollection("meteo_stations");
             DBCollection meteoCollection = db.getCollection("meteo_data");
+            DBCollection meteoCollectionDaily = db.getCollection("meteodata_day");
 
             //日期格式、时区设置
             //TODO time zone problem
@@ -837,9 +838,9 @@ public class ClusterController {
             }
 
             BasicDBObject queryCenterMeteoStation = new BasicDBObject();   //圆心内站点的经纬度
-            queryCenterMeteoStation.append("code", codes);
+            queryCenterMeteoStation.append("code", codes[0]);//TODO
             DBCursor curCenterMeteoStation = pmStationCollection.find(queryCenterMeteoStation);
-            DBObject thisCenterMeteoStation = curCenterMeteoStation.next();
+            DBObject thisCenterMeteoStation = curCenterMeteoStation.next();//TODO
             double centerLat = Double.parseDouble(thisCenterMeteoStation.get("lat").toString());
             double centerLon = Double.parseDouble(thisCenterMeteoStation.get("lon").toString());
 
@@ -859,10 +860,11 @@ public class ClusterController {
                 DBCursor curClusterMeteo = clusterMeteoCollection.find(queryClusterMeteo);
                 int clusterMeteo = Integer.parseInt(curClusterMeteo.next().get("usaf").toString());
 
+                //TODO 目前只计算了时间范围内的第一个
                 BasicDBObject queryClusterMeteoData = new BasicDBObject();  //根据meteo站编号和起始时间查询当地风速spd
                 queryClusterMeteoData.append("usaf",clusterMeteo);
-                queryClusterMeteoData.append("time",df.parse(startTime));
-                DBCursor curClusterMeteoData = meteoCollection.find(queryClusterMeteoData);
+                queryClusterMeteoData.append("time",new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
+                DBCursor curClusterMeteoData = meteoCollectionDaily.find(queryClusterMeteoData);
                 clusterSpd = Double.parseDouble(curClusterMeteoData.next().get("spd").toString());
 
                 BasicDBObject queryClusterMeteoStation = new BasicDBObject();   //根据meteo站编号查询其经纬度
@@ -932,5 +934,20 @@ public class ClusterController {
         }
         return "exception";
     }
+
+    /**
+     * 根据cluster结果 计算相关性,与correlation.do差别在于这个计算同时计算了向后推移
+     * 从每个cluster中选择一个站点(任选),计算该站点在选定时间内,与中心区域某一个站点(任选)的相关性
+     * @param cluster
+     * @param startTime detailBrush选定的开始时间
+     * @param endTime detailBrush选定的结束时间
+     * @param codes 中心区域的站点
+     * @return
+     */
+    @RequestMapping(value = "correlation2.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    //TODO
+    String correlation(String cluster, String startTime, String endTime, String[] codes) {
 }
 
