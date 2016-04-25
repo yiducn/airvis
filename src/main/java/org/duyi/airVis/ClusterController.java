@@ -970,15 +970,16 @@ public class ClusterController {
             SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
 //            df.setCalendar(new GregorianCalendar(new SimpleTimeZone(0, "GMT")));
             Calendar cal = Calendar.getInstance();
+            Calendar cal2 = Calendar.getInstance();
 
             //初始化日期循环
-            Date thisDate;
-            Date endDate = df.parse(endTime);
+            Date thisDate, endDate;
             ArrayList<Double> codeTimeSeries = new ArrayList<Double>();
 
             //查询code[0]的各时刻历史数据
             thisDate = df.parse(startTime);
             cal.setTime(thisDate);
+            endDate= df.parse(endTime);
             BasicDBObject queryCode = new BasicDBObject();
             double thisCodePM25, lastCodePM25=0;
             while(thisDate.before(endDate)) {
@@ -1052,10 +1053,14 @@ public class ClusterController {
 
                 ArrayList<Double> clusterTimeSeries = new ArrayList<Double>();
                 //查询cluster[0]的各时刻历史数据
-                thisDate = df.parse(startTime);
-                cal.setTime(thisDate);
+                cal.setTime(df.parse(startTime));
                 cal.add(Calendar.HOUR, -addition);     //cluster提前addition个小时
                 thisDate = cal.getTime();
+
+                cal2.setTime(df.parse(endTime));
+                cal2.add(Calendar.HOUR,48);             //cluster往后48小时
+                endDate = cal2.getTime();
+
                 BasicDBObject queryCluster = new BasicDBObject();
                 double thisClusterPM25, lastClusterPM25 = 0;
                 while(thisDate.before(endDate)) {
