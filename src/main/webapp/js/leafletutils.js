@@ -52,10 +52,21 @@ var CALENDAR_WIDTH_DEFAULT = 800;
 var CALENDAR_HEIGHT_DEFAULT = 600;
 
 //overall color scale
-var colors = ["#FF0000","#FFFF00","00FF00"];
+//var colors = ["#FF0000","#FFFF00","#00FF00"];
+var colors = ["#FF0000", "#FFFF00"];
+var c1 = ["#FF0000", "#FFFF00"];
+var c2 = ["#FFFF00", "#00FF00"];
+var c3 = ["#FF0000", "#FFFF00", "#00FF00"];
+//var c3 = ["#FF0000", "#880088", "#0000FF"];
+
+//var c2 = ["#00FFFF", "#0000FF"];
 //var colors = ["#f03b20", "#feb24c", "ffeda0"];
 var colorScale = d3.scale.linear().domain([200, 0]).range(colors);
-var colorScaleCor = d3.scale.linear().domain([1, 0]).range(colors);
+//var colorScaleCor = d3.scale.linear().domain([1, 0]).range(colors);
+var colorScaleCor = d3.scale.linear().domain([1, 0]).range(c1);
+var colorScaleCorLag = d3.scale.linear().domain([0, 1]).range(c2);
+var colorScaleCor4Heatmap  = d3.scale.linear().domain([1, 0, -1]).range(c3);
+
 //当前选择的月份
 var currentSelectedDate = new Date("2015-10-01");
 
@@ -157,6 +168,17 @@ function initUIs(){
             COR_THREADHOOD = ui.value/100;
             controlCluster();
             controlThemeRiver();
+        }
+    );
+    $( "#sliderCor" ).on( "slide",
+        function( event, ui ) {
+            $("#maxDistanceCor").text(ui.value/100);
+        }
+    );
+    $( "#slider" ).on( "slide",
+        function( event, ui ) {
+            maxDis = ui.value;
+            $("#maxDistance").text(parseInt(maxDis/1000) + "km");
         }
     );
     createCityValue();
@@ -949,6 +971,7 @@ function linearTime(){
 
     $.ajax({
         url:"monthTrends_v2.do",
+        //url:"dayTrends_v2.do",
         type:"post",
         data: cities,
         success: function (returnData) {
@@ -1491,7 +1514,7 @@ function clusterWithCorrelation(){
         .style("opacity", 0);
 
     $.ajax({
-        url: "correlation.do",
+        url: "correlation2.do",
         type:"post",
         data: "cluster="+
             JSON.stringify(clusterResult) +
@@ -1509,7 +1532,7 @@ function clusterWithCorrelation(){
                                 return 5;//负相关
                             if(data[i].pvalue > 0.05)
                                 return 5;//不显著
-                            return 5 + data[i].correlation * 30;
+                            return 5 + data[i].correlation * 20;
                         }
                     }
                     console.log("no correlation");
@@ -1518,11 +1541,19 @@ function clusterWithCorrelation(){
                 .attr("fill", function(d){
                     for(var i = 0; i < data.length; i ++){
                         if(data[i].id == d.id) {
-                            if(data[i].correlation < 0)
-                                return colorScaleCor(0);//负相关
-                            if(data[i].pvalue > 0.05)
-                                return colorScaleCor(0);//不显著
-                            return colorScaleCor(data[i].correlation);
+                            if(data[i].lag >= 0){
+                                if(data[i].correlation < 0)
+                                    return colorScaleCor(0);//负相关
+                                if(data[i].pvalue > 0.05)
+                                    return colorScaleCor(0);//不显著
+                                return colorScaleCor(data[i].correlation);
+                            }else if(data[i].lag < 0){
+                                if(data[i].correlation < 0)
+                                    return colorScaleCorLag(0);//负相关
+                                if(data[i].pvalue > 0.05)
+                                    return colorScaleCorLag(0);//不显著
+                                return colorScaleCorLag(data[i].correlation);
+                            }
                         }
                     }
 
@@ -2031,7 +2062,11 @@ function clusterAndThemeRiver(){
                             nd.setHours(nd.getHours() - d.lag);
                             return x(nd) / width+0.001;})
                         .attr("stop-color", function(d){
-                            return colorScaleCor(d.cor);})
+                            if(d.lag < 0)
+                            return colorScaleCorLag(d.cor);
+                            else
+                            return colorScaleCor(d.cor);
+                        })
                         .attr("stop-opacity", 1);
                     grad.append("stop")
                         .attr("offset", function(d){
@@ -2039,7 +2074,11 @@ function clusterAndThemeRiver(){
                             nd.setHours(nd.getHours() - d.lag);
                             return x(nd) / width ;})
                         .attr("stop-color", function(d){
-                            return colorScaleCor(d.cor);})//TODO
+                            if(d.lag < 0)
+                                return colorScaleCorLag(d.cor);
+                            else
+                                return colorScaleCor(d.cor);
+                        })//TODO
                         .attr("stop-opacity", 1);
                     grad.append("stop")
                         .attr("offset", function(d){
@@ -2098,6 +2137,23 @@ function clusterAndThemeRiver(){
                         .attr("class", "x axis")
                         .attr("transform", "translate(0," + height + ")")
                         .call(xAxis);
+
+                    //<line x1="0" y1="0" x2="200" y2="200" style="stroke:rgb(255,0,0);stroke-width:2" />
+                    //框出选择的区域
+                    svg.append("line")
+                        .attr("x1", x(detailBrush[0]))
+                        .attr("y1", "0")
+                        .attr("x2", x(detailBrush[0]))
+                        .attr("y2", "150")
+                        .attr("stroke", "rgb(0, 0, 0)")
+                        .attr("stroke-width", "1");
+                    svg.append("line")
+                        .attr("x1", x(detailBrush[1]))
+                        .attr("y1", "0")
+                        .attr("x2", x(detailBrush[1]))
+                        .attr("y2", "150")
+                        .attr("stroke", "rgb(0, 0, 0)")
+                        .attr("stroke-width", "1");
                 });
                 themeLayer[i].addTo(map);
 
@@ -2124,7 +2180,10 @@ function createCorHeatMapView(){
                     continue;
                 x.push($(this).attr("cx"));
                 y.push($(this).attr("cy"));
-                t.push(clusterResult[i].correlation);
+                if(clusterResult[i].lag > 0)
+                    t.push(clusterResult[i].correlation);
+                else
+                    t.push(-clusterResult[i].correlation);
             }
         });//TODO 一定特别注意坐标变换
 
@@ -2139,16 +2198,21 @@ function createCorHeatMapView(){
                 .attr("id", "correlationHeatMap"+i)
                 .attr("transform", "translate(" + bbox.x + "," + bbox.y + ")");
 
-            for (var j = 1; j < bbox.width-1; j+=4) {
-                for (var k = 1; k < bbox.height-1; k+=4) {
+            for (var j = 1; j < bbox.width-1; j+=2) {
+                for (var k = 1; k < bbox.height-1; k+=2) {
                     if (!Snap.path.isPointInside(octagonPath[i], bbox.x + j, bbox.y + k)) {
                         continue;
                     }
                     var value = kriging.predict(bbox.x + j, bbox.y + k, variogram);
+                    if(value > 1)
+                        value = 1;
+                    if(value < -1)
+                        value = -1;
                     g.append("rect")
-                        .attr("width", 5)
-                        .attr("height", 5)
-                        .attr("fill", colorScaleCor(value))
+                        .attr("width", 3)
+                        .attr("height", 3)
+                        .attr("fill", colorScaleCor4Heatmap(value))
+                        .attr("fill-opacity", 0.9)//Math.abs(value))
                         .attr("transform", "translate(" + j + "," + k + ")");
                     //console.log(value+":"+colorScaleCor(value));
                 }
