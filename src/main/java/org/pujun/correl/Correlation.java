@@ -328,15 +328,36 @@ public class Correlation {
 
     }
 
+
+    public void yes(){
+
+        MongoClient client = new MongoClient("127.0.0.1", 27017);
+        MongoDatabase db = client.getDatabase("airdb");
+        MongoCollection meteoCollection = db.getCollection("meteo_data");
+
+        Document query = new Document();
+        query.append("usaf", 507560);
+        MongoCursor cur = meteoCollection.find(query).iterator();
+
+        Document document = (Document) cur.next();
+        System.out.println(document.get("time"));
+        long newDateSeconds = document.getDate("time").getTime() + 1000*60*60;
+        Date newDate = new Date(newDateSeconds);
+        System.out.println(newDate);
+
+
+    }
     public static void main(String[] args) throws ParseException {
 
         Correlation correlation = new Correlation();
-        //cluster time time codes。          cluster在前，主点在后
-        double[] lag = correlation.getLagCorrelPM25Earlier("1299A", "2015-03-12 00:00:00", "2015-03-14 00:00:00", "1823A");
-        System.out.println(48 - lag[0]);
-        System.out.println(lag[1]);
-        System.out.println(lag[2]);
+//        //cluster time time codes。          cluster在前，主点在后
+//        double[] lag = correlation.getLagCorrelPM25Earlier("1299A", "2015-03-12 00:00:00", "2015-03-14 00:00:00", "1823A");
+//        System.out.println(48 - lag[0]);
+//        System.out.println(lag[1]);
+//        System.out.println(lag[2]);
 
+
+        correlation.yes();
 
 
     }
