@@ -385,6 +385,50 @@ public class HelloController {
     }
 
     /**
+     * 根据城市约束返回按月的趋势
+     * http://localhost:8081/dayTrends_v2.do?codes[]=1010A&codes[]=1011A
+     * @param codes 站点代码
+     * @return
+     */
+    @RequestMapping(value = "dayTrends_v2.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    String getDayTrendsV2(@RequestParam(value="codes[]", required=false)String[] codes) {
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_DAY);
+
+        Document match;
+        Document sort = new Document("$sort", new Document("_id.year", 1).append("_id.month", 1).append("_id.day", 1));
+        Document group = new Document().append("$group",
+                new Document().append("_id",
+                        new Document().append("month", "$_id.month")
+                                .append("year", "$_id.year")
+                                .append("day", "$_id.day"))
+                        .append("pm25", new Document("$avg", "$pm25")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+        if (codes == null || codes.length == 0){
+            query.add(group);
+            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }
+        else {
+            match = new Document("$match",new Document("_id.code", new Document("$in", Arrays.asList(codes))));
+            query.add(match);
+            query.add(group);
+            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+
+        return result.toString();
+    }
+
+
+    /**
      * 根据站点代码,时间,返回这些站点当月数据
      * @param codes 站点代码
      * @param month 月份
@@ -1019,62 +1063,6 @@ public class HelloController {
             cond.put("station_code", new BasicDBObject("$in", codes));
             result = collection.group(key, cond, initial, reduce, finalize);
         }
-        return result.toString();
-    }
-
-    /**
-     * 根据约束返回日趋势
-     *
-     * @return
-     */
-//    db.pm_day.aggregate(
-//            [
-//    {$match:{"time_point":{$in:['2014-01-01','2014-01-02']}}},
-//    {$group:{
-//        _id:{time_point:"$time_point",station_code:"$station_code"},
-//        value:{$avg:"$pm25_ave"}
-//    }},
-//    {$sort:{"time_point":1}}
-//    ])
-//
-//    db.pm_day.group({
-//        'key':{'time_point':true},
-//        'reduce':function(obj,out){out.csum += obj.pm25_ave;out.ccount++;},
-//        'initial':{'csum':0,'ccount':0},
-//        'cond':{"time_point":{$in:['2014-01-01','2014-01-02']}},
-//        'finalize':function(out){
-//            out.avg_time=out.csum/out.ccount;
-//        }
-//    })
-    @RequestMapping("dayTrends.do")
-    public
-    @ResponseBody
-    String getDayTrends(String[] timeList) {
-        MongoClient mongo = null;
-        try {
-            mongo = new MongoClient(SERVER_IP);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        DB db = mongo.getDB("pmdata_2014");
-        DBCollection collection = db.getCollection("pmdata_day");
-        DBObject key = new BasicDBObject();
-        key.put("time_point", true);
-        String reduce = "function(obj,out){out.csum += obj.pm25_ave;out.ccount++;}";
-        DBObject initial = new BasicDBObject();
-        initial.put("csum", 0);
-        initial.put("ccount", 0);
-        String finalize = "function(out){\n" +
-                "out.avg_time=out.csum/out.ccount;\n" +
-                "}";
-        DBObject cond = new BasicDBObject();
-        cond.put("time_point", new BasicDBObject("$in", timeList));
-        DBObject result;
-        if (timeList == null || timeList.length == 0)
-            result = collection.group(key, null, initial, reduce, finalize);
-        else
-            result = collection.group(key, cond, initial, reduce, finalize);
-
         return result.toString();
     }
 

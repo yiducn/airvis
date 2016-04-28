@@ -7,14 +7,17 @@ var map;
 
 //各种叠加图层
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
-var provinceBoundaryOverlay, cityBoundaryOverlay, contextRing, scatterGroup, clusterLayer, themeLayer,corHeatMapLayer, gridsView, windsView;
+var provinceBoundaryOverlay, cityBoundaryOverlay, scatterGroup, clusterLayer, themeLayer,corHeatMapLayer, gridsView, windsView;
+var stllayer, contextRing;
 var provinceValueOverlay, cityValueOverlay;
 
 var overAllBrush;
 var detailBrush;
 var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 var unfilteredData = [];//经过过滤后剩下的数据,结构同filteredData
-var COR_THREADHOOD = 0.8;
+var COR_THREADHOOD = 0;
+var SIZE_RING = 80;
+var GRID_SIZE_CORRELATION = 2;//correlation map的grid 大小
 
 var paintControl = {
     calendar        :   false,
@@ -52,10 +55,21 @@ var CALENDAR_WIDTH_DEFAULT = 800;
 var CALENDAR_HEIGHT_DEFAULT = 600;
 
 //overall color scale
-var colors = ["#FF0000","#FFFF00","00FF00"];
+//var colors = ["#FF0000","#FFFF00","#00FF00"];
+var colors = ["#FF0000", "#FFFF00"];
+var c1 = ["#FF0000", "#FFFF00"];
+var c2 = ["#FFFF00", "#00FF00"];
+var c3 = ["#FF0000", "#FFFF00", "#00FF00"];
+//var c3 = ["#FF0000", "#880088", "#0000FF"];
+
+//var c2 = ["#00FFFF", "#0000FF"];
 //var colors = ["#f03b20", "#feb24c", "ffeda0"];
 var colorScale = d3.scale.linear().domain([200, 0]).range(colors);
-var colorScaleCor = d3.scale.linear().domain([1, 0]).range(colors);
+//var colorScaleCor = d3.scale.linear().domain([1, 0]).range(colors);
+var colorScaleCor = d3.scale.linear().domain([1, 0]).range(c1);
+var colorScaleCorLag = d3.scale.linear().domain([0, 1]).range(c2);
+var colorScaleCor4Heatmap  = d3.scale.linear().domain([1, 0, -1]).range(c3);
+
 //当前选择的月份
 var currentSelectedDate = new Date("2015-10-01");
 
@@ -157,6 +171,17 @@ function initUIs(){
             COR_THREADHOOD = ui.value/100;
             controlCluster();
             controlThemeRiver();
+        }
+    );
+    $( "#sliderCor" ).on( "slide",
+        function( event, ui ) {
+            $("#maxDistanceCor").text(ui.value/100);
+        }
+    );
+    $( "#slider" ).on( "slide",
+        function( event, ui ) {
+            maxDis = ui.value;
+            $("#maxDistance").text(parseInt(maxDis/1000) + "km");
         }
     );
     createCityValue();
@@ -809,6 +834,7 @@ function zoomAndCenter(){
         dataType:"json",
         success:function(data){
             var newData = [];
+            var newData2 = [];
             var i;
             var result;
             for(i = 0; i < data.length; i ++){
@@ -818,12 +844,55 @@ function zoomAndCenter(){
                     newData.push(data[i]);
                 }else{
                     //add unfiltered data
-                    unfilteredData.push(data[i]);
+                    newData2.push(data[i]);
                 }
             }
             filteredData = newData;
+            unfilteredData = newData2;
 
-            buildLocationLayer(newData);
+            //buildLocationLayer(newData);
+            {
+                var filteredCities = "";
+                if (filteredData.length != 0) {
+                    filteredCities += ("codes=" + filteredData[0].code);
+                    if (filteredData.length > 1) {
+                        var i;
+                        for (i = 1; i < filteredData.length; i++) {
+                            filteredCities += ("&codes=" + filteredData[i].code);
+                        }
+                    }
+                }
+
+                $.ajax({
+                    url: "monthValue.do",
+                    type: "post",
+                    data: filteredCities + "&" + "month=" + (new Date(overAllBrush[0]).getUTCMonth() + 1) + "&year=" + new Date(overAllBrush[0]).getUTCFullYear(),
+                    success: function (returnData) {
+                        var data = JSON.parse(returnData);
+                        for (var i = 0; i < filteredData.length; i++) {
+                            filteredData[i].pm25 = data[filteredData[i].code];
+                        }
+                    },
+                    async: false
+                });
+
+                locationLayer.clearLayers();
+                for ( var i = 0; i < filteredData.length; ++i) {
+                    var colorNow;
+                    if(filteredData[i].pm25 == null || filteredData[i].pm25 == 0){
+                        colorNow = "yellow";
+                        continue;
+                    }else if(filteredData[i].pm25 > 200){
+                        colorNow = "#FF0000";
+                    }else{
+                        colorNow = colorScale(filteredData[i].pm25);
+                    }
+                    var optNow = {stroke:true, fillColor:colorNow, fill:true, color:"#000000", fillOpacity:1, opacity:1, weight:0.5};
+                    locationLayer.addLayer(L.circle([filteredData[i].latitude, filteredData[i].longitude], 10000, optNow));
+                }
+
+            }
+
             linearTime();
 
             var center = bounds.getBounds().getCenter();
@@ -849,7 +918,8 @@ function zoomAndCenter(){
             $( "#slider" ).slider( "option", "max", maxDis );
             $("#maxDistance").text(parseInt(maxDis/1000) + "km");
             $("#minDistance").text(parseInt(minDis/1000) + "km");
-        }
+        },
+        async: false
     });
     $.ajax({
         url:"yearAvg_v2.do",
@@ -949,6 +1019,7 @@ function linearTime(){
 
     $.ajax({
         url:"monthTrends_v2.do",
+        //url:"dayTrends_v2.do",
         type:"post",
         data: cities,
         success: function (returnData) {
@@ -1087,7 +1158,7 @@ function createCircleView2() {
     sizeScreen = map.getPixelBounds().getSize();
     outerRadius = sizeScreen.y / 2-50;
     //outerRadius4Octagonal = outerRadius + 50;
-    innerRadius = outerRadius -  200;
+    innerRadius = outerRadius -  SIZE_RING;
 
     //将初始化minDis和maxDis的操作在缩放之后进行,移动到zoomAndCenter
     //if(minDis == null) {
@@ -1214,12 +1285,6 @@ function createCircleView2() {
             .attr('stroke', 'black')
             .attr('fill-opacity', '0.7');
 
-        sel.select("g").append("circle")
-            .attr("cx", centerScreen.x)
-            .attr("cy", centerScreen.y)
-            .attr('r', innerRadius)
-            .attr('fill', "white")
-            .attr('fill-opacity', '0.5');
 
         //var themeRivers = sel.append("g")
         //    .attr("id", "themeRivers");
@@ -1229,8 +1294,37 @@ function createCircleView2() {
         //    .attr("id", themeRiverId)
         //    .append("")
 
+    });
+
+    contextRing.addTo(map);
+    drawScatterGroup();
+}
+
+function createStlview(){
+    if(stllayer != null)
+        map.removeLayer(stllayer);
+
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
+
+    sizeScreen = map.getPixelBounds().getSize();
+    outerRadius = sizeScreen.y / 2-50;
+    innerRadius = outerRadius -  SIZE_RING;
+
+    stllayer = L.d3SvgOverlay(function(sel, proj) {
+        var cities = "";
+        if (filteredData.length != 0) {
+            cities += ("codes=" + filteredData[0].code);
+            if (filteredData.length > 1) {
+                var i;
+                for (i = 1; i < filteredData.length; i++) {
+                    cities += ("&codes=" + filteredData[i].code);
+                }
+            }
+        }
 
 
+        var centerScreen = proj.latLngToLayerPoint(center);
         //绘制中心的趋势图
         //TODO
         var timeRange = "startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
@@ -1240,6 +1334,14 @@ function createCircleView2() {
             data: cities+"&"+timeRange,
             success: function (returnData) {
                 var data = JSON.parse(returnData);
+
+                sel.append("circle")
+                    .attr("id", "centermask")
+                    .attr("cx", centerScreen.x)
+                    .attr("cy", centerScreen.y)
+                    .attr('r', innerRadius)
+                    .attr('fill', "white")
+                    .attr('fill-opacity', '0.5');
 
                 var trend = sel.append("g").attr("id", "trendsCenter")
                     .attr("transform", "translate("+(centerScreen.x-175)+"," + (centerScreen.y+100) + ")");
@@ -1328,7 +1430,6 @@ function createCircleView2() {
                     clusterWithCorrelation();
                     controlThemeRiver();
                 }
-
 
                 //绘制border
                 trend.append("g")
@@ -1446,23 +1547,11 @@ function createCircleView2() {
                     .attr('opacity', 0.8)
                     .attr('d', lineReminder);
 
-                //var brush = d3.svg.brush()
-                //    .x(x);
-                //    //.on("brush", brushed)
-                //    //.on("brushend", brushend);
-                //trend.append("g")
-                //    .attr("class", "x brush")
-                //    .call(brush)
-                //    .selectAll("rect")
-                //    .attr("y", -6)
-                //    .attr("height", 30 + 7);
 
             }});
-
     });
+    stllayer.addTo(map);
 
-    contextRing.addTo(map);
-    drawScatterGroup();
 }
 
 /**
@@ -1491,7 +1580,7 @@ function clusterWithCorrelation(){
         .style("opacity", 0);
 
     $.ajax({
-        url: "correlation.do",
+        url: "correlation2.do",
         type:"post",
         data: "cluster="+
             JSON.stringify(clusterResult) +
@@ -1506,10 +1595,10 @@ function clusterWithCorrelation(){
                     for(var i = 0; i < data.length; i ++){
                         if(data[i].id == d.id) {
                             if(data[i].correlation < COR_THREADHOOD)
-                                return 5;//负相关
+                                return 4;//负相关
                             if(data[i].pvalue > 0.05)
-                                return 5;//不显著
-                            return 5 + data[i].correlation * 30;
+                                return 4;//不显著
+                            return 4 + data[i].correlation * 15;
                         }
                     }
                     console.log("no correlation");
@@ -1518,11 +1607,19 @@ function clusterWithCorrelation(){
                 .attr("fill", function(d){
                     for(var i = 0; i < data.length; i ++){
                         if(data[i].id == d.id) {
-                            if(data[i].correlation < 0)
-                                return colorScaleCor(0);//负相关
-                            if(data[i].pvalue > 0.05)
-                                return colorScaleCor(0);//不显著
-                            return colorScaleCor(data[i].correlation);
+                            if(data[i].lag >= 0){
+                                if(data[i].correlation < 0)
+                                    return colorScaleCor(0);//负相关
+                                if(data[i].pvalue > 0.05)
+                                    return colorScaleCor(0);//不显著
+                                return colorScaleCor(data[i].correlation);
+                            }else if(data[i].lag < 0){
+                                if(data[i].correlation < 0)
+                                    return colorScaleCorLag(0);//负相关
+                                if(data[i].pvalue > 0.05)
+                                    return colorScaleCorLag(0);//不显著
+                                return colorScaleCorLag(data[i].correlation);
+                            }
                         }
                     }
 
@@ -1566,7 +1663,7 @@ function drawScatterGroup(){
 
     sizeScreen = map.getPixelBounds().getSize();
     outerRadius = sizeScreen.y / 2-50;
-    innerRadius = outerRadius -  200;
+    innerRadius = outerRadius -  SIZE_RING;
 
     scatterGroup = L.d3SvgOverlay(function(sel, proj) {
         var centerScreen = proj.latLngToLayerPoint(center);
@@ -1617,28 +1714,30 @@ function drawScatterGroup(){
                 .enter()
                 .append("circle")
                 .filter(function (d) {
+
                     return d.distance > minDis && d.distance < maxDis;
                 })
                 .attr('r', function (d) {
-                    return 1.5;
+                    return 4;
                 })
                 .attr('cx', stationX)
                 .attr('cy', stationY)
                 .attr('stroke', function (d) {
-                    //return "#000000";
+                    return "#000000";
                     ////TODO
-                    if(d.pm25 == null)
-                        return colorScale(0);
-                    return colorScale(d.pm25);
+                    //if(d.pm25 == null)
+                    //    return colorScale(0);
+                    //return colorScale(d.pm25);
                 })
                 .attr('fill', function (d) {
                     //return "#000000";
+                    //return "yellow";
                     //TODO
                     if(d.pm25 == null)
                         return colorScale(0);
                     return colorScale(d.pm25);
                 })
-                .attr('stroke-width', 1)
+                .attr('stroke-width', 0.5)
                 .on('mouseover', function(d){
                     console.log("over:"+d.pm25);
                 });
@@ -1744,7 +1843,7 @@ function cluster(){
         map.removeLayer(clusterLayer);
     sizeScreen = map.getPixelBounds().getSize();
     outerRadius = sizeScreen.y / 2-50;
-    innerRadius = outerRadius -  200;
+    innerRadius = outerRadius -  SIZE_RING;
     var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
     var center = bounds.getBounds().getCenter();
 
@@ -1816,32 +1915,44 @@ function cluster(){
                     .append("circle")
                     .attr('id', function(d){return d.id;})
                     .attr('r', function (d) {
-                        return 15;//d.cluster.length*5;
+                        return 4;//d.cluster.length*5;
                     })
                     .attr('cx', stationX)
                     .attr('cy', stationY)
-                    .attr('fill', 'yellow')
+                    .attr('fill', function(d){
+                        //根据数值返回颜色
+                        for(var i = 0; i < unfilteredData.length; i ++){
+                            if(d.cluster[0].code == unfilteredData[i].code)
+                                return colorScale(unfilteredData[i].pm25);
+                        }
+                        //if(d.cluster[0]pm25 == null)
+                        //    return colorScale(0);
+                        //return colorScale(d.pm25);
+                        return 'yellow';
+                    })
                     .attr('opacity', '1')
                     .attr('stroke', 'black')
-                    .attr('stroke-width', 1) ;
+                    .attr('stroke-width', 0.5) ;
                 //TODO
-                sel.append("g").selectAll(".clusterWind").data(data)
-                    .enter()
-                    .append("line")
-                    .attr('x1', stationX)
-                    .attr('y1', stationY)
-                    .attr("x2", stationX)
-                    .attr("y2", stationY)
-                    .attr("marker-end", function(d){return "url(#triangle"+d.cluster[0].code+")";})
-                    .attr("stroke", "black")
-                    .attr("stroke-width", function(d){return 5;})
-                    .attr('fill-opacity', '0.8');
+                //sel.append("g").selectAll(".clusterWind").data(data)
+                //    .enter()
+                //    .append("line")
+                //    .attr('x1', stationX)
+                //    .attr('y1', stationY)
+                //    .attr("x2", stationX)
+                //    .attr("y2", stationY)
+                //    .attr("marker-end", function(d){return "url(#triangle"+d.cluster[0].code+")";})
+                //    .attr("stroke", "black")
+                //    .attr("stroke-width", function(d){return 2;})
+                //    .attr('fill-opacity', '0.8');
 
             });
             clusterLayer.addTo(map);
         },
         async:false
     });
+
+
 }
 
 /**
@@ -2031,7 +2142,11 @@ function clusterAndThemeRiver(){
                             nd.setHours(nd.getHours() - d.lag);
                             return x(nd) / width+0.001;})
                         .attr("stop-color", function(d){
-                            return colorScaleCor(d.cor);})
+                            if(d.lag < 0)
+                            return colorScaleCorLag(d.cor);
+                            else
+                            return colorScaleCor(d.cor);
+                        })
                         .attr("stop-opacity", 1);
                     grad.append("stop")
                         .attr("offset", function(d){
@@ -2039,7 +2154,11 @@ function clusterAndThemeRiver(){
                             nd.setHours(nd.getHours() - d.lag);
                             return x(nd) / width ;})
                         .attr("stop-color", function(d){
-                            return colorScaleCor(d.cor);})//TODO
+                            if(d.lag < 0)
+                                return colorScaleCorLag(d.cor);
+                            else
+                                return colorScaleCor(d.cor);
+                        })//TODO
                         .attr("stop-opacity", 1);
                     grad.append("stop")
                         .attr("offset", function(d){
@@ -2098,6 +2217,23 @@ function clusterAndThemeRiver(){
                         .attr("class", "x axis")
                         .attr("transform", "translate(0," + height + ")")
                         .call(xAxis);
+
+                    //<line x1="0" y1="0" x2="200" y2="200" style="stroke:rgb(255,0,0);stroke-width:2" />
+                    //框出选择的区域
+                    svg.append("line")
+                        .attr("x1", x(detailBrush[0]))
+                        .attr("y1", "0")
+                        .attr("x2", x(detailBrush[0]))
+                        .attr("y2", "150")
+                        .attr("stroke", "rgb(0, 0, 0)")
+                        .attr("stroke-width", "1");
+                    svg.append("line")
+                        .attr("x1", x(detailBrush[1]))
+                        .attr("y1", "0")
+                        .attr("x2", x(detailBrush[1]))
+                        .attr("y2", "150")
+                        .attr("stroke", "rgb(0, 0, 0)")
+                        .attr("stroke-width", "1");
                 });
                 themeLayer[i].addTo(map);
 
@@ -2109,8 +2245,10 @@ function clusterAndThemeRiver(){
 }
 
 function createCorHeatMapView(){
+    if(corHeatMapLayer != null)
+        map.removeLayer(corHeatMapLayer);
     outerRadius = sizeScreen.y / 2-50;
-    innerRadius = outerRadius -  200;
+    innerRadius = outerRadius -  SIZE_RING;
     var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
     var center = bounds.getBounds().getCenter();
 
@@ -2124,7 +2262,10 @@ function createCorHeatMapView(){
                     continue;
                 x.push($(this).attr("cx"));
                 y.push($(this).attr("cy"));
-                t.push(clusterResult[i].correlation);
+                if(clusterResult[i].lag > 0)
+                    t.push(clusterResult[i].correlation);
+                else
+                    t.push(-clusterResult[i].correlation);
             }
         });//TODO 一定特别注意坐标变换
 
@@ -2139,16 +2280,146 @@ function createCorHeatMapView(){
                 .attr("id", "correlationHeatMap"+i)
                 .attr("transform", "translate(" + bbox.x + "," + bbox.y + ")");
 
-            for (var j = 1; j < bbox.width-1; j+=4) {
-                for (var k = 1; k < bbox.height-1; k+=4) {
+            for (var j = 1; j < bbox.width-1; j+=GRID_SIZE_CORRELATION) {
+                for (var k = 1; k < bbox.height-1; k+=GRID_SIZE_CORRELATION) {
                     if (!Snap.path.isPointInside(octagonPath[i], bbox.x + j, bbox.y + k)) {
                         continue;
                     }
                     var value = kriging.predict(bbox.x + j, bbox.y + k, variogram);
+                    if(value > 1)
+                        value = 1;
+                    if(value < -1)
+                        value = -1;
                     g.append("rect")
-                        .attr("width", 5)
-                        .attr("height", 5)
+                        .attr("width", GRID_SIZE_CORRELATION+1)
+                        .attr("height", GRID_SIZE_CORRELATION+1)
+                        .attr("fill", colorScaleCor4Heatmap(value))
+                        .attr("fill-opacity", 0.9)//Math.abs(value))
+                        .attr("transform", "translate(" + j + "," + k + ")");
+                    //console.log(value+":"+colorScaleCor(value));
+                }
+            }
+        }
+
+    });
+    corHeatMapLayer.addTo(map);
+
+}
+
+//超前分析
+function createLeadCorHeatMapView(){
+    if(corHeatMapLayer != null)
+        map.removeLayer(corHeatMapLayer);
+    outerRadius = sizeScreen.y / 2-50;
+    innerRadius = outerRadius -  SIZE_RING;
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
+
+    corHeatMapLayer = L.d3SvgOverlay(function(sel, proj) {
+        var x = [], y = [], t = [];
+        $("circle").each(function() {
+            var id = $(this).attr("id");
+            for(var i = 0; i < clusterResult.length; i ++){
+                if(clusterResult[i].id != id)
+                    continue;
+                x.push($(this).attr("cx"));
+                y.push($(this).attr("cy"));
+                if(clusterResult[i].lag > 0)
+                    t.push(clusterResult[i].correlation);
+                else
+                    t.push(0);
+            }
+        });//TODO 一定特别注意坐标变换
+
+        var model = "exponential";
+        var sigma2 = 0, alpha = 100;
+        var variogram = kriging.train(t, x, y, model, sigma2, alpha);
+
+        for(var i = 0; i < 8; i ++) {
+            var bbox = Snap.path.getBBox(octagonPath[i]);
+            console.log(bbox.x+":"+bbox.y+":"+bbox.width+":"+bbox.height);
+            var g = sel.append("g")
+                .attr("id", "correlationHeatMap"+i)
+                .attr("transform", "translate(" + bbox.x + "," + bbox.y + ")");
+
+            for (var j = 1; j < bbox.width-1; j+=GRID_SIZE_CORRELATION) {
+                for (var k = 1; k < bbox.height-1; k+=GRID_SIZE_CORRELATION) {
+                    if (!Snap.path.isPointInside(octagonPath[i], bbox.x + j, bbox.y + k)) {
+                        continue;
+                    }
+                    var value = kriging.predict(bbox.x + j, bbox.y + k, variogram);
+                    if(value > 1)
+                        value = 1;
+                    if(value < -1)
+                        value = -1;
+                    g.append("rect")
+                        .attr("width", GRID_SIZE_CORRELATION+1)
+                        .attr("height", GRID_SIZE_CORRELATION+1)
                         .attr("fill", colorScaleCor(value))
+                        .attr("fill-opacity", 0.9)//Math.abs(value))
+                        .attr("transform", "translate(" + j + "," + k + ")");
+                    //console.log(value+":"+colorScaleCor(value));
+                }
+            }
+        }
+
+    });
+    corHeatMapLayer.addTo(map);
+
+}
+
+//滞后分析
+function createLagCorHeatMapView(){
+    if(corHeatMapLayer != null)
+        map.removeLayer(corHeatMapLayer);
+    outerRadius = sizeScreen.y / 2-50;
+    innerRadius = outerRadius -  SIZE_RING;
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
+
+
+    corHeatMapLayer = L.d3SvgOverlay(function(sel, proj) {
+        var x = [], y = [], t = [];
+        $("circle").each(function() {
+            var id = $(this).attr("id");
+            for(var i = 0; i < clusterResult.length; i ++){
+                if(clusterResult[i].id != id)
+                    continue;
+                x.push($(this).attr("cx"));
+                y.push($(this).attr("cy"));
+                if(clusterResult[i].lag > 0)
+                    t.push(0);
+                else
+                    t.push(clusterResult[i].correlation);
+            }
+        });//TODO 一定特别注意坐标变换
+
+        var model = "exponential";
+        var sigma2 = 0, alpha = 100;
+        var variogram = kriging.train(t, x, y, model, sigma2, alpha);
+
+        for(var i = 0; i < 8; i ++) {
+            var bbox = Snap.path.getBBox(octagonPath[i]);
+            console.log(bbox.x+":"+bbox.y+":"+bbox.width+":"+bbox.height);
+            var g = sel.append("g")
+                .attr("id", "correlationHeatMap"+i)
+                .attr("transform", "translate(" + bbox.x + "," + bbox.y + ")");
+
+            for (var j = 1; j < bbox.width-1; j+=GRID_SIZE_CORRELATION) {
+                for (var k = 1; k < bbox.height-1; k+=GRID_SIZE_CORRELATION) {
+                    if (!Snap.path.isPointInside(octagonPath[i], bbox.x + j, bbox.y + k)) {
+                        continue;
+                    }
+                    var value = kriging.predict(bbox.x + j, bbox.y + k, variogram);
+                    if(value > 1)
+                        value = 1;
+                    if(value < -1)
+                        value = -1;
+                    g.append("rect")
+                        .attr("width", GRID_SIZE_CORRELATION+1)
+                        .attr("height", GRID_SIZE_CORRELATION+1)
+                        .attr("fill", colorScaleCorLag(value))
+                        .attr("fill-opacity", 0.9)//Math.abs(value))
                         .attr("transform", "translate(" + j + "," + k + ")");
                     //console.log(value+":"+colorScaleCor(value));
                 }
@@ -2307,6 +2578,17 @@ function controlContextRing(){
     }
 }
 
+function controlStl(){
+    if($("#controlStl").is( ':checked' )){
+        if(stllayer != null)
+            map.removeLayer(stllayer);
+        createStlview();
+    }else{
+        if(stllayer != null)
+            map.removeLayer(stllayer);
+    }
+}
+
 function activeContextRing(){
     if(!$("#controlContextRing").is(":checked")){
 
@@ -2357,6 +2639,20 @@ function controlHeatMapCor(){
     }
 }
 
+function controlLeadHeatMapCor(){
+    if(corHeatMapLayer != null)
+        map.removeLayer(corHeatMapLayer);
+    if($("#controlLeadHeatMapCor").is(":checked")){
+        createLeadCorHeatMapView();
+    }
+}
+function controlLagHeatMapCor(){
+    if(corHeatMapLayer != null)
+        map.removeLayer(corHeatMapLayer);
+    if($("#controlLagHeatMapCor").is(":checked")){
+        createLagCorHeatMapView();
+    }
+}
 function controlGrids(){
     if(gridsView != null)
         map.removeLayer(gridsView);
