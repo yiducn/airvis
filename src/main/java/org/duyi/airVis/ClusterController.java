@@ -668,20 +668,52 @@ public class ClusterController {
             lonMap.put(d.getString("code"), d.getDouble("lon"));
         }
 
-        MongoCursor cur = coll.find(filter).iterator();
-
+        MongoCursor cur = coll.find(filter).sort(new BasicDBObject("code", 1)).sort(new BasicDBObject("time", 1)).iterator();
         JSONObject result = new JSONObject();
         JSONArray res = new JSONArray();
+        Document pre = null;
 
         while(cur.hasNext()){
             Document d = (Document)cur.next();
-            d.put("time", d.get("time"));
-            d.put("pm25", d.get("pm25"));
-            d.put("code", d.get("code"));
-            d.put("city", d.get("city"));
-            d.put("lat", latMap.get(d.get("code")));
-            d.put("lon", lonMap.get(d.get("code")));
-            res.put(d);
+            Document nd = new Document();
+            if(pre == null) {
+                nd.put("time", d.get("time"));
+                nd.put("pm25", d.get("pm25"));
+                nd.put("code", d.get("code"));
+                nd.put("city", d.get("city"));
+                nd.put("lat", latMap.get(d.get("code")));
+                nd.put("lon", lonMap.get(d.get("code")));
+                res.put(nd);
+                pre = d;
+            }else {
+                if (d.get("code") == pre.get("code")) {
+                    int interval = (int) (d.getDate("time").getTime() - pre.getDate("time").getTime() / (1000 * 60 * 60));
+                    if (interval == 1) {
+
+                    } else {
+                        for (int i = 0; i < interval; i++) {
+                            Document nd2 = new Document();
+                            long newDateSeconds = d.getDate("time").getTime() - (interval - i) * 1000 * 60 * 60;
+                            Date newDate = new Date(newDateSeconds);
+                            nd2.put("time", newDate);
+                            nd2.put("pm25", d.get("pm25"));
+                            nd2.put("code", d.get("code"));
+                            nd2.put("city", d.get("city"));
+                            nd2.put("lat", latMap.get(d.get("code")));
+                            nd2.put("lon", lonMap.get(d.get("code")));
+                            res.put(nd2);
+                        }
+                    }
+                }
+                nd.put("time", d.get("time"));
+                nd.put("pm25", d.get("pm25"));
+                nd.put("code", d.get("code"));
+                nd.put("city", d.get("city"));
+                nd.put("lat", latMap.get(d.get("code")));
+                nd.put("lon", lonMap.get(d.get("code")));
+                res.put(nd);
+                pre = d;
+            }
         }
         try {
             result.put("result", res);
@@ -689,6 +721,7 @@ public class ClusterController {
         }catch(Exception e){
             e.printStackTrace();
         }
+
         JSONObject oneLagCor;
         JSONArray lagCor = new JSONArray();
         //根据code,得到对应的lag和cor,赋值给result
@@ -1005,17 +1038,37 @@ public class ClusterController {
                 codeTimeSeriesDouble[n] = codeTimeSeries.get(n);
             }
 
-            BasicDBObject queryCenterMeteoStation = new BasicDBObject();   //圆心内站点的经纬度
-            queryCenterMeteoStation.append("code", codes[0]);//TODO
-            DBCursor curCenterMeteoStation = pmStationCollection.find(queryCenterMeteoStation);
-            DBObject thisCenterMeteoStation = curCenterMeteoStation.next();//TODO
-            double centerLat = Double.parseDouble(thisCenterMeteoStation.get("lat").toString());
-            double centerLon = Double.parseDouble(thisCenterMeteoStation.get("lon").toString());
+            //－－－－－－－－－－－－－查询center中站点的spd－－－－－－－－－－－－－－－－
+            BasicDBObject queryCenterPMStation = new BasicDBObject();   //圆心内站点的经纬度
+            queryCenterPMStation.append("code", codes[0]);//TODO
+            DBCursor curCenterPMStation = pmStationCollection.find(queryCenterPMStation);
+            DBObject thisCenterPMStation = curCenterPMStation.next();//TODO
+            double centerLat = Double.parseDouble(thisCenterPMStation.get("lat").toString());
+            double centerLon = Double.parseDouble(thisCenterPMStation.get("lon").toString());
+
+            //查询中心站所在的cluster的编号clusterid
+            DBCursor curCenterCluesterID = clusterCollection.find(queryCenterPMStation);
+            String centerClusterID = curCenterCluesterID.next().get("clusterid").toString();
+
+            //查询此cluster对应的meteo站编号usaf
+            BasicDBObject queryCenterClusterMeteo = new BasicDBObject();
+            queryCenterClusterMeteo.append("clusterid",centerClusterID);
+            DBCursor curCenterClusterMeteo = clusterMeteoCollection.find(queryCenterClusterMeteo);
+            int centerClusterMeteo = Integer.parseInt(curCenterClusterMeteo.next().get("usaf").toString());
+
+            //根据meteo站编号和起始时间查询当地风速spd
+            BasicDBObject queryCenterClusterMeteoData = new BasicDBObject();
+            queryCenterClusterMeteoData.append("usaf",centerClusterMeteo);
+            queryCenterClusterMeteoData.append("time",new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
+            DBCursor curCenterClusterMeteoData = meteoCollectionDaily.find(queryCenterClusterMeteoData);
+            double centerSpd = Double.parseDouble(curCenterClusterMeteoData.next().get("spd").toString());
+            //－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
             for(int i = 0; i < jsonCluster.length(); i ++){
                 //－－－－－－－－－－计算距离／查询风速＝往前推的时间－－－－－－－－－－－－
                 double clusterDistance, clusterSpd;
                 int addition = 0;
+                int additionLater = 0;
                 String oneCluster = jsonCluster.getJSONObject(i).getJSONArray("cluster").getJSONObject(0).getString("code");
 
                 BasicDBObject queryClusterID = new BasicDBObject();     //查询该站所在的cluster的编号clusterid
@@ -1058,6 +1111,12 @@ public class ClusterController {
                 }else{
                     addition = 24;
                 }
+
+                if(centerSpd != 0 && centerSpd != -1) {
+                    additionLater = (int) (clusterDistance / centerSpd);
+                }else{
+                    additionLater = 24;
+                }
                 //－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
                 ArrayList<Double> clusterTimeSeries = new ArrayList<Double>();
@@ -1067,7 +1126,7 @@ public class ClusterController {
                 thisDate = cal.getTime();
 
                 cal2.setTime(df.parse(endTime));
-                cal2.add(Calendar.HOUR,48);             //cluster往后48小时
+                cal2.add(Calendar.HOUR, additionLater);             //cluster往后48小时
                 endDate = cal2.getTime();
 
                 BasicDBObject queryCluster = new BasicDBObject();
