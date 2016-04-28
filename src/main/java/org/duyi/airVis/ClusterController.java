@@ -713,7 +713,7 @@ public class ClusterController {
                 nd.put("lon", lonMap.get(d.get("code")));
                 res.put(nd);
                 pre = d;
-                }
+            }
         }
         try {
             result.put("result", res);
