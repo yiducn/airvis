@@ -691,9 +691,9 @@ public class ClusterController {
                     if (interval == 1) {
 
                     } else {
-                        for (int i = 0; i < interval; i++) {
+                        for (int i = 0; i < interval-1; i++) {
                             Document nd2 = new Document();
-                            long newDateSeconds = d.getDate("time").getTime() - (interval - i) * 1000 * 60 * 60;
+                            long newDateSeconds = d.getDate("time").getTime() - (interval-1 - i) * 1000 * 60 * 60;
                             Date newDate = new Date(newDateSeconds);
                             nd2.put("time", newDate);
                             nd2.put("pm25", d.get("pm25"));
@@ -1144,6 +1144,250 @@ public class ClusterController {
                     }
                     cal.add(Calendar.HOUR, 1);  //时间+1h循环
                     thisDate = cal.getTime();
+                }
+
+                //ArrayList转double数组
+                double[] clusterTimeSeriesDouble = new double[clusterTimeSeries.size()];
+                for (int m = 0; m < clusterTimeSeries.size(); m++) {
+                    clusterTimeSeriesDouble[m] = clusterTimeSeries.get(m);
+                }
+
+                //计算相关性，[0]为最优lag，[1]为对应相关度，[2]为t检验的p值
+                Correlation correlation = new Correlation();
+                double[] lagCorrelation = correlation.getLagResultEarlier(codeTimeSeriesDouble, clusterTimeSeriesDouble);
+
+                //TODO 计算correlation
+                ((JSONObject) jsonCluster.get(i)).put("lag", addition - lagCorrelation[0]);
+                ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
+                ((JSONObject) jsonCluster.get(i)).put("pvalue", lagCorrelation[2]);
+            }
+            client.close();
+            return jsonCluster.toString();
+
+        }catch(JSONException je){
+            je.printStackTrace();
+        }catch(ParseException pe){
+            pe.printStackTrace();
+        }
+        return "exception";
+    }
+
+    @RequestMapping(value = "correlation3.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+        //TODO
+    String correlation3(String cluster, String startTime, String endTime, String[] codes) {
+        String clusterAfterUpdateWind = updateWind(cluster, startTime, endTime);
+        try {
+            //获取cluster中第一个台站的的code
+            JSONArray jsonCluster = new JSONArray(clusterAfterUpdateWind);
+
+            //连接数据库
+            MongoClient client = new MongoClient("127.0.0.1", 27017);
+            MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+            MongoCollection pmCollection = db.getCollection("pm_data");
+            DB db2 = client.getDB("127.0.0.1");
+            DBCollection meteoCollectionDaily = db2.getCollection("meteodata_day");
+            DBCollection clusterCollection = db2.getCollection("cluster");
+            DBCollection clusterMeteoCollection = db2.getCollection("clusterMeteo");
+            DBCollection pmStationCollection = db2.getCollection("pm_stations");
+            //日期格式、时区设置
+            //TODO time zone problem
+            SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
+            Calendar cal = Calendar.getInstance();
+            Calendar cal2 = Calendar.getInstance();
+
+            //初始化日期循环
+            Date startDate, endDate;
+            ArrayList<Double> codeTimeSeries = new ArrayList<Double>();
+
+            //查询code[0]的各时刻历史数据
+            startDate = df.parse(startTime);
+            endDate = df.parse(endTime);
+            Document queryCode = new Document();
+            queryCode.append("time", new Document("$gte", startDate).append("$lt", endDate));
+            queryCode.append("code", codes[0]);
+
+            MongoCursor cur = pmCollection.find(queryCode).sort(new BasicDBObject("time", 1)).iterator();
+            Document pre = null;
+            double thisCodeValue = 0, preCodeValue = 0;
+            while (cur.hasNext()) {    //若存在此时刻的历史数据，则直接将历史数据加入list中
+                Document d = (Document) cur.next();
+                thisCodeValue = (double) d.getInteger("pm25");
+                if(pre == null) {   //如果起始时间点没有值，开头置为0
+                    int interval = (int)(d.getDate("time").getTime() - startDate.getTime()) / (1000*60*60);
+                    if(interval == 0) {
+                        codeTimeSeries.add(thisCodeValue);
+                        preCodeValue = thisCodeValue;
+                    }else{
+                        for (int i = 0; i < interval; i++) {
+                            codeTimeSeries.add(preCodeValue);
+                        }
+                        codeTimeSeries.add(thisCodeValue);
+                    }
+
+                    pre = d;
+                } else {
+                    int interval = (int) (d.getDate("time").getTime() - pre.getDate("time").getTime()) / (1000*60*60);
+                    if(interval == 1) {
+
+                    }else{
+                        for (int i = 0; i < interval-1; i++) {
+                            codeTimeSeries.add(preCodeValue);
+                        }
+                    }
+
+                    if(thisCodeValue!=0){
+                        codeTimeSeries.add(thisCodeValue);
+                        preCodeValue = thisCodeValue;
+                    }else{
+                        codeTimeSeries.add(preCodeValue);
+                    }
+
+                    pre = d;
+                }
+            }
+
+            double[] codeTimeSeriesDouble = new double[codeTimeSeries.size()];
+            for (int n = 0; n < codeTimeSeries.size(); n++) {
+                codeTimeSeriesDouble[n] = codeTimeSeries.get(n);
+            }
+
+
+            //－－－－－－－－－－－－－查询center中站点的spd－－－－－－－－－－－－－－－－
+            BasicDBObject queryCenterPMStation = new BasicDBObject();   //圆心内站点的经纬度
+            queryCenterPMStation.append("code", codes[0]);//TODO
+            DBCursor curCenterPMStation = pmStationCollection.find(queryCenterPMStation);
+            DBObject thisCenterPMStation = curCenterPMStation.next();//TODO
+            double centerLat = Double.parseDouble(thisCenterPMStation.get("lat").toString());
+            double centerLon = Double.parseDouble(thisCenterPMStation.get("lon").toString());
+
+            //查询中心站所在的cluster的编号clusterid
+            DBCursor curCenterCluesterID = clusterCollection.find(queryCenterPMStation);
+            String centerClusterID = curCenterCluesterID.next().get("clusterid").toString();
+
+            //查询此cluster对应的meteo站编号usaf
+            BasicDBObject queryCenterClusterMeteo = new BasicDBObject();
+            queryCenterClusterMeteo.append("clusterid",centerClusterID);
+            DBCursor curCenterClusterMeteo = clusterMeteoCollection.find(queryCenterClusterMeteo);
+            int centerClusterMeteo = Integer.parseInt(curCenterClusterMeteo.next().get("usaf").toString());
+
+            //根据meteo站编号和起始时间查询当地风速spd
+            BasicDBObject queryCenterClusterMeteoData = new BasicDBObject();
+            queryCenterClusterMeteoData.append("usaf",centerClusterMeteo);
+            queryCenterClusterMeteoData.append("time",new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
+            DBCursor curCenterClusterMeteoData = meteoCollectionDaily.find(queryCenterClusterMeteoData);
+            double centerSpd = Double.parseDouble(curCenterClusterMeteoData.next().get("spd").toString());
+            //－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+            for(int i = 0; i < jsonCluster.length(); i ++){
+                //－－－－－－－－－－计算距离／查询风速＝往前推的时间－－－－－－－－－－－－
+                double clusterDistance, clusterSpd;
+                int addition = 0;
+                int additionLater = 0;
+                String oneCluster = jsonCluster.getJSONObject(i).getJSONArray("cluster").getJSONObject(0).getString("code");
+
+                BasicDBObject queryClusterID = new BasicDBObject();     //查询该站所在的cluster的编号clusterid
+                queryClusterID.append("code", oneCluster);
+                DBCursor curCluesterID = clusterCollection.find(queryClusterID);
+                String clusterID = curCluesterID.next().get("clusterid").toString();
+
+                BasicDBObject queryClusterMeteo = new BasicDBObject();      //查询此cluster对应的meteo站编号usaf
+                queryClusterMeteo.append("clusterid",clusterID);
+                DBCursor curClusterMeteo = clusterMeteoCollection.find(queryClusterMeteo);
+                int clusterMeteo = Integer.parseInt(curClusterMeteo.next().get("usaf").toString());
+
+                //TODO 目前只计算了时间范围内的第一个
+                BasicDBObject queryClusterMeteoData = new BasicDBObject();  //根据meteo站编号和起始时间查询当地风速spd
+                queryClusterMeteoData.append("usaf",clusterMeteo);
+                queryClusterMeteoData.append("time",new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
+                DBCursor curClusterMeteoData = meteoCollectionDaily.find(queryClusterMeteoData);
+                if(!curClusterMeteoData.hasNext())
+                    clusterSpd = 0;
+                else
+                    clusterSpd = Double.parseDouble(curClusterMeteoData.next().get("spd").toString());
+
+                BasicDBObject queryClusterMeteoStation = new BasicDBObject();   //根据meteo站编号查询其经纬度
+                queryClusterMeteoStation.append("code",oneCluster);
+                DBCursor curClusterMeteoStation = pmStationCollection.find(queryClusterMeteoStation);
+                DBObject thisClusterMeteoStation = curClusterMeteoStation.next();
+                double clusterLat = Double.parseDouble(thisClusterMeteoStation.get("lat").toString());
+                double clusterLon = Double.parseDouble(thisClusterMeteoStation.get("lon").toString());
+
+                GeodeticCalculator calc = new GeodeticCalculator();
+                calc.setStartingGeographicPoint(clusterLon, clusterLat);
+                calc.setDestinationGeographicPoint(centerLon, centerLat);
+                clusterDistance = calc.getOrthodromicDistance() / 1609.344;
+
+                if(clusterSpd != 0 && clusterSpd != -1) {
+                    addition = (int) (clusterDistance / clusterSpd);
+                    //所有的addition控制在四日以内
+                    if(addition > 96)
+                        addition = 96;
+                }else{
+                    addition = 24;
+                }
+
+                if(centerSpd != 0 && centerSpd != -1) {
+                    additionLater = (int) (clusterDistance / centerSpd);
+                }else{
+                    additionLater = 24;
+                }
+                //－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+                ArrayList<Double> clusterTimeSeries = new ArrayList<Double>();
+                //查询cluster[0]的各时刻历史数据
+                cal.setTime(df.parse(startTime));
+                cal.add(Calendar.HOUR, -addition);          //cluster提前addition个小时
+                startDate = cal.getTime();
+
+                cal2.setTime(df.parse(endTime));
+                cal2.add(Calendar.HOUR, additionLater);     //cluster往后48小时
+                endDate = cal2.getTime();
+
+                Document queryCluster = new Document();
+                queryCluster.append("time", new Document("$gte", startDate).append("$lt", endDate));
+                queryCluster.append("code", oneCluster);
+
+                MongoCursor cur2 = pmCollection.find(queryCluster).sort(new BasicDBObject("time", 1)).iterator();
+                Document pre2 = null;
+                double thisClusterValue = 0, preClusterValue =0;
+                while (cur2.hasNext()) {    //若存在此时刻的历史数据，则直接将历史数据加入list中
+                    Document d = (Document) cur2.next();
+                    thisClusterValue = (double) d.getInteger("pm25");
+                    if(pre2 == null) {  //如果起始时间点没有值，开头置为0
+                        int interval = (int)(d.getDate("time").getTime() - startDate.getTime()) / (1000*60*60);
+                        if(interval == 0) {
+                            clusterTimeSeries.add(thisClusterValue);
+                            preClusterValue = thisClusterValue;
+                        }else{
+                            for (int k = 0; k < interval; k++) {
+                                clusterTimeSeries.add(preClusterValue);
+                            }
+                            clusterTimeSeries.add(thisClusterValue);
+                        }
+
+                        pre2 = d;
+                    }else {
+                        int interval = (int) (d.getDate("time").getTime() - pre2.getDate("time").getTime()) / (1000*60*60);
+                        if(interval == 1) {
+
+                        }else {
+                            for (int j = 0; j < interval-1; j++) {
+                                clusterTimeSeries.add(preClusterValue);
+                            }
+                        }
+
+                        if(thisClusterValue != 0) {
+                            clusterTimeSeries.add(thisClusterValue);
+                            preClusterValue = thisClusterValue;
+                        }else{
+                            clusterTimeSeries.add(preClusterValue);
+                        }
+
+                        pre2 = d;
+
+                    }
                 }
 
                 //ArrayList转double数组
