@@ -82,7 +82,7 @@
 
 
         var stack = d3.layout.stack()
-                .offset("silhouette")
+                .offset("wiggle")
                 .values(function(d) { return d.values; })
                 .x(function(d) { return d.date; })
                 .y(function(d) { return d.value; });
@@ -113,12 +113,44 @@
             x.domain(d3.extent(data, function(d) { return d.date; }));
             y.domain([0, d3.max(data, function(d) { return d.y0 + d.y; })]);
 
+            for(var i = 0; i < 4; i ++){
+                var c = "#FF0000";
+                if(i == 0) c = "#FF1100";
+                if(i == 2) c = "#FFDD00";
+                if(i == 3) c = "#FF8800";
+                if(i == 1) c = "#FFAA00";
+                var grad = svg.append("defs")
+                        .append("linearGradient")
+                        .attr("id", "a"+i)
+                        .attr("x1", "0%")
+                        .attr("y1", "100%")
+                        .attr("x2", "100%")
+                        .attr("y2", "100%");
+
+                grad.append("stop")
+                        .attr("offset", 0.05*(i+1))
+                        .attr("stop-color", z(i))
+                        .attr("stop-opacity", 1);
+                grad.append("stop")
+                        .attr("offset", 0.05*(i+1)+0.001)
+                        .attr("stop-color", c)
+                        .attr("stop-opacity", 1);
+                grad.append("stop")
+                        .attr("offset", 0.6+0.05*(i+1))
+                        .attr("stop-color", c)
+                        .attr("stop-opacity", 1);
+                grad.append("stop")
+                        .attr("offset", 0.6+0.05*(i+1)+0.001)
+                        .attr("stop-color", z(i))
+                        .attr("stop-opacity", 1);
+            }
+
             svg.selectAll(".layer")
                     .data(layers)
                     .enter().append("path")
                     .attr("class", "layer")
                     .attr("d", function(d) { return area(d.values); })
-                    .style("fill", function(d, i) { return z(i); });
+                    .style("fill", function(d, i) { return "url(#" + "a"+ ((4-i)-1) ; });
 
 
             svg.append("g")
@@ -126,10 +158,12 @@
                     .attr("transform", "translate(0," + height + ")")
                     .call(xAxis);
 
-
-            svg.append("g")
-                    .attr("class", "y axis")
-                    .call(yAxis.orient("left"));
+//            <defs>
+//            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+//                    <stop offset="0%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
+//                    <stop offset="100%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
+//                    </linearGradient>
+//                    </defs>
 
             svg.selectAll(".layer")
                     .attr("opacity", 1)

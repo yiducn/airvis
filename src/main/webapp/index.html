@@ -106,6 +106,7 @@
             </div>
 
             <div style="text-align: left;"><input id="controlCluster" type="checkbox" onchange="controlCluster();"><label>Cluster</label></div>
+            <div style="text-align: left;"><input id="controlAQHeatMap" type="checkbox" onchange="controlAQHeatMap();"><label>AirQuality HeatMap</label></div>
             <div style="text-align: left;"><input id="controlStl" type="checkbox" onchange="controlStl();"><label>STL View</label></div>
 
             <div style="text-align: left;"><input id="controlHeatMapCor" type="checkbox" onchange="controlHeatMapCor();"><label>Correlation HeatMap</label></div>
@@ -117,6 +118,11 @@
                 <label id="minCor">0.0</label>
                 <div id="sliderCor" style="display:inline-block;width:50px;left:10px;"></div>
                 <div style="float:right;width:50px;position:relative;"><label id="maxDistanceCor">1.0</label></div>
+            </div>
+            <div>
+                <label id="minRad">0.0</label>
+                <div id="sliderRad" style="display:inline-block;width:50px;left:10px;"></div>
+                <div style="float:right;width:50px;position:relative;"><label id="maxRad">200</label></div>
             </div>
         </div>
 
