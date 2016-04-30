@@ -1947,9 +1947,9 @@ function cluster(){
                     .attr('cy', stationY)
                     .attr('fill', function(d){
                         //根据数值返回颜色
-                        if(unfilteredData[i].pm25 == null)
-                            return "yellow";
                         for(var i = 0; i < unfilteredData.length; i ++){
+                            if(unfilteredData[i].pm25 == null)
+                                return "yellow";
                             if(d.cluster[0].code == unfilteredData[i].code)
                                 return colorScale(unfilteredData[i].pm25);
                         }
