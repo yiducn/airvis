@@ -78,10 +78,10 @@
 
 <div id="controller" style="position:fixed;left:5px;top:50px;z-index: 200;padding-left: 10px;">
     <div class="panel panel-default">
-        <div class="panel-heading">
+        <div class="panel-heading"  data-toggle="collapse" data-target="#layers">
             <h3 class="panel-title">Map Layers</h3>
         </div>
-        <div class="panel-body">
+        <div class="panel-body collapse" id="layers">
             <div style="text-align: left;"><input id="pointcontrol" type="checkbox" onchange="pointControl();"><label>Air Quality Stations</label><br></div>
             <div style="text-align: left;"><input id="meteorologicalStationControl" type="checkbox" onchange="meteorologicalStationControl();"><label>Meteorological Stations</label></div>
             <div style="text-align: left;"><input id="provinceBoundary" type="checkbox" onchange="provinceBoundaryControl();"><label>Province Boundary</label></div>
@@ -92,10 +92,10 @@
             <div style="text-align: left;"><input id="controlWinds" type="checkbox" onchange="controlWinds();"><label>Overall Wind</label></div>
         </div>
 
-        <div class="panel-heading">
+        <div class="panel-heading" data-toggle="collapse" data-target="#simpleview">
             <h3 class="panel-title">Views</h3>
         </div>
-        <div class="panel-body">
+        <div class="panel-body collapse" id="simpleview">
             <div style="text-align: left;"><input id="controlTrend" type="checkbox" onchange="controlTrend();" checked><label>Trend</label></div>
             <div style="text-align: left;"><input id="controlContextRing" type="checkbox" onchange="controlContextRing();"><label>Annular Container</label></div>
 
@@ -108,11 +108,16 @@
             <div style="text-align: left;"><input id="controlCluster" type="checkbox" onchange="controlCluster();"><label>Cluster</label></div>
             <div style="text-align: left;"><input id="controlAQHeatMap" type="checkbox" onchange="controlAQHeatMap();"><label>AirQuality HeatMap</label></div>
             <div style="text-align: left;"><input id="controlStl" type="checkbox" onchange="controlStl();"><label>STL View</label></div>
+        </div>
 
+        <div class="panel-heading"  data-toggle="collapse" data-target="#corview">
+            <h3 class="panel-title">Correlation Views</h3>
+        </div>
+        <div class="panel-body collapse" id="corview">
             <div style="text-align: left;"><input id="controlHeatMapCor" type="checkbox" onchange="controlHeatMapCor();"><label>Correlation HeatMap</label></div>
             <div style="text-align: left;"><input id="controlLeadHeatMapCor" type="checkbox" onchange="controlLeadHeatMapCor();"><label>Lead Correlation HeatMap</label></div>
             <div style="text-align: left;"><input id="controlLagHeatMapCor" type="checkbox" onchange="controlLagHeatMapCor();"><label>Lag Correlation HeatMap</label></div>
-            <div style="text-align: left;"><input id="controlThemeRiver" type="checkbox" onchange="controlThemeRiver();"><label>Theme River Group</label></div>
+            <div style="text-align: left;"><input id="controlThemeRiver" type="checkbox" onchange="controlThemeRiver();"><label>LLC Theme River</label></div>
 
             <div>
                 <label id="minCor">0.0</label>
