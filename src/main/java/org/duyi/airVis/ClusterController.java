@@ -980,11 +980,11 @@ public class ClusterController {
      * @param codes 中心区域的站点
      * @return
      */
-    @RequestMapping(value = "correlation2.do", method = RequestMethod.POST)
+    @RequestMapping(value = "correlation3.do", method = RequestMethod.POST)
     public
     @ResponseBody
     //TODO
-    String correlation2(String cluster, String startTime, String endTime, String[] codes) {
+    String correlation3(String cluster, String startTime, String endTime, String[] codes) {
         String clusterAfterUpdateWind = updateWind(cluster, startTime, endTime);
         try {
             //获取cluster中第一个台站的的code
@@ -1061,7 +1061,11 @@ public class ClusterController {
             queryCenterClusterMeteoData.append("usaf",centerClusterMeteo);
             queryCenterClusterMeteoData.append("time",new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
             DBCursor curCenterClusterMeteoData = meteoCollectionDaily.find(queryCenterClusterMeteoData);
-            double centerSpd = Double.parseDouble(curCenterClusterMeteoData.next().get("spd").toString());
+            double centerSpd;
+            if(!curCenterClusterMeteoData.hasNext())
+                centerSpd = 0;
+            else
+                centerSpd = Double.parseDouble(curCenterClusterMeteoData.next().get("spd").toString());
             //－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
             for(int i = 0; i < jsonCluster.length(); i ++){
@@ -1172,11 +1176,11 @@ public class ClusterController {
         return "exception";
     }
 
-    @RequestMapping(value = "correlation3.do", method = RequestMethod.POST)
+    @RequestMapping(value = "correlation2.do", method = RequestMethod.POST)
     public
     @ResponseBody
         //TODO
-    String correlation3(String cluster, String startTime, String endTime, String[] codes) {
+    String correlation2(String cluster, String startTime, String endTime, String[] codes) {
         String clusterAfterUpdateWind = updateWind(cluster, startTime, endTime);
         try {
             //获取cluster中第一个台站的的code
@@ -1186,7 +1190,7 @@ public class ClusterController {
             MongoClient client = new MongoClient("127.0.0.1", 27017);
             MongoDatabase db = client.getDatabase(NEW_DB_NAME);
             MongoCollection pmCollection = db.getCollection("pm_data");
-            DB db2 = client.getDB("127.0.0.1");
+            DB db2 = client.getDB(NEW_DB_NAME);
             DBCollection meteoCollectionDaily = db2.getCollection("meteodata_day");
             DBCollection clusterCollection = db2.getCollection("cluster");
             DBCollection clusterMeteoCollection = db2.getCollection("clusterMeteo");
@@ -1277,7 +1281,11 @@ public class ClusterController {
             queryCenterClusterMeteoData.append("usaf",centerClusterMeteo);
             queryCenterClusterMeteoData.append("time",new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
             DBCursor curCenterClusterMeteoData = meteoCollectionDaily.find(queryCenterClusterMeteoData);
-            double centerSpd = Double.parseDouble(curCenterClusterMeteoData.next().get("spd").toString());
+            double centerSpd;
+            if(!curCenterClusterMeteoData.hasNext())
+                centerSpd = 0;
+            else
+                centerSpd = Double.parseDouble(curCenterClusterMeteoData.next().get("spd").toString());
             //－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
             for(int i = 0; i < jsonCluster.length(); i ++){
