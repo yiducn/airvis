@@ -1172,7 +1172,7 @@ function repaintAll(){
 /**
  * 在屏幕上创建的问题就是div覆盖了地图图层,使得地图不能交互
  */
-function createCircleView2() {
+function createCircleView() {
     //var direction = [];
     //var distance = [];
     if(contextRing != null)
@@ -1606,7 +1606,7 @@ function clusterWithCorrelation(){
         .style("opacity", 0);
 
     $.ajax({
-        url: "correlation2.do",
+        url: "correlation3.do",
         type:"post",
         data: "cluster="+
             JSON.stringify(clusterResult) +
@@ -1947,9 +1947,9 @@ function cluster(){
                     .attr('cy', stationY)
                     .attr('fill', function(d){
                         //根据数值返回颜色
-                        if(unfilteredData[i].pm25 == null)
-                            return "yellow";
                         for(var i = 0; i < unfilteredData.length; i ++){
+                            //if(unfilteredData[i].pm25 == null)
+                            //    return "yellow";
                             if(d.cluster[0].code == unfilteredData[i].code)
                                 return colorScale(unfilteredData[i].pm25);
                         }
@@ -2784,7 +2784,14 @@ function controlContextRing(){
             map.removeLayer(scatterGroup);
     }
     if($("#controlContextRing").is(":checked")){
-        createCircleView2();
+        if(freedrawEvent.latLngs == null || freedrawEvent.latLngs.length == 0) {
+            window.alert("you should select a region on the map first.");
+            return;
+        }else if(overAllBrush == null){
+            window.alert("you should select a time region on the trend view first.");
+            return;
+        }
+        createCircleView();
     }
 }
 
@@ -2831,6 +2838,13 @@ function controlCluster(){
         map.removeLayer(clusterLayer);
     }
     if($("#controlCluster").is(":checked")){
+        if(freedrawEvent.latLngs == null || freedrawEvent.latLngs.length == 0) {
+            window.alert("you should select a region on the map first.");
+            return;
+        }else if(overAllBrush == null){
+            window.alert("you should select a time region on the trend view first.");
+            return;
+        }
         cluster();
         if(detailBrush != null){
             clusterWithCorrelation();
