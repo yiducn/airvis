@@ -1,14 +1,13 @@
 /**
  * Created by yidu on 11/10/15.
  */
-
 //地图对象
 var map;
 
 //各种叠加图层
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
 var provinceBoundaryOverlay, cityBoundaryOverlay, scatterGroup, clusterLayer, themeLayer,corHeatMapLayer, gridsView, windsView;
-var stllayer, contextRing, aqHeatMapLayer;
+var stllayer, contextRing, aqHeatMapLayer, windLayer;
 var provinceValueOverlay, cityValueOverlay;
 
 var overAllBrush;
@@ -80,7 +79,7 @@ var outerRadius;
 var innerRadius;
 
 var clusterResult;
-var clusterCircles;// 用来实现cluster的动画
+var circles;// 用来实现cluster的动画
 //八边形从北开始顺时针,各个格子在屏幕中的位置
 var octagonLocationScreen = [];
 //从北侧开始顺时针,各个区域的path
@@ -1606,7 +1605,7 @@ function clusterWithCorrelation(){
         .style("opacity", 0);
 
     $.ajax({
-        url: "correlation3.do",
+        url: "correlation2.do",
         type:"post",
         data: "cluster="+
             JSON.stringify(clusterResult) +
@@ -1616,7 +1615,7 @@ function clusterWithCorrelation(){
         success: function (returnData) {
             var data = JSON.parse(returnData);
             clusterResult = data;
-            clusterCircles.transition()
+            circles.transition()
                 .attr("r", function(d){
                     for(var i = 0; i < data.length; i ++){
                         if(data[i].id == d.id) {
@@ -1651,7 +1650,7 @@ function clusterWithCorrelation(){
 
                 });
 
-            clusterCircles.on("mouseover", function(d) {
+            circles.on("mouseover", function(d) {
                 var cor = 0;
                 var lag = 0;
                 for(var i = 0; i < data.length; i ++){
@@ -1904,25 +1903,9 @@ function cluster(){
             }
 
             clusterLayer = L.d3SvgOverlay(function(sel, proj) {
-                sel.append("g").selectAll(".clusterWind").data(data)
-                    .enter()
-                    .append("svg:marker")
-                    .attr("id", function(d){return "triangle"+ d.cluster[0].code;})
-                    .attr("viewBox", "0 0 15 10")
-                    .attr("refX", "0")
-                    .attr("refY", "3")
-                    .attr("markerWidth", "3")
-                    .attr("markerHeight", "3")
-                    .attr("orient", function(d){return d.dir+"deg";})
-                    .append("path")
-                    .attr("d", "M 0 0 L 10 3 L 0 6 z");
 
                 var centerScreen = proj.latLngToLayerPoint(center);
 
-                //return centerScreen.x + r *
-                //    (d.longitude - center.lng) /
-                //    Math.sqrt((d.latitude - center.lat)*(d.latitude - center.lat) + (d.longitude - center.lng)*(d.longitude - center.lng));
-                //
                 var stationX = function (d) {
                     var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
                     return centerScreen.x + r *
@@ -1936,13 +1919,29 @@ function cluster(){
                         Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
                 }
 
-                clusterCircles = sel.append("g").selectAll(".cluster").data(data)
+                sel.append("g").selectAll(".clusterWind").data(data)
                     .enter()
-                    .append("circle")
-                    .attr('id', function(d){return d.id;})
+                    .append("svg:marker")
+                    .attr("id", function(d){return "triangle"+ d.cluster[0].code;})
+                    .attr("viewBox", "0 0 15 10")
+                    .attr("refX", "0")
+                    .attr("refY", "3")
+                    .attr("markerWidth", "3")
+                    .attr("markerHeight", "3")
+                    .attr("orient", function(d){return d.dir+"deg";})
+                    .append("path")
+                    .attr("d", "M 0 0 L 10 3 L 0 6 z");
+
+                var clusterCircles = sel.selectAll(".cluster").data(data)
+                    .enter()
+                    .append("g")
+                    .attr('id', function(d){return d.id;});
+
+                circles = clusterCircles.append("circle")
                     .attr('r', function (d) {
                         return 4+(d.cluster.length-1)*3;//d.cluster.length*5;
                     })
+                    .attr('id', function(d){return d.id;})//能使用同一个id 么?
                     .attr('cx', stationX)
                     .attr('cy', stationY)
                     .attr('fill', function(d){
@@ -1960,149 +1959,24 @@ function cluster(){
                     })
                     .attr('opacity', '1')
                     .attr('stroke', 'black')
-                    .attr('stroke-width', 0.5) ;
-                //TODO
-                //sel.append("g").selectAll(".clusterWind").data(data)
-                //    .enter()
-                //    .append("line")
-                //    .attr('x1', stationX)
-                //    .attr('y1', stationY)
-                //    .attr("x2", stationX)
-                //    .attr("y2", stationY)
-                //    .attr("marker-end", function(d){return "url(#triangle"+d.cluster[0].code+")";})
-                //    .attr("stroke", "black")
-                //    .attr("stroke-width", function(d){return 2;})
-                //    .attr('fill-opacity', '0.8');
+                    .attr('stroke-width', 0.5);
+                clusterCircles.append("line")
+                    .attr('class', 'clusterwind')
+                    .attr('x1', stationX)
+                    .attr('y1', stationY)
+                    .attr("x2", stationX)
+                    .attr("y2", stationY)
+                    .attr("marker-end", function(d){return "url(#triangle"+d.cluster[0].code+")";})
+                    .attr("stroke", "black")
+                    .attr("stroke-width", function(d){return (2 + d.spd/2);})
+                    .attr('fill-opacity', '0.8')
+                    .attr("visibility", "hidden");
 
             });
             clusterLayer.addTo(map);
         },
         async:false
     });
-
-}
-
-/**绘制cluster后的wind方向
- * 首先根据city区域进行聚类
- * 然后根据时间相似性进行聚类
- */
-function windAfterCluster(){clusterResult = data;
-
-    if(clusterLayer != null)
-        map.removeLayer(clusterLayer);
-    sizeScreen = map.getPixelBounds().getSize();
-    outerRadius = sizeScreen.y / 2-50;
-    innerRadius = outerRadius -  SIZE_RING;
-    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
-    var center = bounds.getBounds().getCenter();
-
-    var centerX, centerY, sumX = 0, sumY = 0;
-    for(var i = 0; i < freedrawEvent.latLngs[0].length; i ++){
-        sumX += freedrawEvent.latLngs[0][i].lng;
-        sumY += freedrawEvent.latLngs[0][i].lat;
-    }
-    centerX = sumX / freedrawEvent.latLngs[0].length;
-    centerY = sumY / freedrawEvent.latLngs[0].length;
-
-    var param = "";
-    for(var i = 0; i < filteredData.length; i ++){
-        param += ("codes="+filteredData[i].code + "&");
-    }
-    param += "maxDistance="+maxDis+"&";
-    param += "centerLon=" + centerX+"&";
-    param += "centerLat=" + centerY+"&";
-    param += "startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
-    $.ajax({
-        //url:"cluster.do",
-        //url: "clusterWithWind.do",
-        url:"newclusterWithWind.do",
-        type:"post",
-        data: param,
-        success: function (returnData) {
-            var data = JSON.parse(returnData);
-            clusterResult = data;
-
-            for(var i = 0; i < data.length; i ++){
-                data[i].distance = L.latLng(data[i].centerY, data[i].centerX).distanceTo(center);
-            }
-
-            clusterLayer = L.d3SvgOverlay(function(sel, proj) {
-                sel.append("g").selectAll(".clusterWind").data(data)
-                    .enter()
-                    .append("svg:marker")
-                    .attr("id", function(d){return "triangle"+ d.cluster[0].code;})
-                    .attr("viewBox", "0 0 15 10")
-                    .attr("refX", "0")
-                    .attr("refY", "3")
-                    .attr("markerWidth", "3")
-                    .attr("markerHeight", "3")
-                    .attr("orient", function(d){return d.dir+"deg";})
-                    .append("path")
-                    .attr("d", "M 0 0 L 10 3 L 0 6 z");
-
-                var centerScreen = proj.latLngToLayerPoint(center);
-
-                //return centerScreen.x + r *
-                //    (d.longitude - center.lng) /
-                //    Math.sqrt((d.latitude - center.lat)*(d.latitude - center.lat) + (d.longitude - center.lng)*(d.longitude - center.lng));
-                //
-                var stationX = function (d) {
-                    var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
-                    return centerScreen.x + r *
-                        (d.centerX - center.lng) /
-                        Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
-                }
-                var stationY = function (d) {
-                    var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
-                    return centerScreen.y - r *
-                        (d.centerY - center.lat) /
-                        Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
-                }
-
-                clusterCircles = sel.append("g").selectAll(".cluster").data(data)
-                    .enter()
-                    .append("circle")
-                    .attr('id', function(d){return d.id;})
-                    .attr('r', function (d) {
-                        return 4+(d.cluster.length-1)*3;//d.cluster.length*5;
-                    })
-                    .attr('cx', stationX)
-                    .attr('cy', stationY)
-                    .attr('fill', function(d){
-                        //根据数值返回颜色
-                        if(unfilteredData[i].pm25 == null)
-                            return "yellow";
-                        for(var i = 0; i < unfilteredData.length; i ++){
-                            if(d.cluster[0].code == unfilteredData[i].code)
-                                return colorScale(unfilteredData[i].pm25);
-                        }
-                        //if(d.cluster[0]pm25 == null)
-                        //    return colorScale(0);
-                        //return colorScale(d.pm25);
-                        return 'yellow';
-                    })
-                    .attr('opacity', '1')
-                    .attr('stroke', 'black')
-                    .attr('stroke-width', 0.5) ;
-                //TODO
-                //sel.append("g").selectAll(".clusterWind").data(data)
-                //    .enter()
-                //    .append("line")
-                //    .attr('x1', stationX)
-                //    .attr('y1', stationY)
-                //    .attr("x2", stationX)
-                //    .attr("y2", stationY)
-                //    .attr("marker-end", function(d){return "url(#triangle"+d.cluster[0].code+")";})
-                //    .attr("stroke", "black")
-                //    .attr("stroke-width", function(d){return 2;})
-                //    .attr('fill-opacity', '0.8');
-
-            });
-            clusterLayer.addTo(map);
-        },
-        async:false
-    });
-
 }
 
 
@@ -2855,6 +2729,14 @@ function controlCluster(){
     }
 }
 
+function controlClusterWind(){
+    if($("#controlClusterWind").is(":checked")){
+        $(".clusterwind").each(function(){$(this).attr("visibility", "visible");})
+    }else{
+        $(".clusterwind").each(function(){$(this).attr("visibility", "hidden")});
+    }
+
+}
 function controlHeatMapCor(){
     if(corHeatMapLayer != null)
         map.removeLayer(corHeatMapLayer);
