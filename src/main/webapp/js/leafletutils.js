@@ -6,16 +6,15 @@ var map;
 
 //各种叠加图层
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
-var provinceBoundaryOverlay, cityBoundaryOverlay, scatterGroup, clusterLayer, themeLayer,corHeatMapLayer, gridsView, windsView;
-var stllayer, contextRing, aqHeatMapLayer, windLayer;
-var provinceValueOverlay, cityValueOverlay;
+var scatterGroup, clusterLayer, themeLayer,corHeatMapLayer, gridsView, windsView;
+var stlLayer, contextRing, aqHeatMapLayer, windLayer;
+var provinceBoundaryOverlay, cityBoundaryOverlay, provinceValueOverlay, cityValueOverlay;
 
-var overAllBrush;
-var detailBrush;
+var overAllBrush, detailBrush;
 var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 var unfilteredData = [];//经过过滤后剩下的数据,结构同filteredData
-var COR_THREADHOOD = 0;
-var SIZE_RING = 80;
+var COR_THREADHOOD = 0.6;
+var SIZE_RING = 120;
 var GRID_SIZE_CORRELATION = 2;//correlation map的grid 大小
 var displayPoint = false;//判断点是不是已经显示过一次了,如果显示过则不需要再重置filteredData
 
@@ -55,23 +54,18 @@ var CALENDAR_WIDTH_DEFAULT = 800;
 var CALENDAR_HEIGHT_DEFAULT = 600;
 
 //overall color scale
-//var colors = ["#FF0000","#FFFF00","#00FF00"];
 var colors = ["#FF0000", "#FFFF00"];
 var c1 = ["#FF0000", "#FFFF00"];
 var c2 = ["#FFFF00", "#00FF00"];
 var c3 = ["#FF0000", "#FFFF00", "#00FF00"];
-//var c3 = ["#FF0000", "#880088", "#0000FF"];
 
-//var c2 = ["#00FFFF", "#0000FF"];
-//var colors = ["#f03b20", "#feb24c", "ffeda0"];
 var colorScale = d3.scale.linear().domain([200, 0]).range(colors);
-//var colorScaleCor = d3.scale.linear().domain([1, 0]).range(colors);
 var colorScaleCor = d3.scale.linear().domain([1, 0]).range(c1);
 var colorScaleCorLag = d3.scale.linear().domain([0, 1]).range(c2);
 var colorScaleCor4Heatmap  = d3.scale.linear().domain([1, 0, -1]).range(c3);
 
 //当前选择的月份
-var currentSelectedDate = new Date("2015-10-01");
+//var currentSelectedDate = new Date("2015-10-01");
 
 //contextRing param
 var sizeScreen;
@@ -103,21 +97,15 @@ function initUIs(){
     meteorologicalStationLayer = L.layerGroup();
     meteorologicalStationLayer.addTo(map);
 
-    //TODO createProvinceSelControl();
-    //L.control.layers(map).addTo(map);
-
+    //piemenu
     piemenu = new wheelnav('piemenu');
     //piemenu.slicePathFunction = slicePath().DonutSlice;
     //操作-> group、ungroup(divided by province/county)
     //Analysis->trends, factors, factors with wind,  nearby
-
     piemenu.createWheel(['zoom']);//, 'zoom&show']);//, 'group', 'ungroup', 'factors', 'factors with wind', 'nearby']);
     piemenu.navItems[0].navigateFunction = zoomAndCenter;
     //piemenu.navItem[1].navigateFunction = activeContextRing;
-    //TODO
     piemenu.wheelRadius = 50;
-
-
 
     map.on('zoomend', function() {
         controlContextRing();
@@ -132,22 +120,14 @@ function initUIs(){
         }
     });
     map.on('moveend', function(){
-        //maxDis = null;
-        //minDis = null;
-        //controlContextRing();//TODO
-        //controlCluster();
-        //controlThemeRiver();
 
         $("#controlTrend").attr('checked', false);
         $("#trendpanel").hide();
 
         if($("#controlContextRing").is(":checked")){
-            //$( "#slider" ).slider( "option", "min", minDis );
-            //$( "#slider" ).slider( "option", "max", maxDis );
             $("#maxDistance").text(parseInt(maxDis/1000) + "km");
             $("#minDistance").text(parseInt(minDis/1000) + "km");
         }
-        //updateBounds4Grids();
     });
 
     $("#slider").slider();
@@ -161,7 +141,7 @@ function initUIs(){
         }
     );
 
-    $("#sliderCor").slider();
+    $("#sliderCor").slider({ value: COR_THREADHOOD*100});
     $( "#sliderCor" ).slider( "option", "min", 0.0 );
     $( "#sliderCor" ).slider( "option", "max", 100 );
 
@@ -169,12 +149,12 @@ function initUIs(){
         function( event, ui ) {
             $("#maxDistanceCor").text(ui.value/100);
             COR_THREADHOOD = ui.value/100;
-            controlCluster();
+            //controlCluster();
             controlThemeRiver();
         }
     );
 
-    $("#sliderRad").slider();
+    $("#sliderRad").slider({ value: SIZE_RING});
     $( "#sliderRad" ).slider( "option", "min", 1 );
     $( "#sliderRad" ).slider( "option", "max", 200 );
 
@@ -183,6 +163,7 @@ function initUIs(){
             $("#maxRad").text(ui.value);
             COR_THREADHOOD = ui.value;
             SIZE_RING = ui.value;
+            controlContextRing();
         }
     );
 
@@ -1159,8 +1140,7 @@ function linearTime(){
  * TODO all repaint should use this function
  */
 function repaintAll(){
-    //TODO
-    createCalendarView();
+    controlCalendar();
     provinceValueControl();
     cityValueControl();
     controlContextRing();
@@ -1326,8 +1306,8 @@ function createCircleView() {
 }
 
 function createStlview(){
-    if(stllayer != null)
-        map.removeLayer(stllayer);
+    if(stlLayer != null)
+        map.removeLayer(stlLayer);
 
     var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
     var center = bounds.getBounds().getCenter();
@@ -1336,7 +1316,7 @@ function createStlview(){
     outerRadius = sizeScreen.y / 2-50;
     innerRadius = outerRadius -  SIZE_RING;
 
-    stllayer = L.d3SvgOverlay(function(sel, proj) {
+    stlLayer = L.d3SvgOverlay(function(sel, proj) {
         var cities = "";
         if (filteredData.length != 0) {
             cities += ("codes=" + filteredData[0].code);
@@ -1575,7 +1555,7 @@ function createStlview(){
 
             }});
     });
-    stllayer.addTo(map);
+    stlLayer.addTo(map);
 
 }
 
@@ -2344,6 +2324,8 @@ function createCorHeatMapView(){
             for(var i = 0; i < clusterResult.length; i ++){
                 if(clusterResult[i].id != id)
                     continue;
+                if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD))
+                    continue;
                 x.push($(this).attr("cx"));
                 y.push($(this).attr("cy"));
                 if(clusterResult[i].lag > 0)
@@ -2366,6 +2348,7 @@ function createCorHeatMapView(){
 
             for (var j = 1; j < bbox.width-1; j+=GRID_SIZE_CORRELATION) {
                 for (var k = 1; k < bbox.height-1; k+=GRID_SIZE_CORRELATION) {
+                    if
                     if (!Snap.path.isPointInside(octagonPath[i], bbox.x + j, bbox.y + k)) {
                         continue;
                     }
@@ -2405,6 +2388,8 @@ function createLeadCorHeatMapView(){
             var id = $(this).attr("id");
             for(var i = 0; i < clusterResult.length; i ++){
                 if(clusterResult[i].id != id)
+                    continue;
+                if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD))
                     continue;
                 x.push($(this).attr("cx"));
                 y.push($(this).attr("cy"));
@@ -2468,6 +2453,8 @@ function createLagCorHeatMapView(){
             var id = $(this).attr("id");
             for(var i = 0; i < clusterResult.length; i ++){
                 if(clusterResult[i].id != id)
+                    continue;
+                if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD))
                     continue;
                 x.push($(this).attr("cx"));
                 y.push($(this).attr("cy"));
@@ -2572,21 +2559,11 @@ function controlCalendar(){
 
     paintControl.calendar = $("#controlCalendar").is( ':checked' );
     if($("#controlCalendar").is( ':checked' )){
-        disableCalendarView();
         $("#calendar").show();
         $("#calendar").css("visibility", "visible");
     }else{
-        enableCalendarView();
         $("#calendar").hide();
     }
-}
-//TODO
-function disableCalendarView(){
-
-}
-//TODO
-function enableCalendarView(){
-
 }
 
 /**
@@ -2671,12 +2648,12 @@ function controlContextRing(){
 
 function controlStl(){
     if($("#controlStl").is( ':checked' )){
-        if(stllayer != null)
-            map.removeLayer(stllayer);
+        if(stlLayer != null)
+            map.removeLayer(stlLayer);
         createStlview();
     }else{
-        if(stllayer != null)
-            map.removeLayer(stllayer);
+        if(stlLayer != null)
+            map.removeLayer(stlLayer);
     }
 }
 
