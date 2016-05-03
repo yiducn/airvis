@@ -2348,7 +2348,7 @@ function createCorHeatMapView(){
 
             for (var j = 1; j < bbox.width-1; j+=GRID_SIZE_CORRELATION) {
                 for (var k = 1; k < bbox.height-1; k+=GRID_SIZE_CORRELATION) {
-                    if
+
                     if (!Snap.path.isPointInside(octagonPath[i], bbox.x + j, bbox.y + k)) {
                         continue;
                     }
