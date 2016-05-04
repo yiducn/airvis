@@ -1555,14 +1555,16 @@ public class ClusterController {
                 if(clusterSpd != 0 && clusterSpd != -1) {
                     addition = (int) (clusterDistance / clusterSpd);
                     //所有的addition控制在四日以内
-                    if(addition > 96)
-                        addition = 96;
+                    if(addition > 72)
+                        addition = 72;
                 }else{
                     addition = 24;
                 }
 
                 if(centerSpd != 0 && centerSpd != -1) {
                     additionLater = (int) (clusterDistance / centerSpd);
+                    if(additionLater > 72)
+                        additionLater = 72;
                 }else{
                     additionLater = 24;
                 }

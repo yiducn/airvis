@@ -2121,18 +2121,17 @@ function clusterAndThemeRiver(){
                     };
 
                     order = getOrder(entries);
+                    var newEntries = [];
                     {
                         //reorder entries
                         for(var i = 0; i < order.length; i ++){
                             var index = order.indexOf(i);
-                            var temp = entries[i];
-                            entries[i] = entries[index];
-                            entries[index] = temp;
+                            newEntries.push(entries[index]);
                         }
                     }
 
 
-                    var layers = stack(entries);
+                    var layers = stack(newEntries);
 
                     x.domain(d3.extent(data, function (d) {
                         return d.time;
@@ -2395,6 +2394,15 @@ function groupThemeRiver(){
             };
 
             order = getOrder(entries);
+            var newEntries = [];
+            {
+                //reorder entries
+                for(var i = 0; i < order.length; i ++){
+                    var index = order.indexOf(i);
+                    newEntries.push(entries[index]);
+                }
+            }
+
             var layers = stack(entries);
 
             x.domain(d3.extent(data, function (d) {
