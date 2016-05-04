@@ -991,7 +991,7 @@ function linearTime(){
     $("#trend").width(window.screen.availWidth);
     //var totalW = $("#trend").width(), totalH = $("#trend").height();
     //var startTime
-    var totalW = 2500, totalH = $("#trend").height();
+    var totalW = 3500, totalH = $("#trend").height();
     var margin = {top: 10, right: 20, bottom: 50, left: 40},
         width = totalW - margin.left - margin.right,
         height = totalH - margin.top - margin.bottom;
@@ -1104,8 +1104,8 @@ function linearTime(){
                 .append("image")
                 .attr("x",function(d){return x(d.date);})
                 .attr("y",0)
-                .attr("width", 100)
-                .attr("height", 100)
+                .attr("width", 140)
+                .attr("height", 140)
                 .attr("xlink:href", function(d){return "../imgs/"+ d.url +".png";})//"../imgs/201401.png"
                 .on("mouseup", function(){
                     console.log(this);
@@ -1701,13 +1701,23 @@ function drawScatterGroup(){
             });
             var stationX = function (d) {
                 var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
-                //
+                ////
+                //var distanceD = L.latLng(d.latitude, d.longitude).distanceTo(center);
+                //var distanceX = L.latLng(center.lat, d.longitude).distanceTo(center);
+                //if(d.longitude - center.lng < 0)
+                //    distanceX = -distanceX;
+                //return centerScreen.x + r * distanceX/distanceD;
                 return centerScreen.x + r *
                     (d.longitude - center.lng) /
                     Math.sqrt((d.latitude - center.lat) * (d.latitude - center.lat) + (d.longitude - center.lng) * (d.longitude - center.lng));
             }
             var stationY = function (d) {
                 var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
+                //var distanceD = L.latLng(d.latitude, d.longitude).distanceTo(center);
+                //var distanceY = L.latLng(d.latitude, center.lng).distanceTo(center);
+                //if(d.latitude - center.lat < 0 )
+                //    distanceY = - distanceY;
+                //return centerScreen.y - r * distanceY/distanceD;
                 return centerScreen.y - r *
                     (d.latitude - center.lat) /
                     Math.sqrt((d.latitude - center.lat) * (d.latitude - center.lat) + (d.longitude - center.lng) * (d.longitude - center.lng));
@@ -2065,7 +2075,7 @@ function clusterAndThemeRiver(){
     //https://github.com/shutterstock/rickshaw/issues/108
     for(var i = 0; i < 8; i ++){
         $.ajax({
-            url:"themeriverdata.do",
+            url:"themeriverdata2.do",
             type:"post",
             data: param[i]+"&cluster=" + JSON.stringify(clusterResult),
             success: function (returnData) {
@@ -2371,6 +2381,87 @@ function createCorHeatMapView(){
     });
     corHeatMapLayer.addTo(map);
 
+}
+
+/**
+ * 另一种映射方法,根据lag的数值进行映射,
+ * 只取correlation大于某个数值的
+ */
+function corHeatMapLayerLeadValue(){
+    if(corHeatMapLayer != null)
+        map.removeLayer(corHeatMapLayer);
+    outerRadius = sizeScreen.y / 2-50;
+    innerRadius = outerRadius -  SIZE_RING;
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
+
+    var maxLead = 0;
+    var minLead = 0;
+    var sumMax = 0;
+    var sumMin = 0;
+    for(var i = 0; i < clusterResult.length; i ++){
+        if(clusterResult[i].lag > maxLead)
+            maxLead = clusterResult[i].lag;
+        if(clusterResult[i].lag < minLead)
+            minLead = clusterResult[i].lag;
+        if(clusterResult[i].lag > 0)
+            sumMax += clusterResult[i].lag;
+        if(clusterResult[i].lag < 0)
+            sumMin += clusterResult[i].lag;
+    }
+    var avgMax = sumMax/clusterResult.length;
+    var avgMin = sumMin/ clusterResult.length;
+
+    var c3 = ["#FF0000", "#FF0000", "#FFFF00", "#00FF00", "#00FF00"];
+    var colorScaleLagValue  = d3.scale.linear().domain([maxLead, avgMax, 0, avgMin, minLead]).range(c3);
+
+    corHeatMapLayer = L.d3SvgOverlay(function(sel, proj) {
+
+        var x = [], y = [], t = [];
+        $("circle").each(function() {
+            var id = $(this).attr("id");
+            for(var i = 0; i < clusterResult.length; i ++){
+                if(clusterResult[i].id != id)
+                    continue;
+                if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD))
+                    continue;
+                x.push($(this).attr("cx"));
+                y.push($(this).attr("cy"));
+                    t.push(clusterResult[i].lag);
+            }
+        });//TODO 一定特别注意坐标变换
+
+        var model = "exponential";
+        var sigma2 = 0, alpha = 100;
+        var variogram = kriging.train(t, x, y, model, sigma2, alpha);
+
+        for(var i = 0; i < 8; i ++) {
+            var bbox = Snap.path.getBBox(octagonPath[i]);
+            console.log(bbox.x+":"+bbox.y+":"+bbox.width+":"+bbox.height);
+            var g = sel.append("g")
+                .attr("id", "correlationHeatMap"+i)
+                .attr("transform", "translate(" + bbox.x + "," + bbox.y + ")");
+
+            for (var j = 1; j < bbox.width-1; j+=GRID_SIZE_CORRELATION) {
+                for (var k = 1; k < bbox.height-1; k+=GRID_SIZE_CORRELATION) {
+
+                    if (!Snap.path.isPointInside(octagonPath[i], bbox.x + j, bbox.y + k)) {
+                        continue;
+                    }
+                    var value = kriging.predict(bbox.x + j, bbox.y + k, variogram);
+                    g.append("rect")
+                        .attr("width", GRID_SIZE_CORRELATION+1)
+                        .attr("height", GRID_SIZE_CORRELATION+1)
+                        .attr("fill", colorScaleLagValue(value))
+                        .attr("fill-opacity", 0.9)//Math.abs(value))
+                        .attr("transform", "translate(" + j + "," + k + ")");
+                    //console.log(value+":"+colorScaleCor(value));
+                }
+            }
+        }
+
+    });
+    corHeatMapLayer.addTo(map);
 }
 
 //超前分析
@@ -2719,6 +2810,14 @@ function controlHeatMapCor(){
         map.removeLayer(corHeatMapLayer);
     if($("#controlHeatMapCor").is(":checked")){
         createCorHeatMapView();
+    }
+}
+
+function controlHeatMapCorLeadValue(){
+    if(corHeatMapLayer != null)
+        map.removeLayer(corHeatMapLayer);
+    if($("#controlHeatMapCorLeadValue").is(":checked")){
+        corHeatMapLayerLeadValue();
     }
 }
 

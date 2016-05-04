@@ -619,12 +619,13 @@ public class ClusterController {
      * @param endTime
      * @param index 方向的index
      * @return
+     *
      */
-    @RequestMapping(value = "themeriverdata.do", method = RequestMethod.POST)
+    @RequestMapping(value = "themeriverdata2.do", method = RequestMethod.POST)
     public
     @ResponseBody
     //TODO 差值缺失数据
-    String themeriverdata(String[] codes, String startTime, String endTime, int index, String cluster) {
+    String themeriverdata2(String[] codes, String startTime, String endTime, int index, String cluster) throws ParseException {
         if(codes == null || codes.length == 0)
             return "";
         JSONArray jsonCluster = null;
@@ -668,7 +669,7 @@ public class ClusterController {
             lonMap.put(d.getString("code"), d.getDouble("lon"));
         }
 
-        MongoCursor cur = coll.find(filter).sort(new BasicDBObject("code", 1)).sort(new BasicDBObject("time", 1)).iterator();
+        MongoCursor cur = coll.find(filter).sort(new BasicDBObject("code", 1).append("time", 1)).iterator();
         JSONObject result = new JSONObject();
         JSONArray res = new JSONArray();
         Document pre = null;
@@ -677,6 +678,20 @@ public class ClusterController {
             Document d = (Document)cur.next();
             Document nd = new Document();
             if(pre == null) {
+                int intervD = (int) (d.getDate("time").getTime() - df.parse(startTime).getTime()) / (1000 * 60 * 60 * 24);
+                if (intervD != 0){
+                    Document ndd = new Document();
+                    for (int i = 0; i < intervD; i++) {
+                        long iDate = d.getDate("time").getTime() - (intervD-i) * 1000*60*60*24;
+                        ndd.put("time", new Date(iDate));
+                        ndd.put("pm25", d.get("pm25"));
+                        ndd.put("code", d.get("code"));
+                        ndd.put("city", d.get("city"));
+                        ndd.put("lat", latMap.get(d.get("code")));
+                        ndd.put("lon", lonMap.get(d.get("code")));
+                        res.put(ndd);
+                    }
+                }
                 nd.put("time", d.get("time"));
                 nd.put("pm25", d.get("pm25"));
                 nd.put("code", d.get("code"));
@@ -686,11 +701,186 @@ public class ClusterController {
                 res.put(nd);
                 pre = d;
             }else {
-                if (d.get("code") == pre.get("code")) {
-                    int interval = (int) (d.getDate("time").getTime() - pre.getDate("time").getTime() / (1000 * 60 * 60));
-                    if (interval == 1) {
+                if (d.get("code").equals(pre.get("code"))) {
+                    //若是同一个站，则判断是否有缺失的数据，有则补足
+                    int interval = (int) (d.getDate("time").getTime() - pre.getDate("time").getTime()) / (1000 * 60 * 60* 24);
+                    if (interval != 1) {
+                        for (int i = 0; i < interval-1; i++) {
+                            Document nd2 = new Document();
+                            long newDateSeconds = d.getDate("time").getTime() - (interval-1 - i) * 1000 * 60 * 60* 24;
+                            Date newDate = new Date(newDateSeconds);
+                            nd2.put("time", newDate);
+                            nd2.put("pm25", d.get("pm25"));
+                            nd2.put("code", d.get("code"));
+                            nd2.put("city", d.get("city"));
+                            nd2.put("lat", latMap.get(d.get("code")));
+                            nd2.put("lon", lonMap.get(d.get("code")));
+                            res.put(nd2);
+                        }
+                    }
 
-                    } else {
+                }else{
+                    //不是同一个站时说明新站开始，判断pre是否为结束时间，判断d是否为起始时间。不是则补齐
+                    int intervPre = (int) (df.parse(endTime).getTime() - pre.getDate("time").getTime()) / (1000 * 60 * 60* 24);
+                    if (intervPre != 0){
+                        Document ndd = new Document();
+                        for (int i = 0; i < intervPre; i++) {
+                            long iDate = pre.getDate("time").getTime() - (i+1) * 1000*60*60* 24;
+                            ndd.put("time", new Date(iDate));
+                            ndd.put("pm25", pre.get("pm25"));
+                            ndd.put("code", pre.get("code"));
+                            ndd.put("city", pre.get("city"));
+                            ndd.put("lat", latMap.get(pre.get("code")));
+                            ndd.put("lon", lonMap.get(pre.get("code")));
+                            res.put(ndd);
+                        }
+                    }
+
+                    int intervD = (int) (d.getDate("time").getTime() - df.parse(startTime).getTime()) / (1000 * 60 * 60* 24);
+                    System.out.println("intervD:  " + intervD);
+                    if (intervD != 0){
+                        Document ndd = new Document();
+                        for (int i = 0; i < intervD; i++) {
+                            long iDate = d.getDate("time").getTime() - (intervD-i) * 1000*60*60* 24;
+                            ndd.put("time", new Date(iDate));
+                            ndd.put("pm25", d.get("pm25"));
+                            ndd.put("code", d.get("code"));
+                            ndd.put("city", d.get("city"));
+                            ndd.put("lat", latMap.get(d.get("code")));
+                            ndd.put("lon", lonMap.get(d.get("code")));
+                            res.put(ndd);
+                        }
+                    }
+                }
+
+                nd.put("time", d.get("time"));
+                nd.put("pm25", d.get("pm25"));
+                nd.put("code", d.get("code"));
+                nd.put("city", d.get("city"));
+                nd.put("lat", latMap.get(d.get("code")));
+                nd.put("lon", lonMap.get(d.get("code")));
+                res.put(nd);
+                pre = d;
+            }
+        }
+
+        try {
+            result.put("result", res);
+            result.put("index", index);
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+
+        JSONObject oneLagCor;
+        JSONArray lagCor = new JSONArray();
+        //根据code,得到对应的lag和cor,赋值给result
+        try {
+            for (int i = 0; i < jsonCluster.length(); i++) {
+                JSONObject oneCluster = jsonCluster.getJSONObject(i);
+                JSONArray codeCluster = oneCluster.getJSONArray("cluster");
+                for(int j = 0; j < codeCluster.length(); j ++){
+                    for(int k = 0; k < codes.length; k ++){
+                        if(!codeCluster.getJSONObject(j).getString("code").equals(codes[k])){
+                            continue;
+                        }
+                        oneLagCor = new JSONObject();
+                        oneLagCor.put("code", codes[k]);
+                        oneLagCor.put("cor", oneCluster.getDouble("correlation"));
+                        oneLagCor.put("lag", oneCluster.getInt("lag"));
+                        lagCor.put(oneLagCor);
+                    }
+                }
+            }
+            result.put("lag", lagCor);
+        }catch(Exception ee){
+            ee.printStackTrace();
+        }
+        client.close();
+        return result.toString();
+    }
+
+    @RequestMapping(value = "themeriverdata.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+        //TODO 差值缺失数据
+    String themeriverdata(String[] codes, String startTime, String endTime, int index, String cluster) throws ParseException {
+        if(codes == null || codes.length == 0)
+            return "";
+        JSONArray jsonCluster = null;
+        try{
+            jsonCluster = new JSONArray(cluster);
+
+        }catch(JSONException e){
+            e.printStackTrace();
+        }
+
+        MongoClient client = new MongoClient();
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection("pm_data");
+        MongoCollection collStation = db.getCollection("pm_stations");
+
+        //TODO time zone problem
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
+
+        Document filter = new Document();
+        ArrayList<String> codeFilter = new ArrayList<String>();
+        for(int i = 0; i < codes.length; i ++){
+            codeFilter.add(codes[i]);
+        }
+        try {
+            filter.append("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
+            filter.append("code", new Document().append("$in", codeFilter));
+        }catch(ParseException pe){
+            pe.printStackTrace();
+        }
+
+        //找经纬度的filter
+        HashMap<String, Double> latMap = new HashMap<String, Double>();
+        HashMap<String, Double> lonMap = new HashMap<String, Double>();
+        Document llFilter = new Document();
+        llFilter.append("code", new Document().append("$in", codeFilter));
+        MongoCursor curLL = collStation.find(llFilter).iterator();
+        while(curLL.hasNext()){
+            Document d = (Document)curLL.next();
+            latMap.put(d.getString("code"), d.getDouble("lat"));
+            lonMap.put(d.getString("code"), d.getDouble("lon"));
+        }
+
+        MongoCursor cur = coll.find(filter).sort(new BasicDBObject("time", 1)).sort(new BasicDBObject("code", 1)).iterator();
+        JSONObject result = new JSONObject();
+        JSONArray res = new JSONArray();
+        Document pre = null;
+        while(cur.hasNext()){
+            Document d = (Document)cur.next();
+            Document nd = new Document();
+            if(pre == null) {
+                int intervD = (int) (d.getDate("time").getTime() - df.parse(startTime).getTime()) / (1000 * 60 * 60);
+                if (intervD != 0){
+                    Document ndd = new Document();
+                    for (int i = 0; i < intervD; i++) {
+                        long iDate = d.getDate("time").getTime() - (intervD-i) * 1000*60*60;
+                        ndd.put("time", new Date(iDate));
+                        ndd.put("pm25", d.get("pm25"));
+                        ndd.put("code", d.get("code"));
+                        ndd.put("city", d.get("city"));
+                        ndd.put("lat", latMap.get(d.get("code")));
+                        ndd.put("lon", lonMap.get(d.get("code")));
+                        res.put(ndd);
+                    }
+                }
+                nd.put("time", d.get("time"));
+                nd.put("pm25", d.get("pm25"));
+                nd.put("code", d.get("code"));
+                nd.put("city", d.get("city"));
+                nd.put("lat", latMap.get(d.get("code")));
+                nd.put("lon", lonMap.get(d.get("code")));
+                res.put(nd);
+                pre = d;
+            }else {
+                if (d.get("code").equals(pre.get("code"))) {
+                    //若是同一个站，则判断是否有缺失的数据，有则补足
+                    int interval = (int) (d.getDate("time").getTime() - pre.getDate("time").getTime()) / (1000 * 60 * 60);
+                    if (interval != 1) {
                         for (int i = 0; i < interval-1; i++) {
                             Document nd2 = new Document();
                             long newDateSeconds = d.getDate("time").getTime() - (interval-1 - i) * 1000 * 60 * 60;
@@ -704,7 +894,41 @@ public class ClusterController {
                             res.put(nd2);
                         }
                     }
+
+                }else{
+                    //不是同一个站时说明新站开始，判断pre是否为结束时间，判断d是否为起始时间。不是则补齐
+                    int intervPre = (int) (df.parse(endTime).getTime() - pre.getDate("time").getTime()) / (1000 * 60 * 60);
+                    if (intervPre != 0){
+                        Document ndd = new Document();
+                        for (int i = 0; i < intervPre; i++) {
+                            long iDate = pre.getDate("time").getTime() - (i+1) * 1000*60*60;
+                            ndd.put("time", new Date(iDate));
+                            ndd.put("pm25", pre.get("pm25"));
+                            ndd.put("code", pre.get("code"));
+                            ndd.put("city", pre.get("city"));
+                            ndd.put("lat", latMap.get(pre.get("code")));
+                            ndd.put("lon", lonMap.get(pre.get("code")));
+                            res.put(ndd);
+                        }
+                    }
+
+                    int intervD = (int) (d.getDate("time").getTime() - df.parse(startTime).getTime()) / (1000 * 60 * 60);
+                    System.out.println("intervD:  " + intervD);
+                    if (intervD != 0){
+                        Document ndd = new Document();
+                        for (int i = 0; i < intervD; i++) {
+                            long iDate = d.getDate("time").getTime() - (intervD-i) * 1000*60*60;
+                            ndd.put("time", new Date(iDate));
+                            ndd.put("pm25", d.get("pm25"));
+                            ndd.put("code", d.get("code"));
+                            ndd.put("city", d.get("city"));
+                            ndd.put("lat", latMap.get(d.get("code")));
+                            ndd.put("lon", lonMap.get(d.get("code")));
+                            res.put(ndd);
+                        }
+                    }
                 }
+
                 nd.put("time", d.get("time"));
                 nd.put("pm25", d.get("pm25"));
                 nd.put("code", d.get("code"));
@@ -744,11 +968,12 @@ public class ClusterController {
             }
             result.put("lag", lagCor);
         }catch(Exception ee){
-                ee.printStackTrace();
+            ee.printStackTrace();
         }
         client.close();
         return result.toString();
     }
+
 
     /**
      * 根据当前的起始时间,更新风向\风速
