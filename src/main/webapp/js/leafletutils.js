@@ -991,7 +991,7 @@ function linearTime(){
     $("#trend").width(window.screen.availWidth);
     //var totalW = $("#trend").width(), totalH = $("#trend").height();
     //var startTime
-    var totalW = 2500, totalH = $("#trend").height();
+    var totalW = 3500, totalH = $("#trend").height();
     var margin = {top: 10, right: 20, bottom: 50, left: 40},
         width = totalW - margin.left - margin.right,
         height = totalH - margin.top - margin.bottom;
@@ -1104,8 +1104,8 @@ function linearTime(){
                 .append("image")
                 .attr("x",function(d){return x(d.date);})
                 .attr("y",0)
-                .attr("width", 100)
-                .attr("height", 100)
+                .attr("width", 140)
+                .attr("height", 140)
                 .attr("xlink:href", function(d){return "../imgs/"+ d.url +".png";})//"../imgs/201401.png"
                 .on("mouseup", function(){
                     console.log(this);
@@ -1701,13 +1701,23 @@ function drawScatterGroup(){
             });
             var stationX = function (d) {
                 var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
-                //
+                ////
+                //var distanceD = L.latLng(d.latitude, d.longitude).distanceTo(center);
+                //var distanceX = L.latLng(center.lat, d.longitude).distanceTo(center);
+                //if(d.longitude - center.lng < 0)
+                //    distanceX = -distanceX;
+                //return centerScreen.x + r * distanceX/distanceD;
                 return centerScreen.x + r *
                     (d.longitude - center.lng) /
                     Math.sqrt((d.latitude - center.lat) * (d.latitude - center.lat) + (d.longitude - center.lng) * (d.longitude - center.lng));
             }
             var stationY = function (d) {
                 var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
+                //var distanceD = L.latLng(d.latitude, d.longitude).distanceTo(center);
+                //var distanceY = L.latLng(d.latitude, center.lng).distanceTo(center);
+                //if(d.latitude - center.lat < 0 )
+                //    distanceY = - distanceY;
+                //return centerScreen.y - r * distanceY/distanceD;
                 return centerScreen.y - r *
                     (d.latitude - center.lat) /
                     Math.sqrt((d.latitude - center.lat) * (d.latitude - center.lat) + (d.longitude - center.lng) * (d.longitude - center.lng));
@@ -2003,11 +2013,8 @@ function clusterAndThemeRiver(){
 
     var order = [];
     var stack = d3.layout.stack()
-        .order(function(d){
-            //根据距离远近进行排序
-            return order;
-        })
-        .offset("wiggle")
+
+        .offset("silhouette")
         .values(function (d) {
             //console.log("value:"+ d.values);
             return d.values;
@@ -2020,6 +2027,10 @@ function clusterAndThemeRiver(){
             //console.log("pm25:"+ d.pm25);
             return d.pm25;
         });
+        //.order(function(d){
+        //    //根据距离远近进行排序
+        //    return order;
+        //});
 
     var nest = d3.nest()
         .key(function (d) {
@@ -2065,7 +2076,7 @@ function clusterAndThemeRiver(){
     //https://github.com/shutterstock/rickshaw/issues/108
     for(var i = 0; i < 8; i ++){
         $.ajax({
-            url:"themeriverdata.do",
+            url:"themeriverdata2.do",
             type:"post",
             data: param[i]+"&cluster=" + JSON.stringify(clusterResult),
             success: function (returnData) {
@@ -2093,8 +2104,8 @@ function clusterAndThemeRiver(){
                     var entries = nest.entries(data);
                     //输入entries
                     var getOrder = function(data){//返回order
-                        var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
-                        var center = bounds.getBounds().getCenter();
+                        //TODO 计算center的方法修改!!!!
+                        var center = L.latLng(filteredData[0].latitude, filteredData[0].longitude);
                         var dis = [];
                         for(var i = 0; i < data.length; i ++){
                             dis[i] = L.latLng(data[i].values[0].lat, data[i].values[0].lon).distanceTo(center);
@@ -2110,7 +2121,17 @@ function clusterAndThemeRiver(){
                     };
 
                     order = getOrder(entries);
-                    var layers = stack(entries);
+                    var newEntries = [];
+                    {
+                        //reorder entries
+                        for(var i = 0; i < order.length; i ++){
+                            var index = order.indexOf(i);
+                            newEntries.push(entries[index]);
+                        }
+                    }
+
+
+                    var layers = stack(newEntries);
 
                     x.domain(d3.extent(data, function (d) {
                         return d.time;
@@ -2250,6 +2271,275 @@ function clusterAndThemeRiver(){
     //themeLayer.addTo(map);
 }
 
+function groupThemeRiver(){
+    $("#themeriver").empty();
+    $("#themeriver").css({top: 10, right: 0, position:'absolute'});
+    colorrange = ["#A6BDDB", "#D0D1E6", "#F1EEF6"];//, "#045A8D", "#2B8CBE", "#74A9CF"];
+    var strokecolor = colorrange[0];
+    var margin = {top: 20, right: 40, bottom: 30, left: 30};
+
+    var format = d3.time.format("%m/%d/%y");
+
+    var width = 300;//TODO
+    var height = 600;//TODO
+
+    var x = d3.time.scale()
+        .range([0, width]);
+
+    var y = d3.scale.linear()
+        .range([height - 10, 0]);
+
+    var z = d3.scale.ordinal()
+        .range(colorrange);
+
+    var xAxis = d3.svg.axis()
+        .scale(x)
+        .orient("bottom")
+        .ticks(d3.time.weeks);
+
+    var yAxis = d3.svg.axis()
+        .scale(y);
+
+    var order = [];
+    var stack = d3.layout.stack()
+        .order(function(d){
+            //根据距离远近进行排序
+            return order;
+        })
+        .offset("wiggle")
+        .values(function (d) {
+            //console.log("value:"+ d.values);
+            return d.values;
+        })
+        .x(function (d) {
+            //console.log("time:"+ d.time);
+            return d.time;
+        })
+        .y(function (d) {
+            //console.log("pm25:"+ d.pm25);
+            return d.pm25;
+        });
+
+    var nest = d3.nest()
+        .key(function (d) {
+            return d.code;
+        });
+
+    var area = d3.svg.area()
+        .interpolate("cardinal")
+        .x(function (d) {
+            return x(d.time);
+        })
+        .y0(function (d) {
+            return y(d.y0);
+        })
+        .y1(function (d) {
+            return y(d.y0 + d.y);
+        });
+    var param = "";
+    //TODO 只取cluster中的第一个station
+    for(var i = 0; i < clusterResult.length; i ++){
+        if(clusterResult[i].correlation > COR_THREADHOOD && clusterResult[i].pvalue < 0.05)
+            param += ("&codes="+clusterResult[i].cluster[0].code)
+    }
+
+    //TODO 把结束时间调整至detailBrush,但不是很恰当
+    var s = new Date(detailBrush[0]);
+    var e = new Date(detailBrush[1]);
+    param += "&startTime="+(new Date(s.setHours(s.getHours()-72)))+"&endTime="+(new Date(e.setHours(e.getHours()+72)));
+    param += "&index="+0;
+
+
+    $.ajax({
+        url:"themeriverdata2.do",
+        type:"post",
+        data: param+"&cluster=" + JSON.stringify(clusterResult),
+        success: function (returnData) {
+            $("#themeriver")
+            if (returnData == null || returnData == "")
+                return;
+            var dataAll = JSON.parse(returnData);
+            var data = dataAll.result;
+            var dataLagCor = dataAll.lag;//array [{"code":"1009A","lag":0.7955870797707358,"cor":2},{"code":"1057A","lag":0.7781516905307961,"cor":0},{"code":"1062A","lag":0.7760953665976594,"cor":2}]
+            data = assignDefaultValues(data);
+            data.forEach(function (d) {
+                d.time = new Date(d.time);
+                //d.value = +d.pm25;
+            });
+            var g = d3.select("#themeriver").append("g")
+                .attr("transform","translate("+(octagonLocationScreen[dataAll.index].x - 140)+","+(octagonLocationScreen[dataAll.index].y - 120 )+")");
+            var svg = g.append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            var entries = nest.entries(data);
+            //输入entries
+            var getOrder = function(data){//返回order
+                //TODO 计算center的方法修改!!!!
+                var center = L.latLng(filteredData[0].latitude, filteredData[0].longitude)
+                var dis = [];
+                for(var i = 0; i < data.length; i ++){
+                    dis[i] = L.latLng(data[i].values[0].lat, data[i].values[0].lon).distanceTo(center);
+                }
+                //根据距离远近给出order[100,20,200,300]返回[1,0,2,3]
+                var result = [];
+                for(var i = 0; i < data.length; i ++){
+                    var index = dis.indexOf(dis.min());
+                    result[index] = i;
+                    dis[index] = Number.MAX_VALUE;
+                }
+                return result;
+            };
+
+            order = getOrder(entries);
+            var newEntries = [];
+            {
+                //reorder entries
+                for(var i = 0; i < order.length; i ++){
+                    var index = order.indexOf(i);
+                    newEntries.push(entries[index]);
+                }
+            }
+
+            var layers = stack(entries);
+
+            x.domain(d3.extent(data, function (d) {
+                return d.time;
+            }));
+            y.domain([0, d3.max(data, function (d) {
+                return d.y0 + d.y;
+            })]);
+
+            //过滤后的detailBrush在整个时间上占的比例
+            var xStartPercent = x(detailBrush[0]) / width;
+            var xEndPercent = x(detailBrush[1]) / width;
+
+            //id="grad1" x1="0%" y1="0%" x2="100%" y2="0%"
+            var grad = svg.selectAll(".gradient")
+                .data(dataLagCor)
+                .enter().append("defs")
+                .append("linearGradient")
+                .attr("id", function(d){return "lag"+d.code;})
+                .attr("x1", "0%")
+                .attr("y1", "100%")
+                .attr("x2", "100%")
+                .attr("y2", "100%");
+            //<stop offset="50%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
+            //<stop offset="51%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
+            grad.append("stop")
+                .attr("offset", function(d){
+                    var nd = new Date(detailBrush[0]);
+                    nd.setHours(nd.getHours() - d.lag);
+                    return x(nd) / width;})
+                .attr("stop-color", function(d, i ){return z(i);})
+                .attr("stop-opacity", 1);
+            grad.append("stop")
+                .attr("offset", function(d){
+                    var nd = new Date(detailBrush[0]);
+                    nd.setHours(nd.getHours() - d.lag);
+                    return x(nd) / width+0.001;})
+                .attr("stop-color", function(d){
+                    if(d.lag < 0)
+                        return colorScaleCorLag(d.cor);
+                    else
+                        return colorScaleCor(d.cor);
+                })
+                .attr("stop-opacity", 1);
+            grad.append("stop")
+                .attr("offset", function(d){
+                    var nd = new Date(detailBrush[1]);
+                    nd.setHours(nd.getHours() - d.lag);
+                    return x(nd) / width ;})
+                .attr("stop-color", function(d){
+                    if(d.lag < 0)
+                        return colorScaleCorLag(d.cor);
+                    else
+                        return colorScaleCor(d.cor);
+                })//TODO
+                .attr("stop-opacity", 1);
+            grad.append("stop")
+                .attr("offset", function(d){
+                    var nd = new Date(detailBrush[1]);
+                    nd.setHours(nd.getHours() - d.lag);
+                    return x(nd) / width + 0.001; })
+                .attr("stop-color", function(d, i){return z(i);})
+                .attr("stop-opacity", 1);
+
+
+            svg.selectAll(".layer")
+                .data(layers)
+                .enter().append("path")
+                .attr("class", "layer")
+                .attr("d", function (d) {
+                    return area(d.values);
+                })
+                .style("fill", function (d, i) {
+                    return "url(#"+"lag"+ d.key+")";
+                    //console.log("d:"+i+":"+z(i));
+                    //return z(i);
+                }).on("mouseover", function(d) {
+                    if(d.values[0] == null)
+                        return;
+                    var cor = 0;
+                    var lag = 0;
+                    var city = "";
+                    for(var i = 0; i < clusterResult.length; i ++){
+                        for(var j = 0; j < clusterResult[i].cluster.length; j ++){
+                            if(clusterResult[i].cluster[j].code == d.key) {
+                                cor = clusterResult[i].correlation;
+                                lag = clusterResult[i].lag;
+                                city = clusterResult[i].cluster[j].city;
+                                break;
+                            }
+                        }
+                        if(cor != 0)
+                            break;
+                    }
+                    var div = d3.select("#tooltip");
+                    div.transition()
+                        .duration(100)
+                        .style("opacity", .9);
+                    div	.html(city +":"+ parseFloat(cor).toFixed(2)+":"+(parseInt(lag)))
+                        .style("left", (d3.event.pageX) + "px")
+                        .style("top", (d3.event.pageY - 28) + "px");
+                    //console.log(d.values[0].city    );
+                }).on("mouseout", function(d) {
+                    var div = d3.select("#tooltip");
+                    div.transition()
+                        .duration(500)
+                        .style("opacity", 0);
+                });
+
+            svg.append("g")
+                .attr("class", "x axis")
+                .attr("transform", "translate(0," + height + ")")
+                .call(xAxis);
+
+            //<line x1="0" y1="0" x2="200" y2="200" style="stroke:rgb(255,0,0);stroke-width:2" />
+            //框出选择的区域
+            svg.append("line")
+                .attr("x1", x(detailBrush[0]))
+                .attr("y1", "0")
+                .attr("x2", x(detailBrush[0]))
+                .attr("y2", "150")
+                .attr("stroke", "rgb(0, 0, 0)")
+                .attr("stroke-width", "1");
+            svg.append("line")
+                .attr("x1", x(detailBrush[1]))
+                .attr("y1", "0")
+                .attr("x2", x(detailBrush[1]))
+                .attr("y2", "150")
+                .attr("stroke", "rgb(0, 0, 0)")
+                .attr("stroke-width", "1");
+
+        },
+        async:false
+    });
+
+}
+
 function createAQHeatMapView(){
     if(aqHeatMapLayer != null)
         map.removeLayer(aqHeatMapLayer);
@@ -2371,6 +2661,87 @@ function createCorHeatMapView(){
     });
     corHeatMapLayer.addTo(map);
 
+}
+
+/**
+ * 另一种映射方法,根据lag的数值进行映射,
+ * 只取correlation大于某个数值的
+ */
+function corHeatMapLayerLeadValue(){
+    if(corHeatMapLayer != null)
+        map.removeLayer(corHeatMapLayer);
+    outerRadius = sizeScreen.y / 2-50;
+    innerRadius = outerRadius -  SIZE_RING;
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
+
+    var maxLead = 0;
+    var minLead = 0;
+    var sumMax = 0;
+    var sumMin = 0;
+    for(var i = 0; i < clusterResult.length; i ++){
+        if(clusterResult[i].lag > maxLead)
+            maxLead = clusterResult[i].lag;
+        if(clusterResult[i].lag < minLead)
+            minLead = clusterResult[i].lag;
+        if(clusterResult[i].lag > 0)
+            sumMax += clusterResult[i].lag;
+        if(clusterResult[i].lag < 0)
+            sumMin += clusterResult[i].lag;
+    }
+    var avgMax = sumMax/clusterResult.length;
+    var avgMin = sumMin/ clusterResult.length;
+
+    var c3 = ["#FF0000", "#FF0000", "#FFFF00", "#00FF00", "#00FF00"];
+    var colorScaleLagValue  = d3.scale.linear().domain([maxLead, avgMax, 0, avgMin, minLead]).range(c3);
+
+    corHeatMapLayer = L.d3SvgOverlay(function(sel, proj) {
+
+        var x = [], y = [], t = [];
+        $("circle").each(function() {
+            var id = $(this).attr("id");
+            for(var i = 0; i < clusterResult.length; i ++){
+                if(clusterResult[i].id != id)
+                    continue;
+                if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD))
+                    continue;
+                x.push($(this).attr("cx"));
+                y.push($(this).attr("cy"));
+                    t.push(clusterResult[i].lag);
+            }
+        });//TODO 一定特别注意坐标变换
+
+        var model = "exponential";
+        var sigma2 = 0, alpha = 100;
+        var variogram = kriging.train(t, x, y, model, sigma2, alpha);
+
+        for(var i = 0; i < 8; i ++) {
+            var bbox = Snap.path.getBBox(octagonPath[i]);
+            console.log(bbox.x+":"+bbox.y+":"+bbox.width+":"+bbox.height);
+            var g = sel.append("g")
+                .attr("id", "correlationHeatMap"+i)
+                .attr("transform", "translate(" + bbox.x + "," + bbox.y + ")");
+
+            for (var j = 1; j < bbox.width-1; j+=GRID_SIZE_CORRELATION) {
+                for (var k = 1; k < bbox.height-1; k+=GRID_SIZE_CORRELATION) {
+
+                    if (!Snap.path.isPointInside(octagonPath[i], bbox.x + j, bbox.y + k)) {
+                        continue;
+                    }
+                    var value = kriging.predict(bbox.x + j, bbox.y + k, variogram);
+                    g.append("rect")
+                        .attr("width", GRID_SIZE_CORRELATION+1)
+                        .attr("height", GRID_SIZE_CORRELATION+1)
+                        .attr("fill", colorScaleLagValue(value))
+                        .attr("fill-opacity", 0.9)//Math.abs(value))
+                        .attr("transform", "translate(" + j + "," + k + ")");
+                    //console.log(value+":"+colorScaleCor(value));
+                }
+            }
+        }
+
+    });
+    corHeatMapLayer.addTo(map);
 }
 
 //超前分析
@@ -2681,6 +3052,13 @@ function controlThemeRiver(){
     }
 }
 
+function controlGroupThemeRiver(){
+    $("#themeriver").empty();
+    if($("#controlGroupThemeRiver").is(":checked")){
+        groupThemeRiver();
+    }
+}
+
 function controlCluster(){
     if(clusterLayer != null){
         if($("#controlContextRing").is(":checked") && $("#scattergroup").length == 0){
@@ -2719,6 +3097,14 @@ function controlHeatMapCor(){
         map.removeLayer(corHeatMapLayer);
     if($("#controlHeatMapCor").is(":checked")){
         createCorHeatMapView();
+    }
+}
+
+function controlHeatMapCorLeadValue(){
+    if(corHeatMapLayer != null)
+        map.removeLayer(corHeatMapLayer);
+    if($("#controlHeatMapCorLeadValue").is(":checked")){
+        corHeatMapLayerLeadValue();
     }
 }
 

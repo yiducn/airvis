@@ -120,9 +120,9 @@
             for(var i = 0; i < 4; i ++){
                 var c = "#00FF00";
                 if(i == 0) c = "#EEFF00";
-                if(i == 1) c = "#99FF00";
-                if(i == 2) c = "#CCFF00";
-                if(i == 3) c = "#88FF00";
+                if(i == 1) c = "#BBFF00";
+                if(i == 2) c = "#E0FF00";
+                if(i == 3) c = "#B0FF00";
                 var grad = svg.append("defs")
                         .append("linearGradient")
                         .attr("id", "a"+i)
@@ -154,7 +154,9 @@
                     .enter().append("path")
                     .attr("class", "layer")
                     .attr("d", function(d) { return area(d.values); })
-                    .style("fill", function(d, i) { return "url(#" + "a"+ ((4-i)-1) ; });
+                    .style("fill", function(d, i) { return "url(#" + "a"+ ((4-i)-1) ; })
+                    .style("stroke", "#FFFFFF")
+                    .style("stroke-width", "1px");
 
 
             svg.append("g")

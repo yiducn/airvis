@@ -619,12 +619,13 @@ public class ClusterController {
      * @param endTime
      * @param index 方向的index
      * @return
+     *
      */
     @RequestMapping(value = "themeriverdata2.do", method = RequestMethod.POST)
     public
     @ResponseBody
     //TODO 差值缺失数据
-    String themeriverdata2(String[] codes, String startTime, String endTime, int index, String cluster) {
+    String themeriverdata2(String[] codes, String startTime, String endTime, int index, String cluster) throws ParseException {
         if(codes == null || codes.length == 0)
             return "";
         JSONArray jsonCluster = null;
@@ -668,7 +669,7 @@ public class ClusterController {
             lonMap.put(d.getString("code"), d.getDouble("lon"));
         }
 
-        MongoCursor cur = coll.find(filter).sort(new BasicDBObject("time", 1)).sort(new BasicDBObject("code", 1)).iterator();
+        MongoCursor cur = coll.find(filter).sort(new BasicDBObject("code", 1).append("time", 1)).iterator();
         JSONObject result = new JSONObject();
         JSONArray res = new JSONArray();
         Document pre = null;
@@ -677,32 +678,18 @@ public class ClusterController {
             Document d = (Document)cur.next();
             Document nd = new Document();
             if(pre == null) {
-                nd.put("time", d.get("time"));
-                nd.put("pm25", d.get("pm25"));
-                nd.put("code", d.get("code"));
-                nd.put("city", d.get("city"));
-                nd.put("lat", latMap.get(d.get("code")));
-                nd.put("lon", lonMap.get(d.get("code")));
-                res.put(nd);
-                pre = d;
-            }else {
-                if (d.get("code").equals(pre.get("code"))) {
-                    int interval = (int) (d.getDate("time").getTime() - pre.getDate("time").getTime() / (1000 * 60 * 60));
-                    if (interval == 1) {
-
-                    } else {
-                        for (int i = 0; i < interval-1; i++) {
-                            Document nd2 = new Document();
-                            long newDateSeconds = d.getDate("time").getTime() - (interval-1 - i) * 1000 * 60 * 60;
-                            Date newDate = new Date(newDateSeconds);
-                            nd2.put("time", newDate);
-                            nd2.put("pm25", d.get("pm25"));
-                            nd2.put("code", d.get("code"));
-                            nd2.put("city", d.get("city"));
-                            nd2.put("lat", latMap.get(d.get("code")));
-                            nd2.put("lon", lonMap.get(d.get("code")));
-                            res.put(nd2);
-                        }
+                int intervD = (int) (d.getDate("time").getTime() - df.parse(startTime).getTime()) / (1000 * 60 * 60 * 24);
+                if (intervD != 0){
+                    Document ndd = new Document();
+                    for (int i = 0; i < intervD; i++) {
+                        long iDate = d.getDate("time").getTime() - (intervD-i) * 1000*60*60*24;
+                        ndd.put("time", new Date(iDate));
+                        ndd.put("pm25", d.get("pm25"));
+                        ndd.put("code", d.get("code"));
+                        ndd.put("city", d.get("city"));
+                        ndd.put("lat", latMap.get(d.get("code")));
+                        ndd.put("lon", lonMap.get(d.get("code")));
+                        res.put(ndd);
                     }
                 }
                 nd.put("time", d.get("time"));
@@ -713,8 +700,70 @@ public class ClusterController {
                 nd.put("lon", lonMap.get(d.get("code")));
                 res.put(nd);
                 pre = d;
+            }else {
+                if (d.get("code").equals(pre.get("code"))) {
+                    //若是同一个站，则判断是否有缺失的数据，有则补足
+                    int interval = (int) (d.getDate("time").getTime() - pre.getDate("time").getTime()) / (1000 * 60 * 60* 24);
+                    if (interval != 1) {
+                        for (int i = 0; i < interval-1; i++) {
+                            Document nd2 = new Document();
+                            long newDateSeconds = d.getDate("time").getTime() - (interval-1 - i) * 1000 * 60 * 60* 24;
+                            Date newDate = new Date(newDateSeconds);
+                            nd2.put("time", newDate);
+                            nd2.put("pm25", d.get("pm25"));
+                            nd2.put("code", d.get("code"));
+                            nd2.put("city", d.get("city"));
+                            nd2.put("lat", latMap.get(d.get("code")));
+                            nd2.put("lon", lonMap.get(d.get("code")));
+                            res.put(nd2);
+                        }
+                    }
+
+                }else{
+                    //不是同一个站时说明新站开始，判断pre是否为结束时间，判断d是否为起始时间。不是则补齐
+                    int intervPre = (int) (df.parse(endTime).getTime() - pre.getDate("time").getTime()) / (1000 * 60 * 60* 24);
+                    if (intervPre != 0){
+                        Document ndd = new Document();
+                        for (int i = 0; i < intervPre; i++) {
+                            long iDate = pre.getDate("time").getTime() - (i+1) * 1000*60*60* 24;
+                            ndd.put("time", new Date(iDate));
+                            ndd.put("pm25", pre.get("pm25"));
+                            ndd.put("code", pre.get("code"));
+                            ndd.put("city", pre.get("city"));
+                            ndd.put("lat", latMap.get(pre.get("code")));
+                            ndd.put("lon", lonMap.get(pre.get("code")));
+                            res.put(ndd);
+                        }
+                    }
+
+                    int intervD = (int) (d.getDate("time").getTime() - df.parse(startTime).getTime()) / (1000 * 60 * 60* 24);
+                    System.out.println("intervD:  " + intervD);
+                    if (intervD != 0){
+                        Document ndd = new Document();
+                        for (int i = 0; i < intervD; i++) {
+                            long iDate = d.getDate("time").getTime() - (intervD-i) * 1000*60*60* 24;
+                            ndd.put("time", new Date(iDate));
+                            ndd.put("pm25", d.get("pm25"));
+                            ndd.put("code", d.get("code"));
+                            ndd.put("city", d.get("city"));
+                            ndd.put("lat", latMap.get(d.get("code")));
+                            ndd.put("lon", lonMap.get(d.get("code")));
+                            res.put(ndd);
+                        }
+                    }
+                }
+
+                nd.put("time", d.get("time"));
+                nd.put("pm25", d.get("pm25"));
+                nd.put("code", d.get("code"));
+                nd.put("city", d.get("city"));
+                nd.put("lat", latMap.get(d.get("code")));
+                nd.put("lon", lonMap.get(d.get("code")));
+                res.put(nd);
+                pre = d;
             }
         }
+
         try {
             result.put("result", res);
             result.put("index", index);
@@ -744,7 +793,7 @@ public class ClusterController {
             }
             result.put("lag", lagCor);
         }catch(Exception ee){
-                ee.printStackTrace();
+            ee.printStackTrace();
         }
         client.close();
         return result.toString();
@@ -755,8 +804,6 @@ public class ClusterController {
     @ResponseBody
         //TODO 差值缺失数据
     String themeriverdata(String[] codes, String startTime, String endTime, int index, String cluster) throws ParseException {
-        System.out.println(startTime);
-        System.out.println(endTime);
         if(codes == null || codes.length == 0)
             return "";
         JSONArray jsonCluster = null;
@@ -926,6 +973,7 @@ public class ClusterController {
         client.close();
         return result.toString();
     }
+
 
     /**
      * 根据当前的起始时间,更新风向\风速
@@ -1507,14 +1555,16 @@ public class ClusterController {
                 if(clusterSpd != 0 && clusterSpd != -1) {
                     addition = (int) (clusterDistance / clusterSpd);
                     //所有的addition控制在四日以内
-                    if(addition > 96)
-                        addition = 96;
+                    if(addition > 72)
+                        addition = 72;
                 }else{
                     addition = 24;
                 }
 
                 if(centerSpd != 0 && centerSpd != -1) {
                     additionLater = (int) (clusterDistance / centerSpd);
+                    if(additionLater > 72)
+                        additionLater = 72;
                 }else{
                     additionLater = 24;
                 }
