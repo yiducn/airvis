@@ -19,12 +19,12 @@ svg {
 
 .line {
     fill: none;
-    stroke: steelblue;
-    stroke-width: 1.5px;
+    stroke: rgba(255, 0, 0, 0.53);
+    stroke-width: 2px;
 }
 
 .context .line {
-    stroke-width: 0.5px;
+    stroke-width: 2px;
 }
 .line.highlight {
     fill-opacity: 1;

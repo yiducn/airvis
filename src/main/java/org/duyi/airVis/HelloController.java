@@ -11,6 +11,7 @@ import org.bson.Document;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.omg.PortableServer.REQUEST_PROCESSING_POLICY_ID;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -25,20 +26,21 @@ import java.text.*;
 @Controller
 public class HelloController {
     private String SERVER_IP = "127.0.0.1";//192.168.16.71
-    private static final String CITY_PATH = "d:\\city.txt";//home/duyi/city.txt;
+//    private static final String CITY_PATH = "d:\\city.txt";//home/duyi/city.txt;
     private static MongoClient client = new MongoClient("127.0.0.1");
     //a variable used to store all station info
     private HashMap<String, StationInfo> stations = null;
 
     private static final String DB_NAME = "pm";
-    private static final String COL_LOCATION_BAIDU = "loc_ll_g_b";
-    private static final String COL_LOCATION_GOOGLE = "loc_ll_google";
+    private static final String NEW_DB_NAME = "airdb";
+//    private static final String COL_LOCATION_BAIDU = "loc_ll_g_b";
+//    private static final String COL_LOCATION_GOOGLE = "loc_ll_google";
     private static final String COL_AVG_YEAR = "pmdata_year";
     private static final String COL_AVG_MONTH = "pmdata_month";
     private static final String COL_AVG_DAY = "pmdata_day";
     private static final String COL_PM = "pmProcess";//"pm_preProcess";
-    private static final String COL_M_STATION = "weather_station";
-
+    private static final String COL_M_STATION = "meteo_stations";//"weather_station";
+    private static final MongoDatabase db = client.getDatabase(DB_NAME);
     /**
      * 返回所有城市列表
      * modified by yidu at Purdue
@@ -46,7 +48,8 @@ public class HelloController {
      */
     @RequestMapping("cities.do")
     public @ResponseBody String getAllCities() {
-        MongoCollection coll = getCollection(COL_LOCATION_GOOGLE);
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection("pm_stations");
         MongoCursor cur = coll.find().iterator();
         JSONObject onecity;
         JSONArray result = new JSONArray();
@@ -75,6 +78,7 @@ public class HelloController {
      */
     @RequestMapping("meteorologicalStations.do")
     public @ResponseBody String getMeteorologicalStations(){
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
         MongoCollection coll = getCollection(COL_M_STATION);
         MongoCursor cur = coll.find().iterator();
         JSONObject onecity;
@@ -84,11 +88,11 @@ public class HelloController {
             d = (Document)cur.next();
             onecity = new JSONObject();
             try {
-                onecity.put("province", d.getString("province"));
+//                onecity.put("province", d.getString("province"));
                 onecity.put("station", d.getString("name"));
                 onecity.put("longitude", d.getDouble("lon"));
                 onecity.put("latitude", d.getDouble("lat"));
-                onecity.put("code", d.getString("id"));
+//                onecity.put("code", d.getString("id"));
             } catch (JSONException e) {
                 e.printStackTrace();
             }
@@ -104,7 +108,8 @@ public class HelloController {
     private void generateStations(){
         if(stations != null)
             return;
-        MongoCollection coll = getCollection(COL_LOCATION_GOOGLE);
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = getCollection(COL_M_STATION);
         MongoCursor cur = coll.find().iterator();
         Document d;
         stations = new HashMap<String, StationInfo>();
@@ -123,7 +128,6 @@ public class HelloController {
 
 
     private MongoCollection getCollection(String collName){
-        MongoDatabase db = client.getDatabase(DB_NAME);
         MongoCollection coll = db.getCollection(collName);
         return coll;
     }
@@ -171,6 +175,166 @@ public class HelloController {
     }
 
     /**
+     * 根据pmdata_month的月平均数据,返回各省份平均数
+     * @param startTime
+     * @param endTime
+     * @return
+     * 20151204
+     */
+    @RequestMapping(value = "valueByProvinces.do", method = RequestMethod.POST)
+    public @ResponseBody String getValueByProvinces(@RequestParam(value="startTime", required=false) String startTime,
+                                                    @RequestParam(value="endTime", required=false) String endTime){
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_MONTH);
+        Calendar cal = Calendar.getInstance();
+        //TODO time zone problem
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
+
+        Document match;
+        Document group = new Document().append("$group",
+                new Document().append("_id","$province")
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("co", new Document("$avg", "$co"))
+//                        .append("no2", new Document("$avg", "$no2"))
+//                        .append("o3", new Document("$avg", "$o3"))
+//                        .append("pm10", new Document("$avg", "$pm10"))
+                        .append("pm25", new Document("$avg", "$pm25")));
+//                        .append("so2", new Document("$avg", "$so2")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+
+        if(startTime == null && endTime == null){
+            query.add(group);
+            cur = coll.aggregate(query).allowDiskUse(true).iterator();
+        }else if(startTime != null && endTime != null){
+            try {
+                cal.setTime(df.parse(startTime));
+                match = new Document("$match", new Document("_id.month", cal.get(Calendar.MONTH)+1).append("_id.year", cal.get(Calendar.YEAR)).append("pm", new Document("$ne", 0)));
+                query.add(match);
+                query.add(group);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
+        }else{
+            //TODO
+            cur = null;
+        }
+
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+        return result.toString();
+    }
+
+    /**
+     * 根据pmdata_month的月平均数据,返回各城市平均数
+     * @param startTime
+     * @param endTime
+     * @return
+     * 20151204
+     */
+    @RequestMapping(value = "valueByCities.do", method = RequestMethod.POST)
+    public @ResponseBody String getValueByCities(@RequestParam(value="startTime", required=false) String startTime,
+                                                    @RequestParam(value="endTime", required=false) String endTime){
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_MONTH);
+        Calendar cal = Calendar.getInstance();
+        //TODO time zone problem
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
+
+        Document match;
+        Document group = new Document().append("$group",
+                new Document().append("_id","$city")
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("co", new Document("$avg", "$co"))
+//                        .append("no2", new Document("$avg", "$no2"))
+//                        .append("o3", new Document("$avg", "$o3"))
+//                        .append("pm10", new Document("$avg", "$pm10"))
+                        .append("pm25", new Document("$avg", "$pm25")));
+//                        .append("so2", new Document("$avg", "$so2")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+
+        if(startTime == null && endTime == null){
+            query.add(group);
+            cur = coll.aggregate(query).allowDiskUse(true).iterator();
+        }else if(startTime != null && endTime != null){
+            try {
+                cal.setTime(df.parse(startTime));
+                match = new Document("$match", new Document("_id.month", cal.get(Calendar.MONTH)+1).append("_id.year", cal.get(Calendar.YEAR)).append("pm", new Document("$ne", 0)));
+
+                query.add(match);
+                query.add(group);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
+        }else{
+            //TODO
+            cur = null;
+        }
+
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+        return result.toString();
+    }
+
+
+    /**
+     * 根据pmdata_day日平均数据,返回各城市平均数
+     * @param startTime
+     * @param endTime
+     * @return
+     * 20151204
+     */
+    @RequestMapping(value = "valueByCities_daily.do", method = RequestMethod.POST)
+    public @ResponseBody String getValueByCitiesDaily(@RequestParam(value="startTime", required=false) String startTime,
+                                                 @RequestParam(value="endTime", required=false) String endTime){
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_DAY);
+        Calendar cal = Calendar.getInstance();
+        //TODO time zone problem
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
+
+        Document match;
+        Document group = new Document().append("$group",
+                new Document().append("_id","$city")
+                        .append("pm25", new Document("$avg", "$pm25")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+
+        if(startTime == null && endTime == null){
+            query.add(group);
+            cur = coll.aggregate(query).allowDiskUse(true).iterator();
+        }else if(startTime != null && endTime != null){
+            try {
+                cal.setTime(df.parse(startTime));
+                match = new Document("$match", new Document("time", new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime))).append("pm", new Document("$ne", 0)));
+                query.add(match);
+                query.add(group);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
+        }else{
+            //TODO
+            cur = null;
+        }
+
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+        return result.toString();
+    }
+
+    /**
      * 根据城市约束返回按月的趋势
      * http://localhost:8081/monthTrends_v2.do?codes[]=1010A&codes[]=1011A
      * @param codes 站点代码
@@ -180,23 +344,24 @@ public class HelloController {
     public
     @ResponseBody
     String getMonthTrendsV2(@RequestParam(value="codes[]", required=false)String[] codes) {
-        MongoCollection coll = getCollection(COL_AVG_MONTH);
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_MONTH);
 
         Document match;
-        Document sort = new Document("$sort", new Document("time", 1));
+        Document sort = new Document("$sort", new Document("_id.year", 1).append("_id.month", 1));
         Document group = new Document().append("$group",
                 new Document().append("_id",
-                        new Document().append("month", new Document("$month", "$time"))
-                                .append("year", new Document("$year","$time")))
-                        .append("time", new Document("$first", "$time"))
-                        .append("aqi", new Document("$avg", "$aqi"))
-                        .append("aqi", new Document("$avg", "$aqi"))
-                        .append("co", new Document("$avg", "$co"))
-                        .append("no2", new Document("$avg", "$no2"))
-                        .append("o3", new Document("$avg", "$o3"))
-                        .append("pm10", new Document("$avg", "$pm10"))
-                        .append("pm25", new Document("$avg", "$pm25"))
-                        .append("so2", new Document("$avg", "$so2")));
+                        new Document().append("month", "$_id.month")
+                                .append("year", "$_id.year"))
+//                        .append("time", new Document("$first", "$time"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("co", new Document("$avg", "$co"))
+//                        .append("no2", new Document("$avg", "$no2"))
+//                        .append("o3", new Document("$avg", "$o3"))
+//                        .append("pm10", new Document("$avg", "$pm10"))
+                        .append("pm25", new Document("$avg", "$pm25")));
+//                        .append("so2", new Document("$avg", "$so2")));
         List<Document> query = new ArrayList<Document>();
         MongoCursor cur;
         JSONArray result = new JSONArray();
@@ -206,7 +371,7 @@ public class HelloController {
             cur = coll.aggregate(query).iterator();
         }
         else {
-            match = new Document("$match",new Document("code", new Document("$in", Arrays.asList(codes))));
+            match = new Document("$match",new Document("_id.code", new Document("$in", Arrays.asList(codes))));
             query.add(match);
             query.add(group);
             query.add(sort);
@@ -214,6 +379,86 @@ public class HelloController {
         }
         while(cur.hasNext()){
             result.put(cur.next());
+        }
+
+        return result.toString();
+    }
+
+    /**
+     * 根据城市约束返回按月的趋势
+     * http://localhost:8081/dayTrends_v2.do?codes[]=1010A&codes[]=1011A
+     * @param codes 站点代码
+     * @return
+     */
+    @RequestMapping(value = "dayTrends_v2.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    String getDayTrendsV2(@RequestParam(value="codes[]", required=false)String[] codes) {
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_DAY);
+
+        Document match;
+        Document sort = new Document("$sort", new Document("_id.year", 1).append("_id.month", 1).append("_id.day", 1));
+        Document group = new Document().append("$group",
+                new Document().append("_id",
+                        new Document().append("month", "$_id.month")
+                                .append("year", "$_id.year")
+                                .append("day", "$_id.day"))
+                        .append("pm25", new Document("$avg", "$pm25")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+        if (codes == null || codes.length == 0){
+            query.add(group);
+            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }
+        else {
+            match = new Document("$match",new Document("_id.code", new Document("$in", Arrays.asList(codes))));
+            query.add(match);
+            query.add(group);
+            query.add(sort);
+            cur = coll.aggregate(query).iterator();
+        }
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+
+        return result.toString();
+    }
+
+
+    /**
+     * 根据站点代码,时间,返回这些站点当月数据
+     * @param codes 站点代码
+     * @param month 月份
+     * @param year 年份
+     * @return
+     */
+    @RequestMapping(value = "monthValue.do", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    String getMonthValue(@RequestParam(value="codes", required=true)String[] codes,
+                         @RequestParam(value="month", required=true)String month,
+                         @RequestParam(value="year", required=true)String year) {
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_MONTH);
+
+        Document find;
+        find = new Document("_id.year", Integer.parseInt(year));
+        find.append("_id.month", Integer.parseInt(month));
+        find.append("_id.code", new Document("$in", Arrays.asList(codes)));
+
+        MongoCursor cur = coll.find(find).iterator();
+        JSONObject result = new JSONObject();
+        Document d;
+        while(cur.hasNext()){
+            try {
+                d = ((Document) cur.next());
+                result.put(((Document)d.get("_id")).getString("code"), d.getDouble("pm25"));
+            }catch(JSONException je){
+                je.printStackTrace();
+            }
         }
         return result.toString();
     }
@@ -476,63 +721,6 @@ public class HelloController {
         }
 
         return "";
-    }
-
-    /**
-     * @param cities 城市名数组
-     * @return 返回特定城市的经纬度
-     * 20150120
-     * 未测试
-     */
-    @RequestMapping("getCityLocation.do")
-    public @ResponseBody String getCityLocation(String[] cities) {
-        List<String> array = getCities();
-        Iterator itr = array.iterator();
-        JSONArray result = new JSONArray();
-        JSONObject oneResult;
-        //String[] cities={"天津","石家庄"};
-        //String s="天津";
-        String cityDetail;
-        String city;
-        String[] detail;
-        for (String s : cities) {
-            while (itr.hasNext()) {
-                cityDetail = (String) itr.next();
-                detail = cityDetail.split(",");
-                city = detail[0];
-                try {
-                    if (s.equals(city)) {
-                        oneResult = new JSONObject();
-                        oneResult.put("city", s);
-                        oneResult.put("station", detail[1]);
-                        oneResult.put("lon", Double.parseDouble(detail[2]));
-                        oneResult.put("lat", Double.parseDouble(detail[3]));
-                        oneResult.put("code", detail[4]);
-                        result.put(oneResult);
-                    }
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        return result.toString();
-    }
-
-
-
-    /**
-     * 返回所有城市的List，包括城市名、经纬度
-     *
-     * @return
-     */
-    private List<String> getCities() {
-        List<String> cities = null;
-        try {
-            cities = FileUtils.readLines(new File(CITY_PATH), "utf-8");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return cities;
     }
 
     /**
@@ -875,62 +1063,6 @@ public class HelloController {
             cond.put("station_code", new BasicDBObject("$in", codes));
             result = collection.group(key, cond, initial, reduce, finalize);
         }
-        return result.toString();
-    }
-
-    /**
-     * 根据约束返回日趋势
-     *
-     * @return
-     */
-//    db.pm_day.aggregate(
-//            [
-//    {$match:{"time_point":{$in:['2014-01-01','2014-01-02']}}},
-//    {$group:{
-//        _id:{time_point:"$time_point",station_code:"$station_code"},
-//        value:{$avg:"$pm25_ave"}
-//    }},
-//    {$sort:{"time_point":1}}
-//    ])
-//
-//    db.pm_day.group({
-//        'key':{'time_point':true},
-//        'reduce':function(obj,out){out.csum += obj.pm25_ave;out.ccount++;},
-//        'initial':{'csum':0,'ccount':0},
-//        'cond':{"time_point":{$in:['2014-01-01','2014-01-02']}},
-//        'finalize':function(out){
-//            out.avg_time=out.csum/out.ccount;
-//        }
-//    })
-    @RequestMapping("dayTrends.do")
-    public
-    @ResponseBody
-    String getDayTrends(String[] timeList) {
-        MongoClient mongo = null;
-        try {
-            mongo = new MongoClient(SERVER_IP);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        DB db = mongo.getDB("pmdata_2014");
-        DBCollection collection = db.getCollection("pmdata_day");
-        DBObject key = new BasicDBObject();
-        key.put("time_point", true);
-        String reduce = "function(obj,out){out.csum += obj.pm25_ave;out.ccount++;}";
-        DBObject initial = new BasicDBObject();
-        initial.put("csum", 0);
-        initial.put("ccount", 0);
-        String finalize = "function(out){\n" +
-                "out.avg_time=out.csum/out.ccount;\n" +
-                "}";
-        DBObject cond = new BasicDBObject();
-        cond.put("time_point", new BasicDBObject("$in", timeList));
-        DBObject result;
-        if (timeList == null || timeList.length == 0)
-            result = collection.group(key, null, initial, reduce, finalize);
-        else
-            result = collection.group(key, cond, initial, reduce, finalize);
-
         return result.toString();
     }
 
@@ -1622,59 +1754,57 @@ public class HelloController {
      * @param station_code            站点代码
      *                                by yidu 使用second参数过滤
      *                                startTime 与endTime不可为空，station_code可为空，空返回全部的均值
+     *                                20160325 修改
      * @return
      */
-    @RequestMapping("hourTrends2.do")
+    @RequestMapping(value = "hourTrends2.do", method = RequestMethod.POST)
     public
     @ResponseBody
     String getHourTrendsByStationCodes(String startTime, String endTime,
-                                       String[] station_code) {
+                                       String[] codes) {
         MongoClient mongo = null;
         try {
             mongo = new MongoClient(SERVER_IP);
         } catch (Exception e) {
             e.printStackTrace();
         }
-        DB db = mongo.getDB("pmdata_2014");
-        DBCollection collection = db.getCollection("pm");
+        DB db = mongo.getDB(NEW_DB_NAME);
+        DBCollection collection = db.getCollection("pm_data");
 
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-        long start = 0L, end = 0L;
+        Date start = new Date() , end = new Date();
         try {
-            start = df.parse(startTime).getTime();
-            end = df.parse(endTime).getTime();
+            start = df.parse(startTime);
+            end = df.parse(endTime);
         } catch (Exception e) {
             e.printStackTrace();
         }
         DBObject key = new BasicDBObject();
-//        key.put("station_code",true);
-//        key.put("position_name",true);
-        key.put("time_point", true);
-//        key.put("pm2_5",true);
+        key.put("time", true);
 
-        String reduce = "function(obj,out){out.csum += obj.pm2_5;out.ccount++;}";
+        String reduce = "function(obj,out){out.csum += obj.pm25;out.ccount++;}";
         DBObject initial = new BasicDBObject();
         initial.put("csum", 0);
         initial.put("ccount", 0);
-        String finalize = "function(out){out.pm2_5=out.csum/out.ccount;}";
+        String finalize = "function(out){out.pm25=out.csum/out.ccount;}";
         DBObject cond = new BasicDBObject();
         DBObject result;
 
-        if (station_code == null || station_code.length == 0) {
+        if (codes == null || codes.length == 0) {
             DBObject gl = new BasicDBObject();
             gl.put("$gte", start);
             gl.put("$lt", end);
-            cond.put("second", gl);
+            cond.put("time", gl);
             result = collection.group(key, cond, initial, reduce, finalize);
             return result.toString();
         } else {
             DBObject gl = new BasicDBObject();
             gl.put("$gte", start);
             gl.put("$lte", end);
-            cond.put("second", gl);
+            cond.put("time", gl);
             DBObject in = new BasicDBObject();
-            in.put("$in", station_code);
-            cond.put("station_code", in);
+            in.put("$in", codes);
+            cond.put("code", in);
             result = collection.group(key, cond, initial, reduce, finalize);
             return result.toString();
         }

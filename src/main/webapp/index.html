@@ -25,7 +25,7 @@
             width: 100%;
             height: 100%;
         }
-
+        .ui-resizable-helper { border: 2px dotted #ff9553; }
     </style>
 
 
@@ -47,6 +47,7 @@
     <script src="http://maps.google.com/maps/api/js?v=3&sensor=false&key=AIzaSyAjck3hEqhffZkaLqetTdt6yrNv2amYOMk"></script>
     <script src="js/jquerylayout/source/stable/jquery.layout_and_plugins.js"></script>
     <script src="js/jqueryui1114/jquery-ui.js"></script>
+    <script src="js/gridsgen.js"></script>
     <script src="js/leafletutils.js"></script>
     <script src="js/heatmap.js/build/heatmap.js"></script>
     <script src="js/heatmap.js/plugins/leaflet-heatmap.js"></script>
@@ -55,11 +56,18 @@
     <script src="js/wheelnav.js-1.6.1.core/wheelnav.js"></script>
     <script src="js/kriging.js"></script>
     <script src="js/L.D3SvgOverlay.js"></script>
+    <script src="js/china-city-area-zip.js"></script>
+    <script src="js/snap/snap.svg-min.js"></script>
     <script>
         $(function() {
             $( "#calendar" ).draggable();
+            $( "#calendar" ).resizable({
+                animate: true,
+                helper: "ui-resizable-helper"
+            });
 //            $( "#trendpanel" ).draggable();
         });
+
     </script>
 </head>
 
@@ -67,39 +75,118 @@
 <div id="piemenu" style="position:fixed; visibility: hidden; z-index:2000; width:300px; height:300px;left:0px;top:0px;"></div>
 
 <div id="map"></div>
-<script>
-    initUIs();
-</script>
-<div id="controller" class="viscomponentbg" style="position:fixed;left:5px;top:100px;width:200px;height:600px;z-index: 200;padding-left: 10px;">
-    <input id="controlCalendar" type="checkbox" onchange="controlCalendar();"><label>showCalendar</label><br>
-    <input id="controlTrend" type="checkbox" onchange="controlTrend();"><label>showTrend</label><br>
-    <br>
-    <input id="pointcontrol" type="checkbox" onchange="pointControl();"><label>displayStations</label><br>
-    <input id="meteorologicalStationControl" type="checkbox" onchange="meteorologicalStationControl();"><label>displayMeteorologicalStation</label><br>
-    <input id="hmcontrol" type="checkbox" onchange="hmControl();">displayHeatmap<br>
-    <input type="button" onclick="activeFreeDraw();" value="polygonselection">
-    <input type="button" onclick="deactiveFreeDraw();" value="navigation"><br>
-    <input id="showDayOfMonth" name="calendarcontrol" type="radio" checked onclick="createCalendarView();"><label for="showDayOfMonth">showDayOfMonth</label><br>
-    <input id="showHourOfWeek" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeek">showHourOfWeek</label><br>
-    <input id="showDayOfMonthSeparately" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showDayOfMonthSeparately">showDayOfMonthSeparately</label><br>
-    <input id="showHourOfWeekSeparately" name="calendarcontrol" type="radio" onclick="createCalendarView();"><label for="showHourOfWeekSeparately">showHourOfWeekSeparately</label>
+
+<div id="controller" style="position:fixed;left:5px;top:50px;z-index: 200;padding-left: 10px;">
+    <div class="panel panel-default">
+        <div class="panel-heading"  data-toggle="collapse" data-target="#layers">
+            <h3 class="panel-title">Map Layers</h3>
+        </div>
+        <div class="panel-body collapse" id="layers">
+            <div style="text-align: left;"><input id="pointcontrol" type="checkbox" onchange="pointControl();"><label>Air Quality Stations</label><br></div>
+            <div style="text-align: left;"><input id="meteorologicalStationControl" type="checkbox" onchange="meteorologicalStationControl();"><label>Meteorological Stations</label></div>
+            <div style="text-align: left;"><input id="provinceBoundary" type="checkbox" onchange="provinceBoundaryControl();"><label>Province Boundary</label></div>
+            <div style="text-align: left;"><input id="provinceValue" type="checkbox" onchange="provinceValueControl();"><label>Province Value</label></div>
+            <div style="text-align: left;"><input id="cityBoundary" type="checkbox" onchange="cityBoundaryControl();" ><label>City Boundary</label></div>
+            <div style="text-align: left;"><input id="cityValue" type="checkbox" onchange="cityValueControl();" checked><label>City Value</label></div>
+            <div style="text-align: left;"><input id="controlGrids" type="checkbox" onchange="controlGrids();"><label>Grids</label></div>
+            <div style="text-align: left;"><input id="controlWinds" type="checkbox" onchange="controlWinds();"><label>Overall Wind</label></div>
+        </div>
+
+        <div class="panel-heading" data-toggle="collapse" data-target="#simpleview">
+            <h3 class="panel-title">Views</h3>
+        </div>
+        <div class="panel-body collapse" id="simpleview">
+            <div style="text-align: left;"><input id="controlTrend" type="checkbox" onchange="controlTrend();" checked><label>Trend</label></div>
+            <div style="text-align: left;"><input id="controlContextRing" type="checkbox" onchange="controlContextRing();"><label>Annular Container</label></div>
+
+            <div>
+                <label id="minDistance">0</label>
+                <div id="slider" style="display:inline-block;width:50px;left:10px;"></div>
+                <div style="float:right;width:50px;position:relative;"><label id="maxDistance">0</label></div>
+            </div>
+
+            <div style="text-align: left;"><input id="controlCluster" type="checkbox" onchange="controlCluster();"><label>Cluster</label></div>
+            <div style="text-align: left;"><input id="controlAQHeatMap" type="checkbox" onchange="controlAQHeatMap();"><label>AirQuality HeatMap</label></div>
+            <div style="text-align: left;"><input id="controlStl" type="checkbox" onchange="controlStl();"><label>STL View</label></div>
+        </div>
+
+        <div class="panel-heading" data-toggle="collapse" data-target="#windview">
+            <h3 class="panel-title">Wind Views</h3>
+        </div>
+        <div class="panel-body collapse" id="windview">
+            <div style="text-align: left;"><input id="controlClusterWind" type="checkbox" onchange="controlClusterWind();"><label>Cluster Wind</label></div>
+            <div style="text-align: left;"><input id="controlOverallWind" type="checkbox" onchange="controlOverallWind();"><label>Overall Wind</label></div>
+            <div style="text-align: left;"><input id="controlPartWind" type="checkbox" onchange="controlPartWind();"><label>Partly Wind</label></div>
+        </div>
+
+
+
+        <div class="panel-heading"  data-toggle="collapse" data-target="#corview">
+            <h3 class="panel-title">Correlation Views</h3>
+        </div>
+        <div class="panel-body collapse" id="corview">
+            <div style="text-align: left;"><input id="controlHeatMapCor" type="checkbox" onchange="controlHeatMapCor();"><label>Correlation HeatMap</label></div>
+            <div style="text-align: left;"><input id="controlHeatMapCorLeadValue" type="checkbox" onchange="controlHeatMapCorLeadValue();"><label>Correlation HeatMap2</label></div>
+            <div style="text-align: left;"><input id="controlLeadHeatMapCor" type="checkbox" onchange="controlLeadHeatMapCor();"><label>Lead Correlation HeatMap</label></div>
+            <div style="text-align: left;"><input id="controlLagHeatMapCor" type="checkbox" onchange="controlLagHeatMapCor();"><label>Lag Correlation HeatMap</label></div>
+            <div style="text-align: left;"><input id="controlThemeRiver" type="checkbox" onchange="controlThemeRiver();"><label>LLC Theme River</label></div>
+            <div style="text-align: left;"><input id="controlGroupThemeRiver" type="checkbox" onchange="controlGroupThemeRiver();"><label>Group Theme River</label></div>
+            <div>
+                <label id="minCor">0.0</label>
+                <div id="sliderCor" style="display:inline-block;width:50px;left:10px;"></div>
+                <div style="float:right;width:50px;position:relative;"><label id="maxDistanceCor">1.0</label></div>
+            </div>
+            <div>
+                <label id="minRad">0.0</label>
+                <div id="sliderRad" style="display:inline-block;width:50px;left:10px;"></div>
+                <div style="float:right;width:50px;position:relative;"><label id="maxRad">200</label></div>
+            </div>
+        </div>
+
+        <!--<div class="panel-body"></div>-->
+
+
+        <div class="panel-heading">
+            <h3 class="panel-title">Controls</h3>
+        </div>
+        <div class="panel-body">
+            <input type="button" style="width:70px;" onclick="activeFreeDraw();" value="Selection"><br>
+            <input type="button" style="width:70px;" onclick="deactiveFreeDraw();" value="Navigation"><br>
+
+        </div>
+
+
+    </div>
+
+
 </div>
 
-<!--<div id="detailTrends" style="position:fixed;top:0px;left:800px;right:0px;z-index: 20000;display:none;">-->
-    <!--<div id="detailTrendsFocus" style="width:1900px; height:100px"></div>-->
-    <!--<div id="detailTrendsContext" style="width:1900px; height:200px"></div>-->
-<!--</div>-->
-<div id="calendar" class="viscomponentbg draggableBoder" style="position:fixed; top:0px; right: 0px; width:800px; height:600px;visibility: hidden;"></div>
+<!--<div id="calendar" class="viscomponentbg draggableBoder" style="position:fixed; top:0px; right: 0px; width:800px; height:600px;visibility: hidden;"></div>-->
 
-<div id="trendpanel" class="viscomponentbg draggableBoder" style="position:fixed; bottom:0px; left:0px;width:1500px;height:230px;visibility: hidden;">
-    <div id="trend" style="width:1500px;height:200px;"></div>
+<div id="trendpanel" class="viscomponentbg draggableBoder" style="position:fixed; bottom:0px; left:0px;height:250px;">
+    <div id="trend" style="height:230px;width:1600px; overflow-x: auto;overflow-y:hidden;  direction:rtl;"></div>
     <input id="showYearTrends" name="trendcontrol" type="radio" checked onclick="trendYear();"><label for="showYearTrends">showYearTrends</label>
     <input id="showMonthTrends" name="trendcontrol" type="radio" onclick="trendMonth();"><label for="showMonthTrends">showMonthTrends</label>
 </div>
+<div id="circle"  style="position:fixed; top:0px; left: 0px; width:0px; height:0px; visibility: hidden"></div>
+<div id="themeriver0" style="position:fixed;"></div>
+<div id="themeriver1" style="position:fixed;"></div>
+<div id="themeriver2" style="position:fixed;"></div>
+<div id="themeriver3" style="position:fixed;"></div>
+<div id="themeriver4" style="position:fixed;"></div>
+<div id="themeriver5" style="position:fixed;"></div>
+<div id="themeriver6" style="position:fixed;"></div>
+<div id="themeriver7" style="position:fixed;"></div>
+
+<div id="stlpanel" style="position:fixed;"></div>
+<div id="themeriver" style="position:fixed;"></div>
+<script>
+    initUIs();
+</script>
 
 <script>
     linearTime();
-    createCalendarView();
+    //    createCalendarView();
 </script>
 </body>
 </html>
