@@ -107,7 +107,7 @@
 
             <div style="text-align: left;"><input id="controlCluster" type="checkbox" onchange="controlCluster();"><label>Cluster</label></div>
             <div style="text-align: left;"><input id="controlAQHeatMap" type="checkbox" onchange="controlAQHeatMap();"><label>AirQuality HeatMap</label></div>
-            <div style="text-align: left;"><input id="controlStl" type="checkbox" onchange="controlStl();"><label>STL View</label></div>
+            <!--<div style="text-align: left;"><input id="controlStl" type="checkbox" onchange="controlStl();"><label>STL View</label></div>-->
         </div>
 
         <div class="panel-heading" data-toggle="collapse" data-target="#windview">
@@ -152,7 +152,9 @@
         <div class="panel-body">
             <input type="button" style="width:70px;" onclick="activeFreeDraw();" value="Selection"><br>
             <input type="button" style="width:70px;" onclick="deactiveFreeDraw();" value="Navigation"><br>
-
+            <div style="text-align: left;"><input id="controlLLCGroup" type="checkbox" onchange="controlLLCGroup();"><label>LLC View</label></div>
+            <div id="sliderStartAngle" style="display:inline-block;width:100px;left:10px;"></div><br>
+            <div id="sliderSwap" style="display:inline-block;width:100px;left:10px;"></div>
         </div>
 
 
@@ -162,24 +164,20 @@
 </div>
 
 <!--<div id="calendar" class="viscomponentbg draggableBoder" style="position:fixed; top:0px; right: 0px; width:800px; height:600px;visibility: hidden;"></div>-->
+<div id="llcBar" style="position:fixed; top:0px; right:0px;bottom:0px; width:700px;background-color: lightslategray;opacity:1;z-index:2000;">
 
+</div>
+
+<div id="detailPanel" style="position:fixed; bottom:250px; left:2px; width:355px; height:205px;">
+
+</div>
 <div id="trendpanel" class="viscomponentbg draggableBoder" style="position:fixed; bottom:0px; left:0px;height:250px;">
     <div id="trend" style="height:230px;width:1600px; overflow-x: auto;overflow-y:hidden;  direction:rtl;"></div>
     <input id="showYearTrends" name="trendcontrol" type="radio" checked onclick="trendYear();"><label for="showYearTrends">showYearTrends</label>
     <input id="showMonthTrends" name="trendcontrol" type="radio" onclick="trendMonth();"><label for="showMonthTrends">showMonthTrends</label>
 </div>
 <div id="circle"  style="position:fixed; top:0px; left: 0px; width:0px; height:0px; visibility: hidden"></div>
-<div id="themeriver0" style="position:fixed;"></div>
-<div id="themeriver1" style="position:fixed;"></div>
-<div id="themeriver2" style="position:fixed;"></div>
-<div id="themeriver3" style="position:fixed;"></div>
-<div id="themeriver4" style="position:fixed;"></div>
-<div id="themeriver5" style="position:fixed;"></div>
-<div id="themeriver6" style="position:fixed;"></div>
-<div id="themeriver7" style="position:fixed;"></div>
 
-<div id="stlpanel" style="position:fixed;"></div>
-<div id="themeriver" style="position:fixed;"></div>
 <script>
     initUIs();
 </script>
