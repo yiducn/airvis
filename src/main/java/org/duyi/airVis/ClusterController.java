@@ -553,9 +553,7 @@ public class ClusterController {
     @RequestMapping(value = "clusterwithfilter.do", method = RequestMethod.POST)
     public
     @ResponseBody
-    String clusterWithFilter(String[] codes, double maxDistance, double minDistance, double centerLon, double centerLat, String startTime, String endTime, double startAngle, double endAngle) {
-        startAngle = 0;
-        endAngle = 45;
+    String clusterWithFilter(String[] codes, double maxDistance, double minDistance, double centerLon, double centerLat, String startTime, String endTime, double startAngle, double swap) {
         //input : codeList  distance
         //output : cluster
         //计算codeList的中心,可以在前端计算好
@@ -600,8 +598,26 @@ public class ClusterController {
                 }
                 if(self)
                     continue;
-
-
+                //如果不在范围内,责继续;
+                GeodeticCalculator calc2 = new GeodeticCalculator();
+                // mind, this is lon/lat
+                calc2.setStartingGeographicPoint(lon, lat);
+                calc2.setDestinationGeographicPoint(lon, centerLat);//116.4, 40);
+                double distance2 = calc2.getOrthodromicDistance();
+                double angleClusterValue = Math.asin(distance2 / distance);
+                double angleCluster  = 0;
+                if(lat > centerLat && lon < centerLon){
+                    angleCluster = (angleClusterValue/Math.PI)*180;
+                }else if(lat > centerLat && lon > centerLon){
+                    angleCluster = 180 - (angleClusterValue/Math.PI)*180;
+                }else if(lat < centerLat && lon > centerLon){
+                    angleCluster = 180 + (angleClusterValue/Math.PI)*180;
+                }else if(lat < centerLat && lon < centerLon){
+                    angleCluster = 360 - (angleClusterValue/Math.PI)*180;
+                }
+                if(!((angleCluster > startAngle && angleCluster < startAngle + swap) ||
+                        (angleCluster > (startAngle+180) && angleCluster < (180 + startAngle + swap))))
+                    continue;
 
                 oneStation = new JSONObject();
                 GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
@@ -736,9 +752,26 @@ public class ClusterController {
                 double distance = calc2.getOrthodromicDistance();
 
                 cluster.put("level", (int)((distance - minDistance) / distanceLevel));
-                double t = new Random().nextDouble();
-                if(t > 0.5)
-                    cluster.put("sign", 1);//TODO
+
+
+                //计算sign
+                GeodeticCalculator calc3 = new GeodeticCalculator();
+                calc3.setStartingGeographicPoint(lon, lat);
+                calc3.setDestinationGeographicPoint(lon, centerLat);//116.4, 40);
+                double distance2 = calc3.getOrthodromicDistance();
+                double angleClusterValue = Math.asin(distance2 / distance);
+                double angleCluster  = 0;
+                if(lat > centerLat && lon < centerLon){
+                    angleCluster = (angleClusterValue/Math.PI)*180;
+                }else if(lat > centerLat && lon > centerLon){
+                    angleCluster = 180 - (angleClusterValue/Math.PI)*180;
+                }else if(lat < centerLat && lon > centerLon){
+                    angleCluster = 180 + (angleClusterValue/Math.PI)*180;
+                }else if(lat < centerLat && lon < centerLon){
+                    angleCluster = 360 - (angleClusterValue/Math.PI)*180;
+                }
+                if(angleCluster > startAngle && angleCluster < startAngle + swap)
+                    cluster.put("sign", 1);
                 else
                     cluster.put("sign", -1);
 
@@ -876,7 +909,6 @@ public class ClusterController {
         JSONObject result = new JSONObject();
         JSONArray res = new JSONArray();
         Document pre = null;
-
         while(cur.hasNext()){
             Document d = (Document)cur.next();
             Document nd = new Document();
@@ -966,7 +998,6 @@ public class ClusterController {
                 pre = d;
             }
         }
-
         try {
             result.put("result", res);
             result.put("index", index);
@@ -1391,19 +1422,23 @@ public class ClusterController {
 
                 //计算相关性，[0]为最优lag，[1]为对应相关度，[2]为t检验的p值
                 Correlation correlation = new Correlation();
-                ArrayList<double[]> lagCorrelation = correlation.getLagResultEarlier(codeTimeSeriesDouble, clusterTimeSeriesDouble);
-                double[] lagArray = new double[lagCorrelation.size()];
-                double[] corArray = new double[lagCorrelation.size()];
-                double[] pArray = new double[lagCorrelation.size()];
-                for(int j = 0; j < lagCorrelation.size(); j ++){
-                    lagArray[j] = addition - lagCorrelation.get(j)[0];
-                    corArray[j] = lagCorrelation.get(j)[1];
-                    pArray[j] = lagCorrelation.get(j)[2];
+                double[] lagCorrelation = correlation.getLagResultEarlier(codeTimeSeriesDouble, clusterTimeSeriesDouble);
+                ((JSONObject) jsonCluster.get(i)).put("lag", addition - lagCorrelation[0]);
+                ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
+                ((JSONObject) jsonCluster.get(i)).put("pvalue", lagCorrelation[2]);
+
+                ArrayList<double[]> lagCorrelation2 = correlation.getLagResultEarlier2(codeTimeSeriesDouble, clusterTimeSeriesDouble);
+                double[] lagArray = new double[lagCorrelation2.size()];
+                double[] corArray = new double[lagCorrelation2.size()];
+                double[] pArray = new double[lagCorrelation2.size()];
+                for(int j = 0; j < lagCorrelation2.size(); j ++){
+                    lagArray[j] = addition - lagCorrelation2.get(j)[0];
+                    corArray[j] = lagCorrelation2.get(j)[1];
+                    pArray[j] = lagCorrelation2.get(j)[2];
                 }
-                //TODO 计算correlation
-                ((JSONObject) jsonCluster.get(i)).put("lag", lagArray);
-                ((JSONObject) jsonCluster.get(i)).put("correlation", corArray);
-                ((JSONObject) jsonCluster.get(i)).put("pvalue", pArray);
+                ((JSONObject) jsonCluster.get(i)).put("lagArray", lagArray);
+                ((JSONObject) jsonCluster.get(i)).put("correlationArray", corArray);
+                ((JSONObject) jsonCluster.get(i)).put("pvalueArray", pArray);
             }
             client.close();
             return jsonCluster.toString();
@@ -1657,19 +1692,23 @@ public class ClusterController {
 
                 //计算相关性，[0]为最优lag，[1]为对应相关度，[2]为t检验的p值
                 Correlation correlation = new Correlation();
-                ArrayList<double[]> lagCorrelation = correlation.getLagResultEarlier(codeTimeSeriesDouble, clusterTimeSeriesDouble);
-                double[] lagArray = new double[lagCorrelation.size()];
-                double[] corArray = new double[lagCorrelation.size()];
-                double[] pArray = new double[lagCorrelation.size()];
-                for(int j = 0; j < lagCorrelation.size(); j ++){
-                    lagArray[j] = addition - lagCorrelation.get(j)[0];
-                    corArray[j] = lagCorrelation.get(j)[1];
-                    pArray[j] = lagCorrelation.get(j)[2];
+                double[] lagCorrelation = correlation.getLagResultEarlier(codeTimeSeriesDouble, clusterTimeSeriesDouble);
+                ((JSONObject) jsonCluster.get(i)).put("lag", addition - lagCorrelation[0]);
+                ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
+                ((JSONObject) jsonCluster.get(i)).put("pvalue", lagCorrelation[2]);
+
+                ArrayList<double[]> lagCorrelation2 = correlation.getLagResultEarlier2(codeTimeSeriesDouble, clusterTimeSeriesDouble);
+                double[] lagArray = new double[lagCorrelation2.size()];
+                double[] corArray = new double[lagCorrelation2.size()];
+                double[] pArray = new double[lagCorrelation2.size()];
+                for(int j = 0; j < lagCorrelation2.size(); j ++){
+                    lagArray[j] = addition - lagCorrelation2.get(j)[0];
+                    corArray[j] = lagCorrelation2.get(j)[1];
+                    pArray[j] = lagCorrelation2.get(j)[2];
                 }
-                //TODO 计算correlation
-                ((JSONObject) jsonCluster.get(i)).put("lag", lagArray);
-                ((JSONObject) jsonCluster.get(i)).put("correlation", corArray);
-                ((JSONObject) jsonCluster.get(i)).put("pvalue", pArray);
+                ((JSONObject) jsonCluster.get(i)).put("lagArray", lagArray);
+                ((JSONObject) jsonCluster.get(i)).put("correlationArray", corArray);
+                ((JSONObject) jsonCluster.get(i)).put("pvalueArray", pArray);
             }
             client.close();
             return jsonCluster.toString();
@@ -1928,19 +1967,23 @@ public class ClusterController {
 
                 //计算相关性，[0]为最优lag，[1]为对应相关度，[2]为t检验的p值
                 Correlation correlation = new Correlation();
-                ArrayList<double[]> lagCorrelation = correlation.getLagResultEarlier(codeTimeSeriesDouble, clusterTimeSeriesDouble);
-                double[] lagArray = new double[lagCorrelation.size()];
-                double[] corArray = new double[lagCorrelation.size()];
-                double[] pArray = new double[lagCorrelation.size()];
-                for(int j = 0; j < lagCorrelation.size(); j ++){
-                    lagArray[j] = addition - lagCorrelation.get(j)[0];
-                    corArray[j] = lagCorrelation.get(j)[1];
-                    pArray[j] = lagCorrelation.get(j)[2];
+                double[] lagCorrelation = correlation.getLagResultEarlier(codeTimeSeriesDouble, clusterTimeSeriesDouble);
+                ((JSONObject) jsonCluster.get(i)).put("lag", addition - lagCorrelation[0]);
+                ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
+                ((JSONObject) jsonCluster.get(i)).put("pvalue", lagCorrelation[2]);
+
+                ArrayList<double[]> lagCorrelation2 = correlation.getLagResultEarlier2(codeTimeSeriesDouble, clusterTimeSeriesDouble);
+                double[] lagArray = new double[lagCorrelation2.size()];
+                double[] corArray = new double[lagCorrelation2.size()];
+                double[] pArray = new double[lagCorrelation2.size()];
+                for(int j = 0; j < lagCorrelation2.size(); j ++){
+                    lagArray[j] = addition - lagCorrelation2.get(j)[0];
+                    corArray[j] = lagCorrelation2.get(j)[1];
+                    pArray[j] = lagCorrelation2.get(j)[2];
                 }
-                //TODO 计算correlation
-                ((JSONObject) jsonCluster.get(i)).put("lag", lagArray);
-                ((JSONObject) jsonCluster.get(i)).put("correlation", corArray);
-                ((JSONObject) jsonCluster.get(i)).put("pvalue", pArray);
+                ((JSONObject) jsonCluster.get(i)).put("lagArray", lagArray);
+                ((JSONObject) jsonCluster.get(i)).put("correlationArray", corArray);
+                ((JSONObject) jsonCluster.get(i)).put("pvalueArray", pArray);
 
             }
             client.close();

@@ -196,8 +196,9 @@ public class Correlation {
      * @param x
      * @param y
      * @return
+     * 与getLagResultEarlier不同的是,该方法返回整个数组
      */
-    public ArrayList<double[]> getLagResultEarlier(double[] x, double[] y){  //y数组头部后移lag位，但长度始终与x相等；x不做任何变化
+    public ArrayList<double[]> getLagResultEarlier2(double[] x, double[] y){  //y数组头部后移lag位，但长度始终与x相等；x不做任何变化
         ArrayList<double[]> returnValue = new ArrayList<double[]>();
 
         double thisLagResult;
@@ -217,6 +218,32 @@ public class Correlation {
 //            }
         }
         return returnValue;
+    }
+
+    /**
+     *
+     * @param x
+     * @param y
+     * @return
+     */
+    public double[] getLagResultEarlier(double[] x, double[] y){  //y数组头部后移lag位，但长度始终与x相等；x不做任何变化
+        double[] result = new double[3];
+        double thisLagResult;
+        int xlength = x.length; //x数组一直保持不变
+        int allLag = y.length - x.length;
+        TTest tTest = new TTest();
+        PearsonsCorrelation pearsonsCorrelation = new PearsonsCorrelation();
+        for (int i = 0; i <= allLag; i++) {
+            double[] yy = Arrays.copyOfRange(y, i, i + xlength);    //y数组窗口后移，但长度始终和x一致
+            thisLagResult = pearsonsCorrelation.correlation(x, yy);
+            if (thisLagResult > result[1]){     //不使用绝对值，忽略负相关
+                result[0] = i;
+                result[1] = thisLagResult;
+                result[2] = tTest.pairedTTest(x,yy);
+            }
+        }
+
+        return result;
     }
 
 //    /**
