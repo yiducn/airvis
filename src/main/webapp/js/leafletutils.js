@@ -16,7 +16,7 @@ var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 var unfilteredData = [];//经过过滤后剩下的数据,结构同filteredData
 var COR_THREADHOOD = 0.6;
 var SIZE_RING = 120;
-var GRID_SIZE_CORRELATION = 2;//correlation map的grid 大小
+var GRID_SIZE_CORRELATION = 4;//correlation map的grid 大小
 var displayPoint = false;//判断点是不是已经显示过一次了,如果显示过则不需要再重置filteredData
 
 //控件参数
@@ -92,7 +92,7 @@ function initUIs(){
     //$('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
     map = L.mapbox.map('map', 'mapbox.streets')
-        .setView([23, 120], 4);
+        .setView([25, 100], 4);
     //map = new L.Map("map", {center: [23, 120], zoom: 4})
     //    .addLayer(new L.TileLayer("http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"));
     map.options.minZoom = 4;
@@ -166,11 +166,21 @@ function initUIs(){
         startAngleControl = ui.value;
         displayCustomizedFilter();
     });
+    $("#sliderStartAngle").on("slidechange", function(event, ui){
+        startAngleControl = ui.value;
+        displayCustomizedFilter();
+        clusterFilter();
+    });
 
     $("#sliderSwap").slider({value:180});
     $("#sliderSwap").on("slide", function(event, ui){
         swap = ui.value;
         displayCustomizedFilter();
+    });
+    $("#sliderSwap").on("slidechange", function(event, ui){
+        swap = ui.value;
+        displayCustomizedFilter();
+        clusterFilter();
     });
 
     $("#sliderRad").slider({ value: SIZE_RING});
@@ -977,13 +987,12 @@ function displayFilter(){
     deactiveFreeDraw();//TODO ugly structure
 
     displayCustomizedFilter();
+
 }
 
-
-/**
- * 根据freedraw的情况,给出可以控制的控件
- */
 function displayCustomizedFilter(){
+
+    //根据freedraw的情况,给出可以控制的控件
     if(filterControl != null)
         map.removeLayer(filterControl);
     var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
@@ -1021,7 +1030,7 @@ function displayCustomizedFilter(){
                     "L" + s3X + " " + s3Y +
                     "A" + r + "," + r +
                     " 0 0,0 " + startX + "," + startY + "Z";
-            //(rx ry x-axis-rotation large-arc-flag sweep-flag x y)+
+                //(rx ry x-axis-rotation large-arc-flag sweep-flag x y)+
             })
             .attr("stroke", "black")
             .attr("stroke-width", "0px")
@@ -1057,10 +1066,9 @@ function displayCustomizedFilter(){
             .attr("fill", "gray")
             .attr("fill-opacity", 0.5);
 
-        });
+    });
 
     filterControl.addTo(map);
-
 }
 
 
@@ -1251,6 +1259,7 @@ function linearTime(){
  */
 function repaintAll(){
     //controlCalendar();
+    createdetailPanel();
     provinceValueControl();
     cityValueControl();
     controlCluster();
@@ -1358,7 +1367,7 @@ function createCircleView() {
         .attr('stroke', 'black')
         .attr('fill-opacity', '0.7');
 
-    drawScatterGroup(contextRingOption);
+    controlCluster();
 }
 
 
@@ -1476,7 +1485,8 @@ function createdetailPanel(){
                 detailBrush = brush.empty() ? x.domain() : brush.extent();
                 //clusterWithCorrelation();
                 //controlThemeRiver();
-                controlLLCGroup();
+                //controlLLCGroup();
+                displayLLCView();
             }
 
             //绘制border
@@ -1601,108 +1611,15 @@ function createdetailPanel(){
 
 }
 
-/**
- * 根据cluster的结果,以及detailBrush,
- * 计算各个cluster的相关性
- * 然后根据相关性数值重置cluster大小
- */
-//function clusterWithCorrelation(){
-//    //如果没有显示cluster 不计算相关性
-//    if(clusterLayer == null ||
-//        !$("#controlCluster").is(":checked") ||
-//        detailBrush == null)
-//        return;
-//    //TODO 如果cluster为空应先创建cluster
-//    if(clusterResult == null && $("#controlCluster").is(":checked")){
-//        controlCluster();
-//    }
-//    var codes = "";
-//    for(var i = 0; i < filteredData.length; i ++){
-//        codes += ("codes="+filteredData[i].code + "&");
-//    }
-//    // Define the div for the tooltip
-//    var div = d3.select("body").append("div")
-//        .attr("id", "tooltip")
-//        .attr("class", "tooltip")
-//        .style("opacity", 0);
-//
-//    $.ajax({
-//        url: "correlation2.do",
-//        type:"post",
-//        data: "cluster="+
-//            JSON.stringify(clusterResult) +
-//            "&startTime="+new Date(detailBrush[0])+
-//            "&endTime="+new Date(detailBrush[1])+
-//            "&" + codes,
-//        success: function (returnData) {
-//            var data = JSON.parse(returnData);
-//            clusterResult = data;
-//            circles.transition()
-//                .attr("r", function(d){
-//                    for(var i = 0; i < data.length; i ++){
-//                        if(data[i].id == d.id) {
-//                            if(data[i].correlation < COR_THREADHOOD)
-//                                return 4;//负相关
-//                            if(data[i].pvalue > 0.05)
-//                                return 4;//不显著
-//                            return 4 + data[i].correlation * 15;
-//                        }
-//                    }
-//                    console.log("no correlation");
-//                    return 5;
-//                })
-//                .attr("fill", function(d){
-//                    for(var i = 0; i < data.length; i ++){
-//                        if(data[i].id == d.id) {
-//                            if(data[i].lag >= 0){
-//                                if(data[i].correlation < 0)
-//                                    return colorScaleCor(0);//负相关
-//                                if(data[i].pvalue > 0.05)
-//                                    return colorScaleCor(0);//不显著
-//                                return colorScaleCor(data[i].correlation);
-//                            }else if(data[i].lag < 0){
-//                                if(data[i].correlation < 0)
-//                                    return colorScaleCorLag(0);//负相关
-//                                if(data[i].pvalue > 0.05)
-//                                    return colorScaleCorLag(0);//不显著
-//                                return colorScaleCorLag(data[i].correlation);
-//                            }
-//                        }
-//                    }
-//
-//                });
-//
-//            circles.on("mouseover", function(d) {
-//                var cor = 0;
-//                var lag = 0;
-//                for(var i = 0; i < data.length; i ++){
-//                    if(data[i].id == d.id) {
-//                        cor = data[i].correlation;
-//                        lag = data[i].lag;
-//                    }
-//                }
-//
-//                div.transition()
-//                    .duration(100)
-//                    .style("opacity", .9);
-//                div	.html(d.cluster[0].city +":"+ parseFloat(cor).toFixed(2)+":"+(parseInt(lag)))
-//                    .style("left", (d3.event.pageX) + "px")
-//                    .style("top", (d3.event.pageY - 28) + "px");
-//            })		        .on("mouseout", function(d) {
-//                div.transition()
-//                    .duration(500)
-//                    .style("opacity", 0);
-//            });
-//        }
-//    });
-//
-//}
 
 /**
  * 绘制站点,在右侧的contextRing面板上
  */
-function drawScatterGroup(circleOption){
+function drawScatterGroup(){
+    var circleOption = contextRingOption;
     var sel = d3.select("#circleView");
+    if(d3.select("#scattergroup")[0][0] != null)
+        $("#scattergroup").remove();
     var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
     var center = bounds.getBounds().getCenter();
 
@@ -1880,6 +1797,7 @@ function displayLLCView(){
     var center = bounds.getBounds().getCenter();
 
     //$("#llcBar").show();//
+    $("#llcBar").empty();
     var d = d3.select("#llcBar");
     var margin = {top: 10, right: 20, bottom: 50, left: 40};
     var width = 600, height = 450;
@@ -2030,15 +1948,15 @@ function displayLLCView(){
                     if(xPos < 0)
                         continue;
                     if(d.pvalueArray[j] >= 0.05 || d.correlationArray == null){
-                        //levelRect.append("rect")
-                        //    .attr("x", xPos)
-                        //    .attr("y", yOneCluster)
-                        //    .attr("width", widthOneHour)
-                        //    .attr("height", heightOneCluster)
-                        //    .style("fill-opacity", "1")
-                        //    .style("fill", "#F0F0F0");
+                        levelRect.append("rect")
+                            .attr("x", xPos)
+                            .attr("y", yOneCluster)
+                            .attr("width", widthOneHour)
+                            .attr("height", heightOneCluster)
+                            .style("fill-opacity", "1")
+                            .style("fill", colorLLCGroup(0));
                         continue;
-                    }
+                    }else{
                     levelRect.append("rect")
                         .attr("x", xPos)
                         .attr("y", yOneCluster)
@@ -2046,6 +1964,7 @@ function displayLLCView(){
                         .attr("height", heightOneCluster)
                         .style("fill-opacity", "1")
                         .style("fill", colorLLCGroup(d.correlationArray[j]));
+                    }
                 }
             }
 
@@ -2114,11 +2033,16 @@ function displayLLCView(){
 
 }
 
+function cluster(){
+    clusterFilter();
+    clusterContextRing();
+}
+
 /**将unfiltereddata进行聚类
  * 首先根据city区域进行聚类
  * 然后根据时间相似性进行聚类
  */
-function cluster(){
+function clusterFilter(){
     if(clusterLayer != null)
         map.removeLayer(clusterLayer);
     sizeScreen = map.getPixelBounds().getSize();
@@ -2221,9 +2145,122 @@ function cluster(){
         },
         async:false
     });
+
+
 }
 
+/**
+ * 右上角的聚类
+ */
+function clusterContextRing(){
 
+    //绘制右上角的cluster
+    var sel = d3.select("#scattergroup");
+    $("#scattergroup").empty();
+    if(sel[0][0] == null)
+        sel = d3.select("#circleView").append("g")
+            .attr("id", "#scattergroup");
+
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
+
+    var centerX, centerY, sumX = 0, sumY = 0;
+    for(var i = 0; i < freedrawEvent.latLngs[0].length; i ++){
+        sumX += freedrawEvent.latLngs[0][i].lng;
+        sumY += freedrawEvent.latLngs[0][i].lat;
+    }
+    centerX = sumX / freedrawEvent.latLngs[0].length;
+    centerY = sumY / freedrawEvent.latLngs[0].length;
+
+    var param = "";
+    for(var i = 0; i < filteredData.length; i ++){
+        param += ("codes="+filteredData[i].code + "&");
+    }
+    param += "maxDistance="+maxDis+"&";
+    param += "centerLon=" + centerX+"&";
+    param += "centerLat=" + centerY+"&";
+    param += "startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
+    $.ajax({
+        url:"newclusterWithWind.do",
+        type:"post",
+        data: param,
+        success: function (returnData) {
+            var data = JSON.parse(returnData);
+            //clusterResult = data;
+
+            for(var i = 0; i < data.length; i ++){
+                data[i].distance = L.latLng(data[i].centerY, data[i].centerX).distanceTo(center);
+            }
+
+            var stationX = function (d) {
+                var r = (contextRingOption.innerRadius + (d.distance - minDis) / (maxDis - minDis) * (contextRingOption.outerRadius - contextRingOption.innerRadius));
+                return contextRingOption.centerScreenX + r *
+                    (d.centerX - center.lng) /
+                    Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
+            }
+            var stationY = function (d) {
+                var r = (contextRingOption.innerRadius + (d.distance - minDis) / (maxDis - minDis) * (contextRingOption.outerRadius - contextRingOption.innerRadius));
+                return contextRingOption.centerScreenY - r *
+                    (d.centerY - center.lat) /
+                    Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
+            }
+
+            sel.append("g").selectAll(".clusterWind").data(data)
+                .enter()
+                .append("svg:marker")
+                .attr("id", function(d){return "triangle"+ d.cluster[0].code;})
+                .attr("viewBox", "0 0 15 10")
+                .attr("refX", "0")
+                .attr("refY", "3")
+                .attr("markerWidth", "3")
+                .attr("markerHeight", "3")
+                .attr("orient", function(d){return d.dir+"deg";})
+                .append("path")
+                .attr("d", "M 0 0 L 10 3 L 0 6 z");
+
+            var clusterCircles = sel.selectAll(".cluster").data(data)
+                .enter()
+                .append("g")
+                .attr('id', function(d){return d.id;});
+
+            circles = clusterCircles.append("circle")
+                .attr('r', function (d) {
+                    return 4+(d.cluster.length-1)*3;//d.cluster.length*5;
+                })
+                .attr('id', function(d){return d.id;})//能使用同一个id 么?
+                .attr('cx', stationX)
+                .attr('cy', stationY)
+                .attr('fill', function(d){
+                    //根据数值返回颜色
+                    for(var i = 0; i < unfilteredData.length; i ++){
+                        //if(unfilteredData[i].pm25 == null)
+                        //    return "yellow";
+                        if(d.cluster[0].code == unfilteredData[i].code)
+                            return colorScale(unfilteredData[i].pm25);
+                    }
+                    //if(d.cluster[0]pm25 == null)
+                    //    return colorScale(0);
+                    //return colorScale(d.pm25);
+                    return 'yellow';
+                })
+                .attr('opacity', '1')
+                .attr('stroke', 'black')
+                .attr('stroke-width', 0.5);
+            clusterCircles.append("line")
+                .attr('class', 'clusterwind')
+                .attr('x1', stationX)
+                .attr('y1', stationY)
+                .attr("x2", stationX)
+                .attr("y2", stationY)
+                .attr("marker-end", function(d){return "url(#triangle"+d.cluster[0].code+")";})
+                .attr("stroke", "black")
+                .attr("stroke-width", function(d){return (2 + d.spd/2);})
+                .attr('fill-opacity', '0.8')
+                .attr("visibility", "hidden");
+        },
+        async:true
+    });
+}
 
 /**
  * 聚类,然后绘制themeriver
@@ -2924,6 +2961,10 @@ function createCorHeatMapView(){
  * 使用两个维度映射实现heatmap
  */
 function createCorHeatMapView2(){
+    var sel = d3.select("#correlationHM");
+    if(sel[0][0] == null)
+        sel = d3.select("#circleView").append("g").attr("id", "correlationHM");
+
     if(corHeatMapLayer != null)
         map.removeLayer(corHeatMapLayer);
     outerRadius = sizeScreen.y / 2-50;
@@ -2973,117 +3014,116 @@ function createCorHeatMapView2(){
     }
     var standardDeviationLag = Math.sqrt(sumTemp / countLag);
 
-    corHeatMapLayer = L.d3SvgOverlay(function(sel, proj) {
-        var x = [], y = [], t = [];
-        var tL = [];//tL是lead/lagValue
-        $("circle").each(function() {
-            var id = $(this).attr("id");
-            for(var i = 0; i < clusterResult.length; i ++){
-                if(clusterResult[i].id != id)
-                    continue;
-                var lagValue = clusterResult[i].lag;
-                if(lagValue > 0 &&
-                    (lagValue > (avgLead + 2 * standardDeviationLead) || lagValue < (avgLead - 2 * standardDeviationLead))){
-                    console.log("lagValue:"+clusterResult[i].lag);
-                    continue;
-                }else if(lagValue < 0 &&
-                    (lagValue > (avgLag + 2 * standardDeviationLag) || lagValue < (avgLag - 2 * standardDeviationLag))){
-                    console.log("lagValue:"+clusterResult[i].lag);
-                    continue;
-                }
+    //corHeatMapLayer = L.d3SvgOverlay(function(sel, proj) {
 
-                if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD))
-                    continue;
-                if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD))
-                    continue;
-
-                x.push($(this).attr("cx"));
-                y.push($(this).attr("cy"));
-                tL.push(clusterResult[i].lag);
-
-                if(clusterResult[i].lag > 0)
-                    t.push(clusterResult[i].correlation);
-                else
-                    t.push(-clusterResult[i].correlation);
+    var x = [], y = [], t = [];
+    var tL = [];//tL是lead/lagValue
+    $("circle").each(function() {
+        var id = $(this).attr("id");
+        for(var i = 0; i < clusterResult.length; i ++){
+            if(clusterResult[i].id != id)
+                continue;
+            var lagValue = clusterResult[i].lag;
+            if(lagValue > 0 &&
+                (lagValue > (avgLead + 2 * standardDeviationLead) || lagValue < (avgLead - 2 * standardDeviationLead))){
+                console.log("lagValue:"+clusterResult[i].lag);
+                continue;
+            }else if(lagValue < 0 &&
+                (lagValue > (avgLag + 2 * standardDeviationLag) || lagValue < (avgLag - 2 * standardDeviationLag))){
+                console.log("lagValue:"+clusterResult[i].lag);
+                continue;
             }
-        });
 
-        var model = "exponential";
-        //var model = "gaussian";
-        var sigma2 = 0, alpha = 100;
-        var variogram = kriging.train(t, x, y, model, sigma2, alpha);
-        var variogramL = kriging.train(tL, x, y, model, sigma2, alpha);
+            if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD))
+                continue;
+            if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD))
+                continue;
 
-        var temp = ((avgLead + 2 * standardDeviationLead) > (Math.abs(avgLag - 2 * standardDeviationLag))) ?
-            (avgLead + 2 * standardDeviationLead) :
-            (Math.abs(avgLag - 2 * standardDeviationLag));
+            x.push($(this).attr("cx"));
+            y.push($(this).attr("cy"));
+            tL.push(clusterResult[i].lag);
 
-        var maxCor = maxLagCor > maxLeadCor ? maxLagCor : maxLeadCor;
+            if(clusterResult[i].lag > 0)
+                t.push(clusterResult[i].correlation);
+            else
+                t.push(-clusterResult[i].correlation);
+        }
+    });
 
-        //var leadH = d3.scale.linear().domain([1, 0]).range([0, 60]);
-        //var lagH = d3.scale.linear().domain([-1,0]).range([120, 60]);
-        var leadH = d3.scale.linear().domain([1, maxCor,  COR_THREADHOOD, 0]).range([0, 0, 60, 60]);
-        var lagH = d3.scale.linear().domain([-1, -maxCor, -COR_THREADHOOD, 0]).range([120, 120, 60, 60]);
-        //var leadS = d3.scale.linear().domain([0, (avgLead + 2 * standardDeviationLead), 1000]).range([0.5, 0.9, 0.9]);
-        //var lagS = d3.scale.linear().domain([0, (avgLag - 2 * standardDeviationLag), -1000]).range([0.5, 0.9, 0.9]);
-        //var leadS = d3.scale.linear().domain([0, temp, 1000]).range([0.5, 0.9, 0.9]);
-        //var lagS = d3.scale.linear().domain([0, -temp, -1000]).range([0.5, 0.9, 0.9]);
-        var temp1 = (avgLead - 2 * standardDeviationLead) > 0 ? (avgLead - 2 * standardDeviationLead) : 0;
-        var temp2 = (avgLag + 2 * standardDeviationLag) < 0 ? (avgLag + 2 * standardDeviationLag) : 0;
-        var leadS2 = d3.scale.linear().domain([0, temp1,  (avgLead + 2 * standardDeviationLead), 1000]).range([0.5, 0.5, 0.9, 0.9]);
-        var lagS2 = d3.scale.linear().domain([0, temp2, (avgLag - 2 * standardDeviationLag), -1000]).range([0.5, 0.5, 0.9, 0.9]);
-        var leadS = d3.scale.linear().domain([0, temp1,  (avgLead + 2 * standardDeviationLead), 1000]).range([1, 1, 0, 0]);
-        var lagS = d3.scale.linear().domain([0, temp2, (avgLag - 2 * standardDeviationLag), -1000]).range([1, 1, 0, 0]);
+    var model = "exponential";
+    //var model = "gaussian";
+    var sigma2 = 0, alpha = 100;
+    var variogram = kriging.train(t, x, y, model, sigma2, alpha);
+    var variogramL = kriging.train(tL, x, y, model, sigma2, alpha);
 
-        console.log("avgLead:"+avgLead+":"+standardDeviationLead);
-        console.log("avgLag:"+avgLag+":"+standardDeviationLag);
+    var temp = ((avgLead + 2 * standardDeviationLead) > (Math.abs(avgLag - 2 * standardDeviationLag))) ?
+        (avgLead + 2 * standardDeviationLead) :
+        (Math.abs(avgLag - 2 * standardDeviationLag));
 
-        for(var i = 0; i < 8; i ++) {
-            var bbox = Snap.path.getBBox(octagonPath[i]);
-            console.log(bbox.x+":"+bbox.y+":"+bbox.width+":"+bbox.height);
-            var g = sel.append("g")
-                .attr("id", "correlationHeatMap"+i)
-                .attr("transform", "translate(" + bbox.x + "," + bbox.y + ")");
+    var maxCor = maxLagCor > maxLeadCor ? maxLagCor : maxLeadCor;
 
-            for (var j = 1; j < bbox.width-1; j+=GRID_SIZE_CORRELATION) {
-                for (var k = 1; k < bbox.height-1; k+=GRID_SIZE_CORRELATION) {
+    //var leadH = d3.scale.linear().domain([1, 0]).range([0, 60]);
+    //var lagH = d3.scale.linear().domain([-1,0]).range([120, 60]);
+    var leadH = d3.scale.linear().domain([1, maxCor,  COR_THREADHOOD, 0]).range([0, 0, 60, 60]);
+    var lagH = d3.scale.linear().domain([-1, -maxCor, -COR_THREADHOOD, 0]).range([120, 120, 60, 60]);
+    //var leadS = d3.scale.linear().domain([0, (avgLead + 2 * standardDeviationLead), 1000]).range([0.5, 0.9, 0.9]);
+    //var lagS = d3.scale.linear().domain([0, (avgLag - 2 * standardDeviationLag), -1000]).range([0.5, 0.9, 0.9]);
+    //var leadS = d3.scale.linear().domain([0, temp, 1000]).range([0.5, 0.9, 0.9]);
+    //var lagS = d3.scale.linear().domain([0, -temp, -1000]).range([0.5, 0.9, 0.9]);
+    var temp1 = (avgLead - 2 * standardDeviationLead) > 0 ? (avgLead - 2 * standardDeviationLead) : 0;
+    var temp2 = (avgLag + 2 * standardDeviationLag) < 0 ? (avgLag + 2 * standardDeviationLag) : 0;
+    var leadS2 = d3.scale.linear().domain([0, temp1,  (avgLead + 2 * standardDeviationLead), 1000]).range([0.5, 0.5, 0.9, 0.9]);
+    var lagS2 = d3.scale.linear().domain([0, temp2, (avgLag - 2 * standardDeviationLag), -1000]).range([0.5, 0.5, 0.9, 0.9]);
+    var leadS = d3.scale.linear().domain([0, temp1,  (avgLead + 2 * standardDeviationLead), 1000]).range([1, 1, 0, 0]);
+    var lagS = d3.scale.linear().domain([0, temp2, (avgLag - 2 * standardDeviationLag), -1000]).range([1, 1, 0, 0]);
 
-                    if (!Snap.path.isPointInside(octagonPath[i], bbox.x + j, bbox.y + k)) {
-                        continue;
-                    }
-                    var value = kriging.predict(bbox.x + j, bbox.y + k, variogram);
-                    var valueL = kriging.predict(bbox.x + j, bbox.y + k, variogramL);
-                    if(value > 1){
-                        value = 1;
-                    }else if(value < -1){
-                        value = -1;
-                    }
-                    if(value < 0 && valueL > 0){
-                        valueL = 0;
-                    }else if(value > 0 && valueL < 0){
-                        valueL = 0;
-                    }
-                    g.append("rect")
-                        .attr("width", GRID_SIZE_CORRELATION+1)
-                        .attr("height", GRID_SIZE_CORRELATION+1)
-                        .attr("fill", function(){
-                            if(value > 0){
-                                //return d3.hsl(leadH(value), leadS(valueL), leadS2(valueL) ).rgb();
-                                return d3.hsl(leadH(value), 1.0,  leadS2(valueL)).rgb();
-                            }else{
-                                //return d3.hsl(lagH(value), lagS(valueL), lagS2(valueL)).rgb();
-                                return d3.hsl(lagH(value), 1.0, lagS2(valueL)).rgb();
-                            }
-                        })
-                        .attr("fill-opacity", 1)//Math.abs(value))
-                        .attr("transform", "translate(" + j + "," + k + ")");
-                    //console.log(value+":"+colorScaleCor(value));
+    console.log("avgLead:"+avgLead+":"+standardDeviationLead);
+    console.log("avgLag:"+avgLag+":"+standardDeviationLag);
+
+    for(var i = 0; i < 8; i ++) {
+        var bbox = Snap.path.getBBox(octagonPath[i]);
+        console.log(bbox.x+":"+bbox.y+":"+bbox.width+":"+bbox.height);
+        var g = sel.append("g")
+            .attr("id", "correlationHeatMap"+i)
+            .attr("transform", "translate(" + bbox.x + "," + bbox.y + ")");
+
+        for (var j = 1; j < bbox.width-1; j+=GRID_SIZE_CORRELATION) {
+            for (var k = 1; k < bbox.height-1; k+=GRID_SIZE_CORRELATION) {
+
+                if (!Snap.path.isPointInside(octagonPath[i], bbox.x + j, bbox.y + k)) {
+                    continue;
                 }
+                var value = kriging.predict(bbox.x + j, bbox.y + k, variogram);
+                var valueL = kriging.predict(bbox.x + j, bbox.y + k, variogramL);
+                if(value > 1){
+                    value = 1;
+                }else if(value < -1){
+                    value = -1;
+                }
+                if(value < 0 && valueL > 0){
+                    valueL = 0;
+                }else if(value > 0 && valueL < 0){
+                    valueL = 0;
+                }
+                g.append("rect")
+                    .attr("width", GRID_SIZE_CORRELATION+1)
+                    .attr("height", GRID_SIZE_CORRELATION+1)
+                    .attr("fill", function(){
+                        if(value > 0){
+                            //return d3.hsl(leadH(value), leadS(valueL), leadS2(valueL) ).rgb();
+                            return d3.hsl(leadH(value), 1.0,  leadS2(valueL)).rgb();
+                        }else{
+                            //return d3.hsl(lagH(value), lagS(valueL), lagS2(valueL)).rgb();
+                            return d3.hsl(lagH(value), 1.0, lagS2(valueL)).rgb();
+                        }
+                    })
+                    .attr("fill-opacity", 1)//Math.abs(value))
+                    .attr("transform", "translate(" + j + "," + k + ")");
+                //console.log(value+":"+colorScaleCor(value));
             }
         }
+    }
 
-    });
-    corHeatMapLayer.addTo(map);
 
 }
 
@@ -3404,12 +3444,6 @@ function controlGroupThemeRiver(){
 }
 
 function controlCluster(){
-    if(clusterLayer != null){
-        if($("#controlContextRing").is(":checked") && $("#scattergroup").length == 0){
-            drawScatterGroup(contextRingOption);
-        }
-        map.removeLayer(clusterLayer);
-    }
     if($("#controlCluster").is(":checked")){
         if(freedrawEvent.latLngs == null || freedrawEvent.latLngs.length == 0) {
             window.alert("you should select a region on the map first.");
@@ -3419,12 +3453,8 @@ function controlCluster(){
             return;
         }
         cluster();
-        //if(detailBrush != null){
-            //clusterWithCorrelation();
-        //}
-        if($("#scattergroup").length != 0){
-            $("#scattergroup").remove();
-        }
+    }else{
+        drawScatterGroup();
     }
 }
 
@@ -3437,10 +3467,10 @@ function controlClusterWind(){
 
 }
 function controlHeatMapCor(){
-    if(corHeatMapLayer != null)
-        map.removeLayer(corHeatMapLayer);
     if($("#controlHeatMapCor").is(":checked")){
         createCorHeatMapView2();
+    }else{
+        $("#correlationHM").remove();
     }
 }
 

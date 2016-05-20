@@ -972,7 +972,7 @@ public class ClusterController {
                     }
 
                     int intervD = (int) (d.getDate("time").getTime() - df.parse(startTime).getTime()) / (1000 * 60 * 60* 24);
-                    System.out.println("intervD:  " + intervD);
+//                    System.out.println("intervD:  " + intervD);
                     if (intervD != 0){
                         Document ndd = new Document();
                         for (int i = 0; i < intervD; i++) {
