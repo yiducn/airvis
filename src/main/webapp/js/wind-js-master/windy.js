@@ -16,7 +16,7 @@ var Windy = function( params ){
   var MAX_WIND_INTENSITY = 40;              // wind velocity at which particle intensity is maximum (m/s)
   var MAX_PARTICLE_AGE = 100;                // max number of frames a particle is drawn before regeneration
   var PARTICLE_LINE_WIDTH = 0.8;              // line width of a drawn particle
-  var PARTICLE_MULTIPLIER = 1/30;              // particle count scalar (completely arbitrary--this values looks nice)
+  var PARTICLE_MULTIPLIER = 1/100;//1/30;              // particle count scalar (completely arbitrary--this values looks nice)
   var PARTICLE_REDUCTION = 0.75;            // reduce particle count to this much of normal for mobile devices
   var FRAME_RATE = 20;                      // desired milliseconds per frame
   var BOUNDARY = 0.45;
@@ -204,6 +204,7 @@ var Windy = function( params ){
           columns = [];
       };
 
+      //??what is this method for?干嘛用的?
       field.randomize = function(o) {  // UNDONE: this method is terrible
           var x, y;
           var safetyNet = 0;
@@ -325,7 +326,7 @@ var Windy = function( params ){
     function windIntensityColorScale(step, maxWind) {
 
         result = [
-          /* blue to red
+          //blue to red
           "rgba(" + hexToR('#178be7') + ", " + hexToG('#178be7') + ", " + hexToB('#178be7') + ", " + 0.5 + ")",
           "rgba(" + hexToR('#8888bd') + ", " + hexToG('#8888bd') + ", " + hexToB('#8888bd') + ", " + 0.5 + ")",
           "rgba(" + hexToR('#b28499') + ", " + hexToG('#b28499') + ", " + hexToB('#b28499') + ", " + 0.5 + ")",
@@ -336,7 +337,7 @@ var Windy = function( params ){
           "rgba(" + hexToR('#fb4f17') + ", " + hexToG('#fb4f17') + ", " + hexToB('#fb4f17') + ", " + 0.5 + ")",
           "rgba(" + hexToR('#fe3705') + ", " + hexToG('#fe3705') + ", " + hexToB('#fe3705') + ", " + 0.5 + ")",
           "rgba(" + hexToR('#ff0000') + ", " + hexToG('#ff0000') + ", " + hexToB('#ff0000') + ", " + 0.5 + ")"
-          */
+/*
           "rgba(" + hexToR('#00ffff') + ", " + hexToG('#00ffff') + ", " + hexToB('#00ffff') + ", " + 0.5 + ")",
           "rgba(" + hexToR('#64f0ff') + ", " + hexToG('#64f0ff') + ", " + hexToB('#64f0ff') + ", " + 0.5 + ")",
           "rgba(" + hexToR('#87e1ff') + ", " + hexToG('#87e1ff') + ", " + hexToB('#87e1ff') + ", " + 0.5 + ")",
@@ -346,7 +347,7 @@ var Windy = function( params ){
           "rgba(" + hexToR('#d49bff') + ", " + hexToG('#d49bff') + ", " + hexToB('#d49bff') + ", " + 0.5 + ")",
           "rgba(" + hexToR('#e185ff') + ", " + hexToG('#e185ff') + ", " + hexToB('#e185ff') + ", " + 0.5 + ")",
           "rgba(" + hexToR('#ec6dff') + ", " + hexToG('#ec6dff') + ", " + hexToB('#ec6dff') + ", " + 0.5 + ")",
-          "rgba(" + hexToR('#ff1edb') + ", " + hexToG('#ff1edb') + ", " + hexToB('#ff1edb') + ", " + 0.5 + ")"
+          "rgba(" + hexToR('#ff1edb') + ", " + hexToG('#ff1edb') + ", " + hexToB('#ff1edb') + ", " + 0.5 + ")"*/
         ]
         /*
         var result = [];
@@ -462,11 +463,11 @@ var Windy = function( params ){
 
     stop();
 
-    // build grid
+    // build grid,就是将数据存储到一个数组中,每一个里面存储了u和v
     buildGrid( params.data, function(grid){
       // interpolateField
       interpolateField( grid, buildBounds( bounds, width, height), mapBounds, function( bounds, field ){
-        // animate the canvas with random points
+        // animate the canvas with random points,field即为向量场的数据,columns
         windy.field = field;
         animate( bounds, field );
       });

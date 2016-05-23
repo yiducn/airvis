@@ -8,6 +8,7 @@ var map;
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
 var scatterGroup, clusterLayer, themeLayer,corHeatMapLayer, gridsView, windsView;
 var stlLayer, aqHeatMapLayer, windLayer;
+var detailWindLayer;
 var filterControl;
 var provinceBoundaryOverlay, cityBoundaryOverlay, provinceValueOverlay, cityValueOverlay;
 
@@ -24,6 +25,8 @@ var startAngleControl = 75;//北偏西15,startAngle范围是西到北到东0 90 
 var swap = 30;//swap范围(0, 180)
 var distance = 60;
 var r = 20;
+
+var windy;
 
 var paintControl = {
     calendar        :   false,
@@ -95,8 +98,8 @@ function initUIs(){
         .setView([25, 100], 4);
     //map = new L.Map("map", {center: [23, 120], zoom: 4})
     //    .addLayer(new L.TileLayer("http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"));
-    map.options.minZoom = 4;
-    map.options.maxZoom = 13;
+    map.options.minZoom = 1;//4;
+    map.options.maxZoom = 36;//13;
 
     //add location layer
     locationLayer = L.layerGroup();
@@ -126,6 +129,8 @@ function initUIs(){
             $("#maxDistance").text(parseInt(maxDis/1000) + "km");
             $("#minDistance").text(parseInt(minDis/1000) + "km");
         }
+
+        controlDetailWind();
     });
     map.on('moveend', function(){
 
@@ -226,8 +231,60 @@ function initUIs(){
         contextRingOption.canvasH = $("#contextRing").height();
     }
 
+
+
 }
 
+
+/**
+ * 显示风
+ */
+function displayWind(){
+    if(detailWindLayer != null)
+        map.removeLayer(detailWindLayer);
+    //wind
+    var windData;
+    {
+        $.ajax({
+            url: "winddata.do",
+            type:"post",
+            data:
+            "startTime="+new Date(detailBrush[0])+
+            "&endTime="+new Date(detailBrush[1]),
+            success: function (data) {
+                windData = JSON.parse(data);
+                //windData = data;
+            },
+            async: false
+        });
+    }
+    var BigPointLayer = L.CanvasLayer.extend({
+        render: function() {
+            windy = new Windy({ canvas: this.getCanvas(), data: windData });
+            redraw2();
+        }
+    });
+    detailWindLayer = new BigPointLayer();
+    detailWindLayer.addTo(map);
+
+
+
+    function redraw2(){
+        detailWindLayer.getCanvas().width = map.getSize().x;
+        detailWindLayer.getCanvas().height = map.getSize().y;
+
+        windy.stop();
+
+        setTimeout(function(){
+            windy.start(
+                [[0,0],[detailWindLayer.getCanvas().width, detailWindLayer.getCanvas().height]],
+                detailWindLayer.getCanvas().width,
+                detailWindLayer.getCanvas().height,
+                [[map.getBounds()._southWest.lng, map.getBounds()._southWest.lat],[map.getBounds()._northEast.lng, map.getBounds()._northEast.lat]]
+            );
+        },500);
+    }
+}
 /**
  * 创建中国地图轮廓
  */
@@ -3531,11 +3588,30 @@ function controlLLCGroup(){
     }
 }
 
+function controlDetailWind(){
+    if($("#controlDetailWind").is(":checked")){
+        displayWind();
+    }else{
+        if(detailWindLayer != null) {
+            map.removeLayer(detailWindLayer);
+            windy.stop();
+        }
+    }
+}
+
 function cityBoundaryControl(){
     if($("#cityBoundary").is( ':checked' )){
         createCityMap();
     }else{
         map.removeLayer(cityBoundaryOverlay);
+    }
+}
+
+function controlController(){
+    if($("#controlController").is( ':checked' )){
+        displayCustomizedFilter();
+    }else{
+        map.removeLayer(filterControl);
     }
 }
 
