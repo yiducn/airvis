@@ -1459,6 +1459,7 @@ public class ClusterController {
      * @param endTime detailBrush选定的结束时间
      * @param codes 中心区域的站点
      * @return
+     * 20160520 取消前后时间计算,直接使用固定值
      */
     @RequestMapping(value = "correlation2.do", method = RequestMethod.POST)
     public
@@ -1474,11 +1475,11 @@ public class ClusterController {
             MongoClient client = new MongoClient("127.0.0.1", 27017);
             MongoDatabase db = client.getDatabase(NEW_DB_NAME);
             MongoCollection pmCollection = db.getCollection("pm_data");
-            DB db2 = client.getDB(NEW_DB_NAME);
-            DBCollection meteoCollectionDaily = db2.getCollection("meteodata_day");
-            DBCollection clusterCollection = db2.getCollection("cluster");
-            DBCollection clusterMeteoCollection = db2.getCollection("clusterMeteo");
-            DBCollection pmStationCollection = db2.getCollection("pm_stations");
+//            DB db2 = client.getDB(NEW_DB_NAME);
+//            DBCollection meteoCollectionDaily = db2.getCollection("meteodata_day");
+//            DBCollection clusterCollection = db2.getCollection("cluster");
+//            DBCollection clusterMeteoCollection = db2.getCollection("clusterMeteo");
+//            DBCollection pmStationCollection = db2.getCollection("pm_stations");
             //日期格式、时区设置
             //TODO time zone problem
             SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
@@ -1542,91 +1543,93 @@ public class ClusterController {
             }
 
 
-            //－－－－－－－－－－－－－查询center中站点的spd－－－－－－－－－－－－－－－－
-            BasicDBObject queryCenterPMStation = new BasicDBObject();   //圆心内站点的经纬度
-            queryCenterPMStation.append("code", codes[0]);//TODO
-            DBCursor curCenterPMStation = pmStationCollection.find(queryCenterPMStation);
-            DBObject thisCenterPMStation = curCenterPMStation.next();//TODO
-            double centerLat = Double.parseDouble(thisCenterPMStation.get("lat").toString());
-            double centerLon = Double.parseDouble(thisCenterPMStation.get("lon").toString());
-
-            //查询中心站所在的cluster的编号clusterid
-            DBCursor curCenterCluesterID = clusterCollection.find(queryCenterPMStation);
-            String centerClusterID = curCenterCluesterID.next().get("clusterid").toString();
-
-            //查询此cluster对应的meteo站编号usaf
-            BasicDBObject queryCenterClusterMeteo = new BasicDBObject();
-            queryCenterClusterMeteo.append("clusterid",centerClusterID);
-            DBCursor curCenterClusterMeteo = clusterMeteoCollection.find(queryCenterClusterMeteo);
-            int centerClusterMeteo = Integer.parseInt(curCenterClusterMeteo.next().get("usaf").toString());
-
-            //根据meteo站编号和起始时间查询当地风速spd
-            BasicDBObject queryCenterClusterMeteoData = new BasicDBObject();
-            queryCenterClusterMeteoData.append("usaf",centerClusterMeteo);
-            queryCenterClusterMeteoData.append("time",new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
-            DBCursor curCenterClusterMeteoData = meteoCollectionDaily.find(queryCenterClusterMeteoData);
-            double centerSpd;
-            if(!curCenterClusterMeteoData.hasNext())
-                centerSpd = 0;
-            else
-                centerSpd = Double.parseDouble(curCenterClusterMeteoData.next().get("spd").toString());
-            //－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+//            //－－－－－－－－－－－－－查询center中站点的spd－－－－－－－－－－－－－－－－
+//            BasicDBObject queryCenterPMStation = new BasicDBObject();   //圆心内站点的经纬度
+//            queryCenterPMStation.append("code", codes[0]);//TODO
+//            DBCursor curCenterPMStation = pmStationCollection.find(queryCenterPMStation);
+//            DBObject thisCenterPMStation = curCenterPMStation.next();//TODO
+//            double centerLat = Double.parseDouble(thisCenterPMStation.get("lat").toString());
+//            double centerLon = Double.parseDouble(thisCenterPMStation.get("lon").toString());
+//
+//            //查询中心站所在的cluster的编号clusterid
+//            DBCursor curCenterCluesterID = clusterCollection.find(queryCenterPMStation);
+//            String centerClusterID = curCenterCluesterID.next().get("clusterid").toString();
+//
+//            //查询此cluster对应的meteo站编号usaf
+//            BasicDBObject queryCenterClusterMeteo = new BasicDBObject();
+//            queryCenterClusterMeteo.append("clusterid",centerClusterID);
+//            DBCursor curCenterClusterMeteo = clusterMeteoCollection.find(queryCenterClusterMeteo);
+//            int centerClusterMeteo = Integer.parseInt(curCenterClusterMeteo.next().get("usaf").toString());
+//
+//            //根据meteo站编号和起始时间查询当地风速spd
+//            BasicDBObject queryCenterClusterMeteoData = new BasicDBObject();
+//            queryCenterClusterMeteoData.append("usaf",centerClusterMeteo);
+//            queryCenterClusterMeteoData.append("time",new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
+//            DBCursor curCenterClusterMeteoData = meteoCollectionDaily.find(queryCenterClusterMeteoData);
+//            double centerSpd;
+//            if(!curCenterClusterMeteoData.hasNext())
+//                centerSpd = 0;
+//            else
+//                centerSpd = Double.parseDouble(curCenterClusterMeteoData.next().get("spd").toString());
+//            //－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
             for(int i = 0; i < jsonCluster.length(); i ++){
                 //－－－－－－－－－－计算距离／查询风速＝往前推的时间－－－－－－－－－－－－
-                double clusterDistance, clusterSpd;
+//                double clusterDistance, clusterSpd;
                 int addition = 0;
                 int additionLater = 0;
                 String oneCluster = jsonCluster.getJSONObject(i).getJSONArray("cluster").getJSONObject(0).getString("code");
 
-                BasicDBObject queryClusterID = new BasicDBObject();     //查询该站所在的cluster的编号clusterid
-                queryClusterID.append("code", oneCluster);
-                DBCursor curCluesterID = clusterCollection.find(queryClusterID);
-                String clusterID = curCluesterID.next().get("clusterid").toString();
+//                BasicDBObject queryClusterID = new BasicDBObject();     //查询该站所在的cluster的编号clusterid
+//                queryClusterID.append("code", oneCluster);
+//                DBCursor curCluesterID = clusterCollection.find(queryClusterID);
+//                String clusterID = curCluesterID.next().get("clusterid").toString();
 
-                BasicDBObject queryClusterMeteo = new BasicDBObject();      //查询此cluster对应的meteo站编号usaf
-                queryClusterMeteo.append("clusterid",clusterID);
-                DBCursor curClusterMeteo = clusterMeteoCollection.find(queryClusterMeteo);
-                int clusterMeteo = Integer.parseInt(curClusterMeteo.next().get("usaf").toString());
+//                BasicDBObject queryClusterMeteo = new BasicDBObject();      //查询此cluster对应的meteo站编号usaf
+//                queryClusterMeteo.append("clusterid",clusterID);
+//                DBCursor curClusterMeteo = clusterMeteoCollection.find(queryClusterMeteo);
+//                int clusterMeteo = Integer.parseInt(curClusterMeteo.next().get("usaf").toString());
 
                 //TODO 目前只计算了时间范围内的第一个
-                BasicDBObject queryClusterMeteoData = new BasicDBObject();  //根据meteo站编号和起始时间查询当地风速spd
-                queryClusterMeteoData.append("usaf",clusterMeteo);
-                queryClusterMeteoData.append("time",new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
-                DBCursor curClusterMeteoData = meteoCollectionDaily.find(queryClusterMeteoData);
-                if(!curClusterMeteoData.hasNext())
-                    clusterSpd = 0;
-                else
-                    clusterSpd = Double.parseDouble(curClusterMeteoData.next().get("spd").toString());
-
-                BasicDBObject queryClusterMeteoStation = new BasicDBObject();   //根据meteo站编号查询其经纬度
-                queryClusterMeteoStation.append("code",oneCluster);
-                DBCursor curClusterMeteoStation = pmStationCollection.find(queryClusterMeteoStation);
-                DBObject thisClusterMeteoStation = curClusterMeteoStation.next();
-                double clusterLat = Double.parseDouble(thisClusterMeteoStation.get("lat").toString());
-                double clusterLon = Double.parseDouble(thisClusterMeteoStation.get("lon").toString());
-
-                GeodeticCalculator calc = new GeodeticCalculator();
-                calc.setStartingGeographicPoint(clusterLon, clusterLat);
-                calc.setDestinationGeographicPoint(centerLon, centerLat);
-                clusterDistance = calc.getOrthodromicDistance() / 1609.344;
-
-                if(clusterSpd != 0 && clusterSpd != -1) {
-                    addition = (int) (clusterDistance / clusterSpd);
-                    //所有的addition控制在四日以内
-                    if(addition > 72)
-                        addition = 72;
-                }else{
-                    addition = 24;
-                }
-
-                if(centerSpd != 0 && centerSpd != -1) {
-                    additionLater = (int) (clusterDistance / centerSpd);
-                    if(additionLater > 72)
-                        additionLater = 72;
-                }else{
-                    additionLater = 24;
-                }
+//                BasicDBObject queryClusterMeteoData = new BasicDBObject();  //根据meteo站编号和起始时间查询当地风速spd
+//                queryClusterMeteoData.append("usaf",clusterMeteo);
+//                queryClusterMeteoData.append("time",new Document("$gt", df.parse(startTime)).append("$lt", df.parse(endTime)));
+//                DBCursor curClusterMeteoData = meteoCollectionDaily.find(queryClusterMeteoData);
+//                if(!curClusterMeteoData.hasNext())
+//                    clusterSpd = 0;
+//                else
+//                    clusterSpd = Double.parseDouble(curClusterMeteoData.next().get("spd").toString());
+//
+//                BasicDBObject queryClusterMeteoStation = new BasicDBObject();   //根据meteo站编号查询其经纬度
+//                queryClusterMeteoStation.append("code",oneCluster);
+//                DBCursor curClusterMeteoStation = pmStationCollection.find(queryClusterMeteoStation);
+//                DBObject thisClusterMeteoStation = curClusterMeteoStation.next();
+//                double clusterLat = Double.parseDouble(thisClusterMeteoStation.get("lat").toString());
+//                double clusterLon = Double.parseDouble(thisClusterMeteoStation.get("lon").toString());
+//
+//                GeodeticCalculator calc = new GeodeticCalculator();
+//                calc.setStartingGeographicPoint(clusterLon, clusterLat);
+//                calc.setDestinationGeographicPoint(centerLon, centerLat);
+//                clusterDistance = calc.getOrthodromicDistance() / 1609.344;
+//
+//                if(clusterSpd != 0 && clusterSpd != -1) {
+//                    addition = (int) (clusterDistance / clusterSpd);
+//                    //所有的addition控制在四日以内
+//                    if(addition > 72)
+//                        addition = 72;
+//                }else{
+//                    addition = 24;
+//                }
+//
+//                if(centerSpd != 0 && centerSpd != -1) {
+//                    additionLater = (int) (clusterDistance / centerSpd);
+//                    if(additionLater > 72)
+//                        additionLater = 72;
+//                }else{
+//                    additionLater = 24;
+//                }
+                addition = 72;
+                additionLater = 72;
                 //－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
                 ArrayList<Double> clusterTimeSeries = new ArrayList<Double>();

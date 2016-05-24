@@ -27,6 +27,7 @@ var distance = 60;
 var r = 20;
 
 var windy;
+var windData;
 
 var paintControl = {
     calendar        :   false,
@@ -140,6 +141,7 @@ function initUIs(){
             $("#maxDistance").text(parseInt(maxDis/1000) + "km");
             $("#minDistance").text(parseInt(minDis/1000) + "km");
         }
+        //controlDetailWind();
     });
 
     $("#slider").slider();
@@ -240,13 +242,16 @@ function initUIs(){
  * 显示风
  */
 function displayWind(){
-    if(detailWindLayer != null)
+    if(detailWindLayer != null) {
+        if(windy != null)
+            windy.stop();
         map.removeLayer(detailWindLayer);
+    }
     //wind
-    var windData;
+
     {
         $.ajax({
-            url: "winddata.do",
+            url: "winddata2.do",
             type:"post",
             data:
             "startTime="+new Date(detailBrush[0])+
@@ -1544,6 +1549,7 @@ function createdetailPanel(){
                 //controlThemeRiver();
                 //controlLLCGroup();
                 displayLLCView();
+                controlDetailWind();
             }
 
             //绘制border
@@ -2518,9 +2524,9 @@ function clusterAndThemeRiver(){
                         nd.setHours(nd.getHours() - d.lag);
                         return x(nd) / width+0.001;})
                     .attr("stop-color", function(d){
-                        if(d.lag < 0)
-                        return colorScaleCorLag(d.cor);
-                        else
+                        //if(d.lag < 0)
+                        //return colorScaleCorLag(d.cor);
+                        //else
                         return colorScaleCor(d.cor);
                     })
                     .attr("stop-opacity", 1);
@@ -2530,9 +2536,9 @@ function clusterAndThemeRiver(){
                         nd.setHours(nd.getHours() - d.lag);
                         return x(nd) / width ;})
                     .attr("stop-color", function(d){
-                        if(d.lag < 0)
-                            return colorScaleCorLag(d.cor);
-                        else
+                        //if(d.lag < 0)
+                        //    return colorScaleCorLag(d.cor);
+                        //else
                             return colorScaleCor(d.cor);
                     })//TODO
                     .attr("stop-opacity", 1);
@@ -2792,9 +2798,9 @@ function groupThemeRiver(){
                     nd.setHours(nd.getHours() - d.lag);
                     return x(nd) / width+0.001;})
                 .attr("stop-color", function(d){
-                    if(d.lag < 0)
-                        return colorScaleCorLag(d.cor);
-                    else
+                    //if(d.lag < 0)
+                    //    return colorScaleCorLag(d.cor);
+                    //else
                         return colorScaleCor(d.cor);
                 })
                 .attr("stop-opacity", 1);
@@ -2804,9 +2810,9 @@ function groupThemeRiver(){
                     nd.setHours(nd.getHours() - d.lag);
                     return x(nd) / width ;})
                 .attr("stop-color", function(d){
-                    if(d.lag < 0)
-                        return colorScaleCorLag(d.cor);
-                    else
+                    //if(d.lag < 0)
+                    //    return colorScaleCorLag(d.cor);
+                    //else
                         return colorScaleCor(d.cor);
                 })//TODO
                 .attr("stop-opacity", 1);
@@ -3593,8 +3599,8 @@ function controlDetailWind(){
         displayWind();
     }else{
         if(detailWindLayer != null) {
-            map.removeLayer(detailWindLayer);
             windy.stop();
+            map.removeLayer(detailWindLayer);
         }
     }
 }
