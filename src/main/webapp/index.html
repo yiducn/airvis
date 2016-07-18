@@ -76,7 +76,7 @@
 <body style="background-color: #e6e6e6;">
 <div id="piemenu" style="position:fixed; visibility: hidden; z-index:2000; width:300px; height:300px;left:0px;top:0px;"></div>
 
-<div id="map" style="position:fixed; left:0px;top:0px;bottom:0px;right:710px;"></div>
+<div id="map" style="position:fixed; left:0px;top:0px;bottom:0px;right:510px;"></div>
 
 <div id="controller" style="position:fixed;left:5px;top:50px;z-index: 200;padding-left: 10px;">
     <div class="panel panel-default">
@@ -99,7 +99,7 @@
         </div>
         <div class="panel-body collapse" id="simpleview">
             <div style="text-align: left;"><input id="controlTrend" type="checkbox" onchange="controlTrend();" checked><label>Trend</label></div>
-            <div style="text-align: left;"><input id="controlContextRing" type="checkbox" onchange="controlContextRing();"><label>Annular Container</label></div>
+            <div style="text-align: left;"><input id="controlContextRing" type="checkbox" onchange="controlContextRing();" ><label>Annular Container</label></div>
 
             <div>
                 <label id="minDistance">0</label>
@@ -108,6 +108,7 @@
             </div>
 
             <div style="text-align: left;"><input id="controlCluster" type="checkbox" onchange="controlCluster();"><label>Cluster</label></div>
+            <div style="text-align: left;"><input id="controlLLCGroup" type="checkbox" onchange="controlLLCGroup();"><label>LLC View</label></div>
             <div style="text-align: left;"><input id="controlAQHeatMap" type="checkbox" onchange="controlAQHeatMap();"><label>AirQuality HeatMap</label></div>
             <!--<div style="text-align: left;"><input id="controlStl" type="checkbox" onchange="controlStl();"><label>STL View</label></div>-->
         </div>
@@ -117,7 +118,8 @@
         </div>
         <div class="panel-body collapse" id="windview">
             <div style="text-align: left;"><input id="controlClusterWind" type="checkbox" onchange="controlClusterWind();"><label>Cluster Wind</label></div>
-            <div style="text-align: left;"><input id="controlOverallWind" type="checkbox" onchange="controlOverallWind();"><label>Overall Wind</label></div>
+            <!--<div style="text-align: left;"><input id="controlOverallWind" type="checkbox" onchange="controlOverallWind();"><label>Overall Wind</label></div>-->
+            <div style="text-align: left;"><input id="controlDetailWind" type="checkbox" onchange="controlDetailWind();"><label>Wind</label></div>
             <div style="text-align: left;"><input id="controlPartWind" type="checkbox" onchange="controlPartWind();"><label>Partly Wind</label></div>
         </div>
 
@@ -154,9 +156,9 @@
         <div class="panel-body">
             <input type="button" style="width:70px;" onclick="activeFreeDraw();" value="Selection"><br>
             <input type="button" style="width:70px;" onclick="deactiveFreeDraw();" value="Navigation"><br>
-            <div style="text-align: left;"><input id="controlLLCGroup" type="checkbox" onchange="controlLLCGroup();"><label>LLC View</label></div>
-            <div style="text-align: left;"><input id="controlDetailWind" type="checkbox" onchange="controlDetailWind();"><label>Wind</label></div>
-            <div style="text-align: left;"><input id="controlController" type="checkbox" onchange="controlController();"><label>Controller</label></div>
+
+
+            <div style="text-align: left;"><input id="controlController" type="checkbox" onchange="controlController();" checked><label>Controller</label></div>
             <div id="sliderStartAngle" style="display:inline-block;width:100px;left:10px;"></div><br>
             <div id="sliderSwap" style="display:inline-block;width:100px;left:10px;"></div>
         </div>
@@ -167,19 +169,19 @@
 
 </div>
 
-<div id="contextRing" style="position:fixed; top:0px; right:0px;height:450px; width:700px;background-color: #c8c8c8;opacity:1;z-index:2000;">
+<div id="contextRing" style="position:fixed; top:0px; right:0px;height:450px; width:500px;background-color: #c8c8c8;opacity:1;z-index:2000;">
 
 </div>
 <!--<div id="calendar" class="viscomponentbg draggableBoder" style="position:fixed; top:0px; right: 0px; width:800px; height:600px;visibility: hidden;"></div>-->
-<div id="llcBar" style="position:fixed; top:455px; right:0px;bottom:0px; width:700px;background-color: #c8c8c8;opacity:1;z-index:2000;">
+<div id="llcBar" style="position:fixed; top:455px; right:0px;bottom:0px; width:500px;background-color: #c8c8c8;opacity:1;z-index:2000;">
 
 </div>
 
-<div id="detailPanel" style="position:fixed; bottom:250px; left:2px; width:355px; height:205px;">
+<div id="detailPanel" style="position:fixed; bottom:250px; left:2px;right:510px; height:155px; display: none; ">
 
 </div>
-<div id="trendpanel" class="viscomponentbg draggableBoder" style="position:fixed; bottom:0px; left:0px;height:250px;right:710px;">
-    <div id="trend" style="position:fixed;right:710px;height:230px;width:1600px; overflow-x: auto;overflow-y:hidden;  direction:rtl;"></div>
+<div id="trendpanel" class="viscomponentbg draggableBoder" style="position:fixed; bottom:0px; left:0px;height:250px;right:510px;">
+    <div id="trend" style="position:fixed;right:510px;height:230px;width:1600px; overflow-x: auto;overflow-y:hidden;  direction:rtl;"></div>
     <!--<input id="showYearTrends" name="trendcontrol" type="radio" checked onclick="trendYear();"><label for="showYearTrends">showYearTrends</label>-->
     <!--<input id="showMonthTrends" name="trendcontrol" type="radio" onclick="trendMonth();"><label for="showMonthTrends">showMonthTrends</label>-->
 </div>
@@ -191,6 +193,7 @@
 
 <script>
     linearTime();
+    initOutline();
     //    createCalendarView();
 </script>
 </body>
