@@ -1700,18 +1700,19 @@ public class ClusterController {
                 ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
                 ((JSONObject) jsonCluster.get(i)).put("pvalue", lagCorrelation[2]);
 
-                ArrayList<double[]> lagCorrelation2 = correlation.getLagResultEarlier2(codeTimeSeriesDouble, clusterTimeSeriesDouble);
-                double[] lagArray = new double[lagCorrelation2.size()];
-                double[] corArray = new double[lagCorrelation2.size()];
-                double[] pArray = new double[lagCorrelation2.size()];
-                for(int j = 0; j < lagCorrelation2.size(); j ++){
-                    lagArray[j] = addition - lagCorrelation2.get(j)[0];
-                    corArray[j] = lagCorrelation2.get(j)[1];
-                    pArray[j] = lagCorrelation2.get(j)[2];
-                }
-                ((JSONObject) jsonCluster.get(i)).put("lagArray", lagArray);
-                ((JSONObject) jsonCluster.get(i)).put("correlationArray", corArray);
-                ((JSONObject) jsonCluster.get(i)).put("pvalueArray", pArray);
+                //在tmm revision 版本中,不计算 lag array
+//                ArrayList<double[]> lagCorrelation2 = correlation.getLagResultEarlier2(codeTimeSeriesDouble, clusterTimeSeriesDouble);
+//                double[] lagArray = new double[lagCorrelation2.size()];
+//                double[] corArray = new double[lagCorrelation2.size()];
+//                double[] pArray = new double[lagCorrelation2.size()];
+//                for(int j = 0; j < lagCorrelation2.size(); j ++){
+//                    lagArray[j] = addition - lagCorrelation2.get(j)[0];
+//                    corArray[j] = lagCorrelation2.get(j)[1];
+//                    pArray[j] = lagCorrelation2.get(j)[2];
+//                }
+//                ((JSONObject) jsonCluster.get(i)).put("lagArray", lagArray);
+//                ((JSONObject) jsonCluster.get(i)).put("correlationArray", corArray);
+//                ((JSONObject) jsonCluster.get(i)).put("pvalueArray", pArray);
             }
             client.close();
             return jsonCluster.toString();
@@ -1975,18 +1976,19 @@ public class ClusterController {
                 ((JSONObject) jsonCluster.get(i)).put("correlation", lagCorrelation[1]);
                 ((JSONObject) jsonCluster.get(i)).put("pvalue", lagCorrelation[2]);
 
-                ArrayList<double[]> lagCorrelation2 = correlation.getLagResultEarlier2(codeTimeSeriesDouble, clusterTimeSeriesDouble);
-                double[] lagArray = new double[lagCorrelation2.size()];
-                double[] corArray = new double[lagCorrelation2.size()];
-                double[] pArray = new double[lagCorrelation2.size()];
-                for(int j = 0; j < lagCorrelation2.size(); j ++){
-                    lagArray[j] = addition - lagCorrelation2.get(j)[0];
-                    corArray[j] = lagCorrelation2.get(j)[1];
-                    pArray[j] = lagCorrelation2.get(j)[2];
-                }
-                ((JSONObject) jsonCluster.get(i)).put("lagArray", lagArray);
-                ((JSONObject) jsonCluster.get(i)).put("correlationArray", corArray);
-                ((JSONObject) jsonCluster.get(i)).put("pvalueArray", pArray);
+                //在tmm revision 版本中,不计算 lag array
+//                ArrayList<double[]> lagCorrelation2 = correlation.getLagResultEarlier2(codeTimeSeriesDouble, clusterTimeSeriesDouble);
+//                double[] lagArray = new double[lagCorrelation2.size()];
+//                double[] corArray = new double[lagCorrelation2.size()];
+//                double[] pArray = new double[lagCorrelation2.size()];
+//                for(int j = 0; j < lagCorrelation2.size(); j ++){
+//                    lagArray[j] = addition - lagCorrelation2.get(j)[0];
+//                    corArray[j] = lagCorrelation2.get(j)[1];
+//                    pArray[j] = lagCorrelation2.get(j)[2];
+//                }
+//                ((JSONObject) jsonCluster.get(i)).put("lagArray", lagArray);
+//                ((JSONObject) jsonCluster.get(i)).put("correlationArray", corArray);
+//                ((JSONObject) jsonCluster.get(i)).put("pvalueArray", pArray);
 
             }
             client.close();

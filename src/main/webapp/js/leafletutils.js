@@ -7,7 +7,7 @@ var map;
 //各种叠加图层
 var locationLayer, freedrawLayer, meteorologicalStationLayer;
 var scatterGroup, clusterLayer, themeLayer,corHeatMapLayer, gridsView, windsView;
-var stlLayer, aqHeatMapLayer, windLayer;
+var stlLayer, contextRing, aqHeatMapLayer, windLayer;
 var detailWindLayer;
 var filterControl;
 var provinceBoundaryOverlay, cityBoundaryOverlay, provinceValueOverlay, cityValueOverlay;
@@ -16,8 +16,9 @@ var overAllBrush, detailBrush;
 var filteredData = [];//经过过滤后的数据，包括station,lon,lat,code
 var unfilteredData = [];//经过过滤后剩下的数据,结构同filteredData
 var COR_THREADHOOD = 0.6;
+var P_THREADHOOD = 0.05;
 var SIZE_RING = 120;
-var GRID_SIZE_CORRELATION = 4;//correlation map的grid 大小
+var GRID_SIZE_CORRELATION = 2;//correlation map的grid 大小
 var displayPoint = false;//判断点是不是已经显示过一次了,如果显示过则不需要再重置filteredData
 
 //控件参数
@@ -67,11 +68,18 @@ var colors = ["#FF0000", "#FFFF00"];
 var c1 = ["#FF0000", "#FFFF00"];
 var c2 = ["#FFFF00", "#00FF00"];
 var c3 = ["#FF0000", "#FFFF00", "#00FF00"];
+var cThemeRiverLead = ["#0000FF", "#00FFFF"];
+var cThemeRiverLag = [ "#00FFFF", "#00FF00"];
+var cHeatmap = ["#0000FF", "#00FFFF", "#00FF00"];
 
 var colorScale = d3.scale.linear().domain([200, 0]).range(colors);
-var colorScaleCor = d3.scale.linear().domain([1, 0]).range(c1);
-var colorScaleCorLag = d3.scale.linear().domain([0, 1]).range(c2);
-var colorScaleCor4Heatmap  = d3.scale.linear().domain([1, 0, -1]).range(c3);
+//修改scale cor的颜色映射
+var colorScaleCor = d3.scale.linear().domain([1, 0]).range(cThemeRiverLead);
+var colorScaleCorLag = d3.scale.linear().domain([0, 1]).range(cThemeRiverLag);
+//var colorScaleCor = d3.scale.linear().domain([1, 0]).range(c1);
+//var colorScaleCorLag = d3.scale.linear().domain([0, 1]).range(c2);
+//var colorScaleCor4Heatmap  = d3.scale.linear().domain([1, 0, -1]).range(c3);
+var colorScaleCor4Heatmap  = d3.scale.linear().domain([1, 0, -1]).range(cHeatmap);
 var colorLLCGroup = d3.scale.linear().domain([1, 0, -1]).range(c3);
 
 //当前选择的月份
@@ -93,7 +101,7 @@ var octagonPath = [];
 var contextRingOption = {};
 
 function initUIs(){
-    //$('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
+    $('#map').css("width", window.screen.availWidth).css("height", window.screen.availHeight);
     L.mapbox.accessToken = 'pk.eyJ1Ijoic3Vuc25vd2FkIiwiYSI6ImNpZ3R4ejU3ODA5dm91OG0xN2d2ZmUyYmIifQ.jgzNI617vX6h48r0_mRzig';
     map = L.mapbox.map('map', 'mapbox.streets')
         .setView([25, 100], 4);
@@ -123,7 +131,9 @@ function initUIs(){
     map.on('zoomend', function() {
         //controlCluster();
         //controlThemeRiver();
-
+        controlContextRing();
+        controlCluster();
+        controlThemeRiver();
         if($("#controlContextRing").is(":checked")){
             //$( "#slider" ).slider( "option", "min", minDis );
             //$( "#slider" ).slider( "option", "max", maxDis );
@@ -131,7 +141,7 @@ function initUIs(){
             $("#minDistance").text(parseInt(minDis/1000) + "km");
         }
 
-        controlDetailWind();
+        //controlDetailWind();
     });
     map.on('moveend', function(){
 
@@ -168,7 +178,9 @@ function initUIs(){
         }
     );
 
-    $("#sliderStartAngle").slider({value: 180});
+    $("#sliderStartAngle").slider({value: 0});
+    $( "#sliderStartAngle" ).slider( "option", "min", 0.0 );
+    $( "#sliderStartAngle" ).slider( "option", "max", 180 );
     $("#sliderStartAngle").on("slide", function(event, ui){
         startAngleControl = ui.value;
         displayCustomizedFilter();
@@ -176,10 +188,12 @@ function initUIs(){
     $("#sliderStartAngle").on("slidechange", function(event, ui){
         startAngleControl = ui.value;
         displayCustomizedFilter();
-        clusterFilter();
+        controlCluster();
     });
 
     $("#sliderSwap").slider({value:180});
+    $( "#sliderSwap" ).slider( "option", "min", 0.0 );
+    $( "#sliderSwap" ).slider( "option", "max", 180 );
     $("#sliderSwap").on("slide", function(event, ui){
         swap = ui.value;
         displayCustomizedFilter();
@@ -187,7 +201,7 @@ function initUIs(){
     $("#sliderSwap").on("slidechange", function(event, ui){
         swap = ui.value;
         displayCustomizedFilter();
-        clusterFilter();
+        controlCluster();
     });
 
     $("#sliderRad").slider({ value: SIZE_RING});
@@ -218,25 +232,7 @@ function initUIs(){
     );
     createCityValue();
     themeLayer = [];
-
-    //初始化contextRing Option
-    {
-        outerRadius = $("#contextRing").height() > $("#contextRing").width() ? $("#contextRing").width()/2-5 : $("#contextRing").height()/2-5;
-        innerRadius = outerRadius -  SIZE_RING;
-        var centerScreenX = $("#contextRing").width()/2;
-        var centerScreenY = $("#contextRing").height()/2;
-        contextRingOption.outerRadius = outerRadius;
-        contextRingOption.innerRadius = innerRadius;
-        contextRingOption.centerScreenX = centerScreenX;
-        contextRingOption.centerScreenY = centerScreenY;
-        contextRingOption.canvasW = $("#contextRing").width();
-        contextRingOption.canvasH = $("#contextRing").height();
-    }
-
-
-
 }
-
 
 /**
  * 显示风
@@ -1313,7 +1309,7 @@ function linearTime(){
         }
     });
 
-    createdetailPanel();
+    //createdetailPanel();
 }
 
 /**
@@ -1321,7 +1317,7 @@ function linearTime(){
  */
 function repaintAll(){
     //controlCalendar();
-    createdetailPanel();
+    //createdetailPanel();
     provinceValueControl();
     cityValueControl();
     controlCluster();
@@ -1335,431 +1331,618 @@ function repaintAll(){
  */
 function createCircleView() {
 
-    $("#contextRing").empty();
-    var detail = d3.select("#contextRing");
-    var sel = detail.append("svg").style("width", contextRingOption.canvasW).style("height", contextRingOption.canvasH)
-        .attr("id", "circleView");
+    //var direction = [];
+    //var distance = [];
+    if(contextRing != null)
+        map.removeLayer(contextRing);
 
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
 
-    var cities = "";
-    if(filteredData.length != 0){
-        cities += ("codes="+filteredData[0].code);
-        if(filteredData.length > 1){
-            var i;
-            for(i = 1; i < filteredData.length; i ++){
-                cities += ("&codes="+filteredData[i].code);
+    sizeScreen = map.getPixelBounds().getSize();
+    outerRadius = sizeScreen.y / 2-50;
+    //outerRadius4Octagonal = outerRadius + 50;
+    innerRadius = outerRadius -  SIZE_RING;
+
+    //将初始化minDis和maxDis的操作在缩放之后进行,移动到zoomAndCenter
+    //if(minDis == null) {
+    //    minDis = Number.MAX_VALUE;
+    //    for (var i = 0; i < unfilteredData.length; i++) {
+    //        var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
+    //        unfilteredData[i].distance = dist;
+    //        if (dist < minDis)
+    //            minDis = dist;
+    //        var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
+    //        unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
+    //    }
+    //}
+    //if(maxDis == null) {
+    //    maxDis = 0;
+    //    for (var i = 0; i < unfilteredData.length; i++) {
+    //        var dist = L.latLng(unfilteredData[i].latitude, unfilteredData[i].longitude).distanceTo(center);
+    //        unfilteredData[i].distance = dist;
+    //        if (dist > maxDis)
+    //            maxDis = dist;
+    //        var angle = Math.asin((unfilteredData[i].longitude - center.longitude) / dist);
+    //        unfilteredData[i].direction = (angle + Math.PI / 8) % Math.PI / 4;
+    //    }
+    //}
+
+    contextRing = L.d3SvgOverlay(function(sel, proj) {
+        var cities = "";
+        if(filteredData.length != 0){
+            cities += ("codes="+filteredData[0].code);
+            if(filteredData.length > 1){
+                var i;
+                for(i = 1; i < filteredData.length; i ++){
+                    cities += ("&codes="+filteredData[i].code);
+                }
             }
         }
-    }
 
-    //计算context ring的path
-    var pathContextRing = function(d){
-        //var startAngle = Math.PI * 2 * 15 / 16;
-        var intervalAngle = Math.PI * 2 / 8;
-        var path = "M ";
-        var p1X = contextRingOption.centerScreenX + contextRingOption.innerRadius * Math.sin(d.angle);
-        var p1Y = contextRingOption.centerScreenY - contextRingOption.innerRadius * Math.cos(d.angle);
-        var p2X = contextRingOption.centerScreenX + contextRingOption.innerRadius * Math.sin(d.angle + intervalAngle);
-        var p2Y = contextRingOption.centerScreenY - contextRingOption.innerRadius * Math.cos(d.angle + intervalAngle);
-        var p3X = contextRingOption.centerScreenX + contextRingOption.outerRadius * Math.sin(d.angle + intervalAngle);
-        var p3Y = contextRingOption.centerScreenY - contextRingOption.outerRadius * Math.cos(d.angle + intervalAngle);
-        var p4X = contextRingOption.centerScreenX + contextRingOption.outerRadius * Math.sin(d.angle);
-        var p4Y = contextRingOption.centerScreenY - contextRingOption.outerRadius * Math.cos(d.angle);
-        path += p1X + " ";
-        path += p1Y + " A ";
-        path += contextRingOption.innerRadius+","+contextRingOption.innerRadius+ " ";
-        path += "0 0,1 ";
-        path += p2X + ",";
-        path += p2Y + " L ";
-        path += p3X + " ";
-        path += p3Y + " A ";
-        path += contextRingOption.outerRadius+","+contextRingOption.outerRadius+ " ";
-        path += "0 0,0 ";
-        path += p4X + ",";
-        path += p4Y + " ";
-        path += " Z ";
-        var centerXGrid = (p1X + p2X + p3X + p4X) / 4;
-        var centerYGrid = (p1Y + p2Y + p3Y + p4Y) / 4;
-        //TODO
-        octagonLocationScreen[d.dir] = {};
-        octagonLocationScreen[d.dir].x = centerXGrid;
-        octagonLocationScreen[d.dir].y = centerYGrid;
-        octagonPath[d.dir] = path;
-        return path;
-    };
 
-    //绘制内圈的方法
-    var pathInner = function(){
-        var path = "M ";
-        for(var i = 0; i < 7; i ++) {
-            var p1X = contextRingOption.centerScreenX + contextRingOption.innerRadius * Math.sin(parts[i].angle);
-            var p1Y = contextRingOption.centerScreenY - contextRingOption.innerRadius * Math.cos(parts[i].angle);
+
+        var centerScreen = proj.latLngToLayerPoint(center);
+        //计算context ring的path
+        var pathContextRing = function(d){
+            //var startAngle = Math.PI * 2 * 15 / 16;
+            var intervalAngle = Math.PI * 2 / 8;
+            var path = "M ";
+            var p1X = centerScreen.x + innerRadius * Math.sin(d.angle);
+            var p1Y = centerScreen.y - innerRadius * Math.cos(d.angle);
+            var p2X = centerScreen.x + innerRadius * Math.sin(d.angle + intervalAngle);
+            var p2Y = centerScreen.y - innerRadius * Math.cos(d.angle + intervalAngle);
+            var p3X = centerScreen.x + outerRadius * Math.sin(d.angle + intervalAngle);
+            var p3Y = centerScreen.y - outerRadius * Math.cos(d.angle + intervalAngle);
+            var p4X = centerScreen.x + outerRadius * Math.sin(d.angle);
+            var p4Y = centerScreen.y - outerRadius * Math.cos(d.angle);
+            //path += p1X + " ";
+            //path += p1Y + " L ";
+            //path += p2X + " ";
+            //path += p2Y + " L ";
+            //path += p3X + " ";
+            //path += p3Y + " L ";
+            //path += p4X + " ";
+            //path += p4Y + " ";
+            //path += " Z ";
             path += p1X + " ";
-            path += p1Y + " L ";
+            path += p1Y + " A ";
+            path += innerRadius+","+innerRadius+ " ";
+            path += "0 0,1 ";
+            path += p2X + ",";
+            path += p2Y + " L ";
+            path += p3X + " ";
+            path += p3Y + " A ";
+            path += outerRadius+","+outerRadius+ " ";
+            path += "0 0,0 ";
+            path += p4X + ",";
+            path += p4Y + " ";
+            path += " Z ";
+            var centerXGrid = (p1X + p2X + p3X + p4X) / 4;
+            var centerYGrid = (p1Y + p2Y + p3Y + p4Y) / 4;
+            //TODO
+            octagonLocationScreen[d.dir] = {};
+            octagonLocationScreen[d.dir].x = centerXGrid;
+            octagonLocationScreen[d.dir].y = centerYGrid;
+            octagonPath[d.dir] = path;
+            return path;
+        };
+
+        //绘制内圈的方法
+        var pathInner = function(){
+            var path = "M ";
+            for(var i = 0; i < 7; i ++) {
+                var p1X = centerScreen.x + innerRadius * Math.sin(parts[i].angle);
+                var p1Y = centerScreen.y - innerRadius * Math.cos(parts[i].angle);
+                path += p1X + " ";
+                path += p1Y + " L ";
+            }
+            var p1X = centerScreen.x + innerRadius * Math.sin(parts[i].angle);
+            var p1Y = centerScreen.y - innerRadius * Math.cos(parts[i].angle);
+            path += p1X + " ";
+            path += p1Y ;
+            path += " Z ";
+            return path;
+        };
+
+        var contextRingId = function(d){
+            return "contextRing" + d.dir;
         }
-        var p1X = contextRingOption.centerScreenX + contextRingOption.innerRadius * Math.sin(parts[i].angle);
-        var p1Y = contextRingOption.centerScreenY - contextRingOption.innerRadius * Math.cos(parts[i].angle);
-        path += p1X + " ";
-        path += p1Y ;
-        path += " Z ";
-        return path;
-    };
 
-    var contextRingId = function(d){
-        return "contextRing" + d.dir;
-    }
+        var parts = [];
+        var startAngle = Math.PI * 2 * 15 / 16;
+        var intervalAngle = Math.PI * 2 / 8;
+        for(var i = 0; i < 8; i ++){
+            var temp = {};
+            temp.dir = i;
+            temp.angle = startAngle + intervalAngle*i;
+            parts.push(temp);
+            //startAngle += intervalAngle;
+        }
+        sel.selectAll("g").data(parts)
+            .enter()
+            .append("g")
+            .attr("id", contextRingId)
+            .append("path")
+            .attr("d", pathContextRing)
+            .attr("fill", "gray")
+            .attr('stroke', 'black')
+            .attr('fill-opacity', '0.7');
 
-    var parts = [];
-    var startAngle = Math.PI * 2 * 15 / 16;
-    var intervalAngle = Math.PI * 2 / 8;
-    for(var i = 0; i < 8; i ++){
-        var temp = {};
-        temp.dir = i;
-        temp.angle = startAngle + intervalAngle*i;
-        parts.push(temp);
-        //startAngle += intervalAngle;
-    }
-    sel.selectAll("g").data(parts)
-        .enter()
-        .append("g")
-        .attr("id", contextRingId)
-        .append("path")
-        .attr("d", pathContextRing)
-        .attr("fill", "gray")
-        .attr('stroke', 'black')
-        .attr('fill-opacity', '0.7');
 
-    controlCluster();
+        //var themeRivers = sel.append("g")
+        //    .attr("id", "themeRivers");
+        //themeRivers.selectAll("g").data(parts)
+        //    .enter()
+        //    .append("g")
+        //    .attr("id", themeRiverId)
+        //    .append("")
+
+    });
+
+    contextRing.addTo(map);
+    drawScatterGroup();
 }
 
 
 /**
  * 绘制中心的趋势图
  */
-function createdetailPanel(){
-    $("#detailPanel").empty();
-    var detail = d3.select("#detailPanel");
-    var sel = detail.append("svg").style("width", "500px").style("height", "205px");
+function createStlview(){
+    if(stlLayer != null)
+        map.removeLayer(stlLayer);
 
-    var cities = "";
-    if (filteredData.length != 0) {
-        cities += ("codes=" + filteredData[0].code);
-        if (filteredData.length > 1) {
-            var i;
-            for (i = 1; i < filteredData.length; i++) {
-                cities += ("&codes=" + filteredData[i].code);
+    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
+    var center = bounds.getBounds().getCenter();
+
+    sizeScreen = map.getPixelBounds().getSize();
+    outerRadius = sizeScreen.y / 2-50;
+    innerRadius = outerRadius -  SIZE_RING;
+
+    stlLayer = L.d3SvgOverlay(function(sel, proj) {
+        var cities = "";
+        if (filteredData.length != 0) {
+            cities += ("codes=" + filteredData[0].code);
+            if (filteredData.length > 1) {
+                var i;
+                for (i = 1; i < filteredData.length; i++) {
+                    cities += ("&codes=" + filteredData[i].code);
+                }
             }
         }
-    }
-
-    //绘制中心的趋势图
-    var timeRange = "startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
-    $.ajax({
-        url:"stl.do",
-        type:"post",
-        data: cities+"&"+timeRange,
-        success: function (returnData) {
-            var data = JSON.parse(returnData);
-
-            var trend = sel.append("g").attr("id", "trendsCenter")
-                .attr("transform", "translate("+"0"+"," + "0" + ")");
-
-            var x = d3.time.scale().range([0, 350]);
-            var yY = d3.scale.linear().range([ 200, 150]);
-            var yTrend = d3.scale.linear().range([ 150, 100]);
-            var yReminder = d3.scale.linear().range([ 100, 50]);
-            var ySeasonal = d3.scale.linear().range([ 50, 0]);
-
-            var xAxis = d3.svg.axis().scale(x).orient("bottom").ticks(4).tickFormat(d3.time.format("%b%d %H"));
-            var yYAxis = d3.svg.axis().scale(yY).orient("left").ticks(4);
-            var yTrendAxis = d3.svg.axis().scale(yTrend).orient("left").ticks(4);
-            var yReminderAxis = d3.svg.axis().scale(yReminder).orient("left").ticks(4);
-            var ySeasonalAxis = d3.svg.axis().scale(ySeasonal).orient("left").ticks(4);
-
-            var lineY = d3.svg.line()
-                .interpolate("monotone")
-                .x(function (d) {
-                    return x(new Date(d.time));
-                })
-                .y(function (d) {
-                    return yY(d.value);
-                });
-            var lineTrend = d3.svg.line()
-                .interpolate("monotone")
-                .x(function (d) {
-                    return x(new Date(d.time));
-                })
-                .y(function (d) {
-                    return yTrend(d.trend);
-                });
-            var lineReminder = d3.svg.line()
-                .interpolate("monotone")
-                .x(function (d) {
-                    return x(new Date(d.time));
-                })
-                .y(function (d) {
-                    return yReminder(d.reminder);
-                });
-            var lineSeasonal = d3.svg.line()
-                .interpolate("monotone")
-                .x(function (d) {
-                    return x(new Date(d.time));
-                })
-                .y(function (d) {
-                    return ySeasonal(d.seasonal);
-                });
-
-            var color = d3.scale.category10();
-            //color.domain(d3.keys(data[0]).filter(function (key) {
-            //    return key === "pm25";
-            //}));
-
-            x.domain(d3.extent(data.map(function (d) {
-                return new Date(d.time);
-            })));
-
-            //TODO 固定y轴最大数值
-            yY.domain(d3.extent(data.map(function (d) {
-                return d.value;
-            })));
-            yTrend.domain(d3.extent(data.map(function (d) {
-                return d.trend;
-            })));
-            yReminder.domain(d3.extent(data.map(function (d) {
-                return d.reminder;
-            })));
-            ySeasonal.domain(d3.extent(data.map(function (d) {
-                return d.seasonal;
-            })));
 
 
-            var brush = d3.svg.brush()
-                .x(x)
-                .on("brush", brushed)
-                .on("brushend", brushend);
+        var centerScreen = proj.latLngToLayerPoint(center);
+        //绘制中心的趋势图
+        //TODO
+        var timeRange = "startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
+        $.ajax({
+            url:"stl.do",
+            type:"post",
+            data: cities+"&"+timeRange,
+            success: function (returnData) {
+                var data = JSON.parse(returnData);
 
-            function brushed() {
-            }
-            function brushend(){
-                //do not paint when brush doesn't change
-                if(detailBrush != null && detailBrush[0] == brush.extent()[0] && detailBrush[1] == brush.extent()[1])
-                    return;
-                detailBrush = brush.empty() ? x.domain() : brush.extent();
-                //clusterWithCorrelation();
-                //controlThemeRiver();
-                //controlLLCGroup();
-                displayLLCView();
-                controlDetailWind();
-            }
+                sel.append("circle")
+                    .attr("id", "centermask")
+                    .attr("cx", centerScreen.x)
+                    .attr("cy", centerScreen.y)
+                    .attr('r', innerRadius)
+                    .attr('fill', "white")
+                    .attr('fill-opacity', '0.5');
 
-            //绘制border
-            trend.append("g")
-                .append("line")
-                .attr("x1", 0)
-                .attr("y1", 100)
-                .attr("x2", 350)
-                .attr("y2", 100)
-                .attr('stroke', 'black')
-                .attr('stroke-width', 1)
-                .attr('opacity', 0.8);
-            trend.append("g")
-                .append("line")
-                .attr("x1", 0)
-                .attr("y1", 50)
-                .attr("x2", 350)
-                .attr("y2", 50)
-                .attr('stroke', 'black')
-                .attr('stroke-width', 1)
-                .attr('opacity', 0.8);
-            trend.append("g")
-                .append("line")
-                .attr("x1", 0)
-                .attr("y1", 150)
-                .attr("x2", 350)
-                .attr("y2", 150)
-                .attr('stroke', 'black')
-                .attr('stroke-width', 1)
-                .attr('opacity', 0.8);
-            trend.append("g")
-                .append("line")
-                .attr("x1", 0)
-                .attr("y1", 200)
-                .attr("x2", 350)
-                .attr("y2", 200)
-                .attr('stroke', 'black')
-                .attr('stroke-width', 1)
-                .attr('opacity', 0.8);
-            trend.append("g")
-                .append("line")
-                .attr("x1", 350)
-                .attr("y1", 0)
-                .attr("x2", 350)
-                .attr("y2", 200)
-                .attr('stroke', 'black')
-                .attr('stroke-width', 1)
-                .attr('opacity', 0.8);
-            trend.append("g")
-                .append("line")
-                .attr("x1", 350)
-                .attr("y1", 200)
-                .attr("x2", 0)
-                .attr("y2", 200)
-                .attr('stroke', 'black')
-                .attr('stroke-width', 1)
-                .attr('opacity', 0.8);
+                var trend = sel.append("g").attr("id", "trendsCenter")
+                    .attr("transform", "translate("+(centerScreen.x-175)+"," + (centerScreen.y+100) + ")");
 
-            trend.append("g")
-                .attr("class", "x axis")
-                .attr("id", "detailBrush")
-                .attr("transform", "translate("+0+"," + 0 + ")")
-                .call(xAxis)
-                .append("g")
-                .attr("class", "x brush")
-                .call(brush)
-                .selectAll("rect")
-                .attr("y", 0)
-                .attr("height", 200);
-            d3.select("#detailBrush").on("mouseover", function(){map.dragging.disable()});
-            d3.select("#detailBrush").on("mouseout", function(){map.dragging.enable()});
+                var x = d3.time.scale().range([0, 350]);
+                var yY = d3.scale.linear().range([ -150, -200]);
+                var yTrend = d3.scale.linear().range([ -100, -150]);
+                var yReminder = d3.scale.linear().range([ -50, -100]);
+                var ySeasonal = d3.scale.linear().range([ 0, -50]);
 
-            trend.append("g")
-                .attr("class", "y axis")
-                .attr("transform", "translate("+0+"," + 0 + ")")
-                .call(yYAxis);
-            trend.append("g")
-                .attr("class", "y axis")
-                .attr("transform", "translate("+0+"," + 0 + ")")
-                .call(ySeasonalAxis);
-            trend.append("g")
-                .attr("class", "y axis")
-                .attr("transform", "translate("+0+"," + 0 + ")")
-                .call(yReminderAxis);
-            trend.append("g")
-                .attr("class", "y axis")
-                .attr("transform", "translate("+0+"," + 0 + ")")
-                .call(yTrendAxis);
+                var xAxis = d3.svg.axis().scale(x).orient("bottom").ticks(4).tickFormat(d3.time.format("%b%d %H"));
+                var yYAxis = d3.svg.axis().scale(yY).orient("left").ticks(4);
+                var yTrendAxis = d3.svg.axis().scale(yTrend).orient("left").ticks(4);
+                var yReminderAxis = d3.svg.axis().scale(yReminder).orient("left").ticks(4);
+                var ySeasonalAxis = d3.svg.axis().scale(ySeasonal).orient("left").ticks(4);
 
-            trend.append("path")
-                .datum(data)
-                .attr('class', 'line')
-                .attr('stroke', 'black')
-                .attr('stroke-width', 1)
-                .attr('opacity', 0.8)
-                .attr('d', lineY);
-            trend.append("path")
-                .datum(data)
-                .attr('class', 'line')
-                .attr('stroke', 'black')
-                .attr('stroke-width', 1)
-                .attr('opacity', 0.8)
-                .attr('d', lineTrend);
-            trend.append("path")
-                .datum(data)
-                .attr('class', 'line')
-                .attr('stroke', 'black')
-                .attr('stroke-width', 1)
-                .attr('opacity', 0.8)
-                .attr('d', lineSeasonal);
-            trend.append("path")
-                .datum(data)
-                .attr('class', 'line')
-                .attr('stroke', 'black')
-                .attr('stroke-width', 1)
-                .attr('opacity', 0.8)
-                .attr('d', lineReminder);
+                var lineY = d3.svg.line()
+                    .interpolate("monotone")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return yY(d.value);
+                    });
+                var lineTrend = d3.svg.line()
+                    .interpolate("monotone")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return yTrend(d.trend);
+                    });
+                var lineReminder = d3.svg.line()
+                    .interpolate("monotone")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return yReminder(d.reminder);
+                    });
+                var lineSeasonal = d3.svg.line()
+                    .interpolate("monotone")
+                    .x(function (d) {
+                        return x(new Date(d.time));
+                    })
+                    .y(function (d) {
+                        return ySeasonal(d.seasonal);
+                    });
+
+                var color = d3.scale.category10();
+                //color.domain(d3.keys(data[0]).filter(function (key) {
+                //    return key === "pm25";
+                //}));
+
+                x.domain(d3.extent(data.map(function (d) {
+                    return new Date(d.time);
+                })));
+
+                //TODO 固定y轴最大数值
+                yY.domain(d3.extent(data.map(function (d) {
+                    return d.value;
+                })));
+                yTrend.domain(d3.extent(data.map(function (d) {
+                    return d.trend;
+                })));
+                yReminder.domain(d3.extent(data.map(function (d) {
+                    return d.reminder;
+                })));
+                ySeasonal.domain(d3.extent(data.map(function (d) {
+                    return d.seasonal;
+                })));
 
 
-        }});
+                var brush = d3.svg.brush()
+                    .x(x)
+                    .on("brush", brushed)
+                    .on("brushend", brushend);
 
+                function brushed() {
+                }
+                function brushend(){
+                    //do not paint when brush doesn't change
+                    if(detailBrush != null && detailBrush[0] == brush.extent()[0] && detailBrush[1] == brush.extent()[1])
+                        return;
+                    detailBrush = brush.empty() ? x.domain() : brush.extent();
+                    clusterWithCorrelation();
+                    controlThemeRiver();
+                }
+
+                //绘制border
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1", -100)
+                    .attr("x2", 350)
+                    .attr("y2", -100)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1", -50)
+                    .attr("x2", 350)
+                    .attr("y2", -50)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1", -150)
+                    .attr("x2", 350)
+                    .attr("y2", -150)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 0)
+                    .attr("y1", -200)
+                    .attr("x2", 350)
+                    .attr("y2", -200)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 350)
+                    .attr("y1", 0)
+                    .attr("x2", 350)
+                    .attr("y2", -200)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+                trend.append("g")
+                    .append("line")
+                    .attr("x1", 350)
+                    .attr("y1", -200)
+                    .attr("x2", 0)
+                    .attr("y2", -200)
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8);
+
+                trend.append("g")
+                    .attr("class", "x axis")
+                    .attr("id", "detailBrush")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(xAxis)
+                    .append("g")
+                    .attr("class", "x brush")
+                    .call(brush)
+                    .selectAll("rect")
+                    .attr("y", -200)
+                    .attr("height", 200);
+                d3.select("#detailBrush").on("mouseover", function(){map.dragging.disable()});
+                d3.select("#detailBrush").on("mouseout", function(){map.dragging.enable()});
+
+                trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(yYAxis);
+                trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(ySeasonalAxis);
+                trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(yReminderAxis);
+                trend.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate("+0+"," + 0 + ")")
+                    .call(yTrendAxis);
+
+                trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('d', lineY);
+                trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('d', lineTrend);
+                trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('d', lineSeasonal);
+                trend.append("path")
+                    .datum(data)
+                    .attr('class', 'line')
+                    .attr('stroke', 'black')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.8)
+                    .attr('d', lineReminder);
+
+
+            }});
+    });
+    stlLayer.addTo(map);
 
 }
 
 
 /**
+ * 根据cluster的结果,以及detailBrush,
+ * 计算各个cluster的相关性
+ * 然后根据相关性数值重置cluster大小
+ */
+function clusterWithCorrelation(){
+    //如果没有显示cluster 不计算相关性
+    if(clusterLayer == null ||
+        !$("#controlCluster").is(":checked") ||
+        detailBrush == null)
+        return;
+    //TODO 如果cluster为空应先创建cluster
+    if(clusterResult == null && $("#controlCluster").is(":checked")){
+        controlCluster();
+    }
+    var codes = "";
+    for(var i = 0; i < filteredData.length; i ++){
+        codes += ("codes="+filteredData[i].code + "&");
+    }
+    // Define the div for the tooltip
+    var div = d3.select("body").append("div")
+        .attr("id", "tooltip")
+        .attr("class", "tooltip")
+        .style("opacity", 0);
+
+    $.ajax({
+        url: "correlation2.do",
+        type:"post",
+        data: "cluster="+
+        JSON.stringify(clusterResult) +
+        "&startTime="+new Date(detailBrush[0])+
+        "&endTime="+new Date(detailBrush[1])+
+        "&" + codes,
+        success: function (returnData) {
+            var data = JSON.parse(returnData);
+            clusterResult = data;
+            circles.transition()
+                .attr("r", function(d){
+                    for(var i = 0; i < data.length; i ++){
+                        if(data[i].id == d.id) {
+                            if(data[i].correlation < COR_THREADHOOD)
+                                return 4;//负相关
+                            if(data[i].pvalue > 0.05)
+                                return 4;//不显著
+                            return 4 + data[i].correlation * 15;
+                        }
+                    }
+                    console.log("no correlation");
+                    return 5;
+                })
+                .attr("fill", function(d){
+                    for(var i = 0; i < data.length; i ++){
+                        if(data[i].id == d.id) {
+                            if(data[i].lag >= 0){
+                                if(data[i].correlation < 0)
+                                    return colorScaleCor(0);//负相关
+                                if(data[i].pvalue > 0.05)
+                                    return colorScaleCor(0);//不显著
+                                return colorScaleCor(data[i].correlation);
+                            }else if(data[i].lag < 0){
+                                if(data[i].correlation < 0)
+                                    return colorScaleCorLag(0);//负相关
+                                if(data[i].pvalue > 0.05)
+                                    return colorScaleCorLag(0);//不显著
+                                return colorScaleCorLag(data[i].correlation);
+                            }
+                        }
+                    }
+
+                });
+
+            circles.on("mouseover", function(d) {
+                var cor = 0;
+                var lag = 0;
+                for(var i = 0; i < data.length; i ++){
+                    if(data[i].id == d.id) {
+                        cor = data[i].correlation;
+                        lag = data[i].lag;
+                    }
+                }
+
+                div.transition()
+                    .duration(100)
+                    .style("opacity", .9);
+                div	.html(d.cluster[0].city +":"+ parseFloat(cor).toFixed(2)+":"+(parseInt(lag)))
+                    .style("left", (d3.event.pageX) + "px")
+                    .style("top", (d3.event.pageY - 28) + "px");
+            })		        .on("mouseout", function(d) {
+                div.transition()
+                    .duration(500)
+                    .style("opacity", 0);
+            });
+        }
+    });
+
+}
+
+/**
  * 绘制站点,在右侧的contextRing面板上
  */
 function drawScatterGroup(){
-    var circleOption = contextRingOption;
-    var sel = d3.select("#circleView");
-    if(d3.select("#scattergroup")[0][0] != null)
-        $("#scattergroup").remove();
+    if(scatterGroup != null)
+        map.removeLayer(scatterGroup);
+
     var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
     var center = bounds.getBounds().getCenter();
 
-    //绘制站点
-    if ($("#controlCluster").is(":checked")) {
-        //如果聚类,则不用绘制点
-    } else {
-        var unfilteredCities = "";
-        if (unfilteredData.length != 0) {
-            unfilteredCities += ("codes=" + unfilteredData[0].code);
-            if (unfilteredData.length > 1) {
-                var i;
-                for (i = 1; i < unfilteredData.length; i++) {
-                    unfilteredCities += ("&codes=" + unfilteredData[i].code);
+    sizeScreen = map.getPixelBounds().getSize();
+    outerRadius = sizeScreen.y / 2-50;
+    innerRadius = outerRadius -  SIZE_RING;
+
+    scatterGroup = L.d3SvgOverlay(function(sel, proj) {
+        var centerScreen = proj.latLngToLayerPoint(center);
+        //绘制站点
+        if ($("#controlCluster").is(":checked")) {
+            //如果聚类,则不用绘制点
+        } else {
+            var unfilteredCities = "";
+            if (unfilteredData.length != 0) {
+                unfilteredCities += ("codes=" + unfilteredData[0].code);
+                if (unfilteredData.length > 1) {
+                    var i;
+                    for (i = 1; i < unfilteredData.length; i++) {
+                        unfilteredCities += ("&codes=" + unfilteredData[i].code);
+                    }
                 }
             }
-        }
 
-        $.ajax({
-            url: "monthValue.do",
-            type: "post",
-            data: unfilteredCities + "&" + "month=" + (new Date(overAllBrush[0]).getUTCMonth() + 1) + "&year=" + new Date(overAllBrush[0]).getUTCFullYear(),
-            success: function (returnData) {
-                var data = JSON.parse(returnData);
-                for (var i = 0; i < unfilteredData.length; i++) {
-                    unfilteredData[i].pm25 = data[unfilteredData[i].code];
-                }
-            },
-            async: false
-        });
-        var stationX = function (d) {
-            var r = (circleOption.innerRadius + (d.distance - minDis) / (maxDis - minDis) * (circleOption.outerRadius - circleOption.innerRadius));
-            return circleOption.centerScreenX + r *
-                (d.longitude - center.lng) /
-                Math.sqrt((d.latitude - center.lat) * (d.latitude - center.lat) + (d.longitude - center.lng) * (d.longitude - center.lng));
-        }
-        var stationY = function (d) {
-            var r = (circleOption.innerRadius + (d.distance - minDis) / (maxDis - minDis) * (circleOption.outerRadius - circleOption.innerRadius));
-            return circleOption.centerScreenY - r *
-                (d.latitude - center.lat) /
-                Math.sqrt((d.latitude - center.lat) * (d.latitude - center.lat) + (d.longitude - center.lng) * (d.longitude - center.lng));
-
-        }
-
-        sel.append("g")
-            .attr("id", "scattergroup")
-            .selectAll(".contextScatter")
-            .data(unfilteredData)
-            .enter()
-            .append("circle")
-            .filter(function (d) {
-
-                return d.distance > minDis && d.distance < maxDis;
-            })
-            .attr('r', function (d) {
-                return 4;
-            })
-            .attr('cx', stationX)
-            .attr('cy', stationY)
-            .attr('stroke', function (d) {
-                return "#000000";
-                ////TODO
-                //if(d.pm25 == null)
-                //    return colorScale(0);
-                //return colorScale(d.pm25);
-            })
-            .attr('fill', function (d) {
-                //TODO
-                if(d.pm25 == null)
-                    return colorScale(0);
-                return colorScale(d.pm25);
-            })
-            .attr('stroke-width', 0.5)
-            .on('mouseover', function(d){
-                //console.log("over:"+d.pm25);
+            $.ajax({
+                url: "monthValue.do",
+                type: "post",
+                data: unfilteredCities + "&" + "month=" + (new Date(overAllBrush[0]).getUTCMonth() + 1) + "&year=" + new Date(overAllBrush[0]).getUTCFullYear(),
+                success: function (returnData) {
+                    var data = JSON.parse(returnData);
+                    for (var i = 0; i < unfilteredData.length; i++) {
+                        unfilteredData[i].pm25 = data[unfilteredData[i].code];
+                    }
+                },
+                async: false
             });
-    }
+            var stationX = function (d) {
+                var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
+                ////
+                //var distanceD = L.latLng(d.latitude, d.longitude).distanceTo(center);
+                //var distanceX = L.latLng(center.lat, d.longitude).distanceTo(center);
+                //if(d.longitude - center.lng < 0)
+                //    distanceX = -distanceX;
+                //return centerScreen.x + r * distanceX/distanceD;
+                return centerScreen.x + r *
+                    (d.longitude - center.lng) /
+                    Math.sqrt((d.latitude - center.lat) * (d.latitude - center.lat) + (d.longitude - center.lng) * (d.longitude - center.lng));
+            }
+            var stationY = function (d) {
+                var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
+                //var distanceD = L.latLng(d.latitude, d.longitude).distanceTo(center);
+                //var distanceY = L.latLng(d.latitude, center.lng).distanceTo(center);
+                //if(d.latitude - center.lat < 0 )
+                //    distanceY = - distanceY;
+                //return centerScreen.y - r * distanceY/distanceD;
+                return centerScreen.y - r *
+                    (d.latitude - center.lat) /
+                    Math.sqrt((d.latitude - center.lat) * (d.latitude - center.lat) + (d.longitude - center.lng) * (d.longitude - center.lng));
+            }
+            sel.append("g")
+                .attr("id", "scattergroup")
+                .selectAll(".contextScatter")
+                .data(unfilteredData)
+                .enter()
+                .append("circle")
+                .filter(function (d) {
+
+                    return d.distance > minDis && d.distance < maxDis;
+                })
+                .attr('r', function (d) {
+                    return 4;
+                })
+                .attr('cx', stationX)
+                .attr('cy', stationY)
+                .attr('stroke', function (d) {
+                    return "#000000";
+                    ////TODO
+                    //if(d.pm25 == null)
+                    //    return colorScale(0);
+                    //return colorScale(d.pm25);
+                })
+                .attr('fill', function (d) {
+                    //return "#000000";
+                    //return "yellow";
+                    //TODO
+                    if(d.pm25 == null)
+                        return colorScale(0);
+                    return colorScale(d.pm25);
+                })
+                .attr('stroke-width', 0.5)
+                .on('mouseover', function(d){
+                    console.log("over:"+d.pm25);
+                });
+        }
+    });
+    scatterGroup.addTo(map);
 }
 
 /**
@@ -1849,256 +2032,10 @@ function createWindsView(){
     windsView.addTo(map);
 }
 
-/**
- * 显示LLCView
- */
-function displayLLCView(){
-    if(detailBrush == null || freedrawEvent.latLngs == null){
-        return;//TODO
-    }
-    var bounds = L.geoJson(L.FreeDraw.Utilities.getGEOJSONPolygons(freedrawEvent.latLngs));
-    var center = bounds.getBounds().getCenter();
-
-    //$("#llcBar").show();//
-    $("#llcBar").empty();
-    var d = d3.select("#llcBar");
-    var margin = {top: 10, right: 20, bottom: 50, left: 40};
-    var width = 600, height = 450;
-    var svg = d.append("svg")
-        .attr("width", width+margin.left+margin.right)
-        .attr("height", height+margin.top+margin.bottom)
-        .attr("id", "llcgroup")
-        .append("g")
-        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-    var HOUR_INTERVAL = 72;
-
-    //根据最大距离\角度\方向过滤出相关站点
-    //根据选择的趋势进行聚类
-    //把correlation结果进行后台计算并返回,返回包括分层结果
-    //显示LLCView
-    //地图显示动态风的结果?
-    var gapLevel = 20;
-
-    //TODO 如果cluster为空应先创建cluster
-    if(clusterResult == null && $("#controlCluster").is(":checked")){
-        controlCluster();
-    }
-    var codes = "";
-    for(var i = 0; i < filteredData.length; i ++){
-        codes += ("codes="+filteredData[i].code + "&");
-    }
-
-    $.ajax({
-        url: "correlation2.do",
-        type:"post",
-        data: "cluster="+
-        JSON.stringify(clusterResult) +
-        "&startTime="+new Date(detailBrush[0])+
-        "&endTime="+new Date(detailBrush[1])+
-        "&startAngle="+startAngleControl +
-        "&swap="+swap +
-        "&" + codes,
-        success: function (returnData) {
-            var data = JSON.parse(returnData);
-            clusterResult = data;
-
-            //统计各个level的cluster数目
-            var maxLevel = 4;
-            var countLevelPositive = [];
-            var countLevelNegative = [];
-            for(var i = 0; i < maxLevel; i ++){
-                countLevelPositive[i] = 0;
-                countLevelNegative[i] = 0;
-            }
-            for(var i = 0; i < clusterResult.length; i ++){
-                if(clusterResult[i].sign > 0){
-                    countLevelPositive[clusterResult[i].level] ++;
-                }else{
-                    countLevelNegative[clusterResult[i].level] ++;
-                }
-            }
-            var heightBar = (height - 8 * gapLevel) / (maxLevel*2+1);
-
-            var x = d3.time.scale()
-                .range([0, width]);
-            var y = d3.scale.linear()
-                .range([height, 0]);
-            var xAxis = d3.svg.axis()
-                .scale(x)
-                .orient("bottom");
-
-            x.domain([new Date(detailBrush[0].getTime() - 1000*60*60*HOUR_INTERVAL), new Date(detailBrush[0].getTime() + 1000*60*60*HOUR_INTERVAL)]);
-
-            svg.append("g").attr("class", "x axis")
-                .attr("transform", "translate(0," + height + ")")
-                .call(xAxis);
-            svg.selectAll(".positiveRect").data(countLevelPositive)
-                .enter()
-                .append("g")
-                .attr("id", function(d, i){
-                    return "positive"+ i;
-                })
-                .attr("transform", function(d, i){
-                    return "translate(" + "0" +","+ (maxLevel-(i+1)) * (heightBar+gapLevel) + ")";
-                })
-                .append("rect")
-                .attr("width", width)
-                .attr("height", heightBar)
-                .style("stroke", "black")
-                .style("fill-opacity", "0.5")
-                .style("fill", "#DDDDDD");
-
-            svg.append("g")
-                .attr("id", "original")
-                .attr("transform", function(d, i){
-                    return "translate(" + "0" +","+ maxLevel * (heightBar+gapLevel) + ")";
-                })
-                .append("rect")
-                .attr("width", width)
-                .attr("height", heightBar)
-                .style("stroke", "black")
-                .style("fill-opacity", "0.5")
-                .style("fill", "#DDDDDD");
-
-            svg.selectAll(".negativeRect").data(countLevelNegative)
-                .enter()
-                .append("g")
-                .attr("id", function(d, i){
-                    return "negative"+ i;
-                })
-                .attr("transform", function(d, i){
-                    return "translate(" + "0" +","+ (maxLevel + 1 + i) * (heightBar+gapLevel) + ")";
-                })
-                .append("rect")
-                .attr("width", width)
-                .attr("height", heightBar)
-                .style("stroke", "black")
-                .style("fill-opacity", "0.5")
-                .style("fill", "#DDDDDD");
-
-            var widthOneHour = x(new Date(1000*60*60))-x(new Date(0));
-            var countLevelPositiveNow = [];
-            var countLevelNegativeNow = [];
-            for(var i = 0; i < maxLevel; i ++){
-                countLevelPositiveNow[i] = 0;
-                countLevelNegativeNow[i] = 0;
-            }
-
-            for(var i = 0; i < clusterResult.length; i ++){
-                var d = clusterResult[i];
-                var levelRect;
-                var heightOneCluster, yOneCluster ;
-                if(d.sign < 0){
-                    levelRect = svg.select("#negative"+ d.level);
-                    levelRect.append("g")
-                        .attr("id", "levelrectneg"+countLevelNegativeNow[d.level]);
-                    heightOneCluster = heightBar / countLevelNegative[d.level];
-                    yOneCluster = heightOneCluster * countLevelNegativeNow[d.level];
-                    countLevelNegativeNow[d.level] ++;
-                }
-                else{
-                    levelRect = svg.select("#positive" + d.level);
-                    levelRect.append("g")
-                        .attr("id", "levelrectpos"+countLevelPositiveNow[d.level]);
-                    heightOneCluster = heightBar / countLevelPositive[d.level];
-                    yOneCluster = heightOneCluster * countLevelPositiveNow[d.level];
-                    countLevelPositiveNow[d.level] ++;
-                }
-
-
-                for(var j = 0; j < d.lagArray.length; j ++){
-                    var xPos = x(new Date(detailBrush[0].getTime() - 1000*60*60*d.lagArray[j]));
-                    if(xPos < 0)
-                        continue;
-                    if(d.pvalueArray[j] >= 0.05 || d.correlationArray == null){
-                        levelRect.append("rect")
-                            .attr("x", xPos)
-                            .attr("y", yOneCluster)
-                            .attr("width", widthOneHour)
-                            .attr("height", heightOneCluster)
-                            .style("fill-opacity", "1")
-                            .style("fill", colorLLCGroup(0));
-                        continue;
-                    }else{
-                    levelRect.append("rect")
-                        .attr("x", xPos)
-                        .attr("y", yOneCluster)
-                        .attr("width", widthOneHour)
-                        .attr("height", heightOneCluster)
-                        .style("fill-opacity", "1")
-                        .style("fill", colorLLCGroup(d.correlationArray[j]));
-                    }
-                }
-            }
-
-            var cities = "";
-            if (filteredData.length != 0) {
-                cities += ("codes=" + filteredData[0].code);
-                if (filteredData.length > 1) {
-                    var i;
-                    for (i = 1; i < filteredData.length; i++) {
-                        cities += ("&codes=" + filteredData[i].code);
-                    }
-                }
-            }
-
-
-            //绘制中间的趋势
-            var timeRange = "startTime=" + new Date(detailBrush[0].getTime() - 1000*60*60*HOUR_INTERVAL)+
-                "&endTime=" + new Date(detailBrush[0].getTime() + 1000*60*60*HOUR_INTERVAL);
-            $.ajax({
-                url: "stl.do",
-                type: "post",
-                data: cities + "&" + timeRange,
-                success: function (returnData) {
-                    var data = JSON.parse(returnData);
-
-                    //中间的
-                    var yY = d3.scale.linear().range([heightBar, 0]);
-
-                    var lineY = d3.svg.line()
-                        .interpolate("monotone")
-                        .x(function (d) {
-                            return x(new Date(d.time));
-                        })
-                        .y(function (d) {
-                            return yY(d.value);
-                        });
-
-
-                    //TODO 固定y轴最大数值
-                    yY.domain(d3.extent(data.map(function (d) {
-                        return d.value;
-                    })));
-
-                    d3.select("#original").append("rect")
-                        .attr("x", x(detailBrush[0]))
-                        .attr("y", 0)
-                        .attr("width", (x(detailBrush[1]) > x(new Date(detailBrush[0].getTime() + 1000*60*60*HOUR_INTERVAL)) ?
-                            x(new Date(detailBrush[0].getTime() + 1000*60*60*HOUR_INTERVAL))-x(detailBrush[0]) :
-                            x(detailBrush[1]) -x(detailBrush[0])))
-                        .attr("height", heightBar)
-                        .style("fill-opacity", "0.5")
-                        .style("fill", "#FF0000");
-
-                    d3.select("#original").append("path")
-                        .datum(data)
-                        .attr('class', 'line')
-                        .attr('stroke', 'black')
-                        .attr('stroke-width', 1)
-                        .attr('opacity', 0.8)
-                        .attr('d', lineY);
-
-                }
-            });
-        }
-    });
-
-}
 
 function cluster(){
     clusterFilter();
-    clusterContextRing();
+    //clusterContextRing();
 }
 
 /**将unfiltereddata进行聚类
@@ -2127,15 +2064,13 @@ function clusterFilter(){
         param += ("codes="+filteredData[i].code + "&");
     }
     param += "maxDistance="+maxDis+"&";
-    param += "minDistance="+minDis+"&";
     param += "centerLon=" + centerX+"&";
     param += "centerLat=" + centerY+"&";
-    param += "startAngle="+ startAngleControl + "&";
-    param += "swap=" + swap + "&";
     param += "startTime="+overAllBrush[0]+"&endTime="+overAllBrush[1];
     $.ajax({
-        //url:"newclusterWithWind.do",
-        url:"clusterwithfilter.do",
+        //url:"cluster.do",
+        //url: "clusterWithWind.do",
+        url:"newclusterWithWind.do",
         type:"post",
         data: param,
         success: function (returnData) {
@@ -2148,11 +2083,19 @@ function clusterFilter(){
 
             clusterLayer = L.d3SvgOverlay(function(sel, proj) {
 
+                var centerScreen = proj.latLngToLayerPoint(center);
+
                 var stationX = function (d) {
-                    return proj.latLngToLayerPoint(L.latLng(d.centerY, d.centerX)).x;
+                    var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
+                    return centerScreen.x + r *
+                        (d.centerX - center.lng) /
+                        Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
                 }
                 var stationY = function (d) {
-                    return proj.latLngToLayerPoint(L.latLng(d.centerY, d.centerX)).y;
+                    var r = (innerRadius + (d.distance - minDis) / (maxDis - minDis) * (outerRadius - innerRadius));
+                    return centerScreen.y - r *
+                        (d.centerY - center.lat) /
+                        Math.sqrt((d.centerY - center.lat) * (d.centerY - center.lat) + (d.centerX - center.lng) * (d.centerX - center.lng));
                 }
 
                 sel.append("g").selectAll(".clusterWind").data(data)
@@ -2175,7 +2118,7 @@ function clusterFilter(){
 
                 circles = clusterCircles.append("circle")
                     .attr('r', function (d) {
-                        return 5;//2+(d.cluster.length-1)*2;
+                        return 4+(d.cluster.length-1)*3;//d.cluster.length*5;
                     })
                     .attr('id', function(d){return d.id;})//能使用同一个id 么?
                     .attr('cx', stationX)
@@ -2183,9 +2126,14 @@ function clusterFilter(){
                     .attr('fill', function(d){
                         //根据数值返回颜色
                         for(var i = 0; i < unfilteredData.length; i ++){
+                            //if(unfilteredData[i].pm25 == null)
+                            //    return "yellow";
                             if(d.cluster[0].code == unfilteredData[i].code)
                                 return colorScale(unfilteredData[i].pm25);
                         }
+                        //if(d.cluster[0]pm25 == null)
+                        //    return colorScale(0);
+                        //return colorScale(d.pm25);
                         return 'yellow';
                     })
                     .attr('opacity', '1')
@@ -2208,8 +2156,6 @@ function clusterFilter(){
         },
         async:false
     });
-
-
 }
 
 /**
@@ -2341,12 +2287,12 @@ function clusterAndThemeRiver(){
     }
     colorrange = ["#A6BDDB", "#D0D1E6", "#F1EEF6"];//, "#045A8D", "#2B8CBE", "#74A9CF"];
     var strokecolor = colorrange[0];
-    var margin = {top: 0, right: 0, bottom: 20, left: 10};
+    var margin = {top: 20, right: 40, bottom: 30, left: 30};
 
     var format = d3.time.format("%m/%d/%y");
 
-    var width = 150;//TODO
-    var height = 100;//TODO
+    var width = 200;//TODO
+    var height = 150;//TODO
 
     var x = d3.time.scale()
         .range([0, width]);
@@ -2410,7 +2356,7 @@ function clusterAndThemeRiver(){
     for(var i = 0; i < clusterResult.length; i ++){
         //param[clusterResult[i].angle] += "&cities="+clusterResult[i].cluster[0].city;
         //for(var j = 0; j < clusterResult[i].cluster.length; j ++){
-        //if(clusterResult[i].correlation > COR_THREADHOOD && clusterResult[i].pvalue < 0.05)
+        if(clusterResult[i].correlation > COR_THREADHOOD && clusterResult[i].pvalue < 0.05)
             param[clusterResult[i].angle] += ("&codes="+clusterResult[i].cluster[0].code)
         //}
     }
@@ -2425,7 +2371,6 @@ function clusterAndThemeRiver(){
     }
 
 
-    var sel = d3.select("#circleView");
     //Uncaught TypeError: Cannot read property '1' of undefined
     //https://github.com/shutterstock/rickshaw/issues/108
     for(var i = 0; i < 8; i ++){
@@ -2434,190 +2379,189 @@ function clusterAndThemeRiver(){
             type:"post",
             data: param[i]+"&cluster=" + JSON.stringify(clusterResult),
             success: function (returnData) {
-                //themeLayer[i] = L.d3SvgOverlay(function(sel, proj) {
-                if (returnData == null || returnData == "")
-                    return;
-                var dataAll = JSON.parse(returnData);
-                var data = dataAll.result;
-                var dataLagCor = dataAll.lag;
-
-                data.forEach(function (d) {
-                    d.time = new Date(d.time);
-                    //d.value = +d.pm25;
-                });
-                //var g = d3.select("#themeriver" + i).style("left", (octagonLocationScreen[dataAll.index].x - 140) + "px")
-                //    .style("top", (octagonLocationScreen[dataAll.index].y - 120 ) + "px");
-                var g = sel.append("g")
-                    .attr("transform","translate("+(octagonLocationScreen[dataAll.index].x - 100)+","+(octagonLocationScreen[dataAll.index].y - 60 )+")")
-                    .attr("class", "themeriver");
-                var svg = g.append("svg")
-                    .attr("width", width + margin.left + margin.right)
-                    .attr("height", height + margin.top + margin.bottom)
-                    .append("g")
-                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-                var entries = nest.entries(data);
-                //输入entries
-                var getOrder = function(data){//返回order
-                    //TODO 计算center的方法修改!!!!
-                    var center = L.latLng(filteredData[0].latitude, filteredData[0].longitude);
-                    var dis = [];
-                    for(var i = 0; i < data.length; i ++){
-                        dis[i] = L.latLng(data[i].values[0].lat, data[i].values[0].lon).distanceTo(center);
-                    }
-                    //根据距离远近给出order[100,20,200,300]返回[1,0,2,3]
-                    var result = [];
-                    for(var i = 0; i < data.length; i ++){
-                        var index = dis.indexOf(dis.min());
-                        result[index] = i;
-                        dis[index] = Number.MAX_VALUE;
-                    }
-                    return result;
-                };
-
-                order = getOrder(entries);
-                var newEntries = [];
-                {
-                    //reorder entries
-                    for(var i = 0; i < order.length; i ++){
-                        var index = order.indexOf(i);
-                        newEntries.push(entries[index]);
-                    }
-                }
-
-
-                var layers = stack(newEntries);
-
-                x.domain(d3.extent(data, function (d) {
-                    return d.time;
-                }));
-                y.domain([0, d3.max(data, function (d) {
-                    return d.y0 + d.y;
-                })]);
-
-                //过滤后的detailBrush在整个时间上占的比例
-                var xStartPercent = x(detailBrush[0]) / width;
-                var xEndPercent = x(detailBrush[1]) / width;
-
-                //id="grad1" x1="0%" y1="0%" x2="100%" y2="0%"
-                var grad = svg.selectAll(".gradient")
-                    .data(dataLagCor)
-                    .enter().append("defs")
-                    .append("linearGradient")
-                    .attr("id", function(d){return "lag"+d.code;})
-                    .attr("x1", "0%")
-                    .attr("y1", "100%")
-                    .attr("x2", "100%")
-                    .attr("y2", "100%");
-                //<stop offset="50%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
-                //<stop offset="51%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
-                grad.append("stop")
-                    .attr("offset", function(d){
-                        var nd = new Date(detailBrush[0]);
-                        nd.setHours(nd.getHours() - d.lag);
-                        return x(nd) / width;})
-                    .attr("stop-color", function(d, i ){return z(i);})
-                    .attr("stop-opacity", 1);
-                grad.append("stop")
-                    .attr("offset", function(d){
-                        var nd = new Date(detailBrush[0]);
-                        nd.setHours(nd.getHours() - d.lag);
-                        return x(nd) / width+0.001;})
-                    .attr("stop-color", function(d){
-                        //if(d.lag < 0)
-                        //return colorScaleCorLag(d.cor);
-                        //else
-                        return colorScaleCor(d.cor);
-                    })
-                    .attr("stop-opacity", 1);
-                grad.append("stop")
-                    .attr("offset", function(d){
-                        var nd = new Date(detailBrush[1]);
-                        nd.setHours(nd.getHours() - d.lag);
-                        return x(nd) / width ;})
-                    .attr("stop-color", function(d){
-                        //if(d.lag < 0)
-                        //    return colorScaleCorLag(d.cor);
-                        //else
-                            return colorScaleCor(d.cor);
-                    })//TODO
-                    .attr("stop-opacity", 1);
-                grad.append("stop")
-                    .attr("offset", function(d){
-                        var nd = new Date(detailBrush[1]);
-                        nd.setHours(nd.getHours() - d.lag);
-                        return x(nd) / width + 0.001; })
-                    .attr("stop-color", function(d, i){return z(i);})
-                    .attr("stop-opacity", 1);
-
-
-                svg.selectAll(".layer")
-                    .data(layers)
-                    .enter().append("path")
-                    .attr("class", "layer")
-                    .attr("d", function (d) {
-                        return area(d.values);
-                    })
-                    .style("fill", function (d, i) {
-                        return "url(#"+"lag"+ d.key+")";
-                        //console.log("d:"+i+":"+z(i));
-                        //return z(i);
-                    }).on("mouseover", function(d) {
-                        if(d.values[0] == null)
-                            return;
-                        var cor = 0;
-                        var lag = 0;
-                        var city = "";
-                        for(var i = 0; i < clusterResult.length; i ++){
-                            for(var j = 0; j < clusterResult[i].cluster.length; j ++){
-                                if(clusterResult[i].cluster[j].code == d.key) {
-                                    cor = clusterResult[i].correlation;
-                                    lag = clusterResult[i].lag;
-                                    city = clusterResult[i].cluster[j].city;
-                                    break;
-                                }
-                            }
-                            if(cor != 0)
-                                break;
-                        }
-                        var div = d3.select("#tooltip");
-                        div.transition()
-                            .duration(100)
-                            .style("opacity", .9);
-                        div	.html(city +":"+ parseFloat(cor).toFixed(2)+":"+(parseInt(lag)))
-                            .style("left", (d3.event.pageX) + "px")
-                            .style("top", (d3.event.pageY - 28) + "px");
-                        //console.log(d.values[0].city    );
-                    }).on("mouseout", function(d) {
-                        var div = d3.select("#tooltip");
-                        div.transition()
-                            .duration(500)
-                            .style("opacity", 0);
+                themeLayer[i] = L.d3SvgOverlay(function(sel, proj) {
+                    if (returnData == null || returnData == "")
+                        return;
+                    var dataAll = JSON.parse(returnData);
+                    var data = dataAll.result;
+                    var dataLagCor = dataAll.lag;//array [{"code":"1009A","lag":0.7955870797707358,"cor":2},{"code":"1057A","lag":0.7781516905307961,"cor":0},{"code":"1062A","lag":0.7760953665976594,"cor":2}]
+                    //data = assignDefaultValues(data);
+                    data.forEach(function (d) {
+                        d.time = new Date(d.time);
+                        //d.value = +d.pm25;
                     });
+                    //var g = d3.select("#themeriver" + i).style("left", (octagonLocationScreen[dataAll.index].x - 140) + "px")
+                    //    .style("top", (octagonLocationScreen[dataAll.index].y - 120 ) + "px");
+                    var g = sel.append("g")
+                        .attr("transform","translate("+(octagonLocationScreen[dataAll.index].x - 140)+","+(octagonLocationScreen[dataAll.index].y - 120 )+")");
+                    var svg = g.append("svg")
+                        .attr("width", width + margin.left + margin.right)
+                        .attr("height", height + margin.top + margin.bottom)
+                        .append("g")
+                        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-                svg.append("g")
-                    .attr("class", "x axis")
-                    .attr("transform", "translate(0," + height + ")")
-                    .call(xAxis);
+                    var entries = nest.entries(data);
+                    //输入entries
+                    var getOrder = function(data){//返回order
+                        //TODO 计算center的方法修改!!!!
+                        var center = L.latLng(filteredData[0].latitude, filteredData[0].longitude);
+                        var dis = [];
+                        for(var i = 0; i < data.length; i ++){
+                            dis[i] = L.latLng(data[i].values[0].lat, data[i].values[0].lon).distanceTo(center);
+                        }
+                        //根据距离远近给出order[100,20,200,300]返回[1,0,2,3]
+                        var result = [];
+                        for(var i = 0; i < data.length; i ++){
+                            var index = dis.indexOf(dis.min());
+                            result[index] = i;
+                            dis[index] = Number.MAX_VALUE;
+                        }
+                        return result;
+                    };
 
-                //<line x1="0" y1="0" x2="200" y2="200" style="stroke:rgb(255,0,0);stroke-width:2" />
-                //框出选择的区域
-                svg.append("line")
-                    .attr("x1", x(detailBrush[0]))
-                    .attr("y1", "0")
-                    .attr("x2", x(detailBrush[0]))
-                    .attr("y2", "150")
-                    .attr("stroke", "rgb(0, 0, 0)")
-                    .attr("stroke-width", "1");
-                svg.append("line")
-                    .attr("x1", x(detailBrush[1]))
-                    .attr("y1", "0")
-                    .attr("x2", x(detailBrush[1]))
-                    .attr("y2", "150")
-                    .attr("stroke", "rgb(0, 0, 0)")
-                    .attr("stroke-width", "1");
-                //});
-                //themeLayer[i].addTo(map);
+                    order = getOrder(entries);
+                    var newEntries = [];
+                    {
+                        //reorder entries
+                        for(var i = 0; i < order.length; i ++){
+                            var index = order.indexOf(i);
+                            newEntries.push(entries[index]);
+                        }
+                    }
+
+
+                    var layers = stack(newEntries);
+
+                    x.domain(d3.extent(data, function (d) {
+                        return d.time;
+                    }));
+                    y.domain([0, d3.max(data, function (d) {
+                        return d.y0 + d.y;
+                    })]);
+
+                    //过滤后的detailBrush在整个时间上占的比例
+                    var xStartPercent = x(detailBrush[0]) / width;
+                    var xEndPercent = x(detailBrush[1]) / width;
+
+                    //id="grad1" x1="0%" y1="0%" x2="100%" y2="0%"
+                    var grad = svg.selectAll(".gradient")
+                        .data(dataLagCor)
+                        .enter().append("defs")
+                        .append("linearGradient")
+                        .attr("id", function(d){return "lag"+d.code;})
+                        .attr("x1", "0%")
+                        .attr("y1", "100%")
+                        .attr("x2", "100%")
+                        .attr("y2", "100%");
+                    //<stop offset="50%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
+                    //<stop offset="51%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
+                    grad.append("stop")
+                        .attr("offset", function(d){
+                            var nd = new Date(detailBrush[0]);
+                            nd.setHours(nd.getHours() - d.lag);
+                            return x(nd) / width;})
+                        .attr("stop-color", function(d, i ){return z(i);})
+                        .attr("stop-opacity", 1);
+                    grad.append("stop")
+                        .attr("offset", function(d){
+                            var nd = new Date(detailBrush[0]);
+                            nd.setHours(nd.getHours() - d.lag);
+                            return x(nd) / width+0.001;})
+                        .attr("stop-color", function(d){
+                            if(d.lag < 0)
+                                return colorScaleCorLag(d.cor);
+                            else
+                                return colorScaleCor(d.cor);
+                        })
+                        .attr("stop-opacity", 1);
+                    grad.append("stop")
+                        .attr("offset", function(d){
+                            var nd = new Date(detailBrush[1]);
+                            nd.setHours(nd.getHours() - d.lag);
+                            return x(nd) / width ;})
+                        .attr("stop-color", function(d){
+                            if(d.lag < 0)
+                                return colorScaleCorLag(d.cor);
+                            else
+                                return colorScaleCor(d.cor);
+                        })//TODO
+                        .attr("stop-opacity", 1);
+                    grad.append("stop")
+                        .attr("offset", function(d){
+                            var nd = new Date(detailBrush[1]);
+                            nd.setHours(nd.getHours() - d.lag);
+                            return x(nd) / width + 0.001; })
+                        .attr("stop-color", function(d, i){return z(i);})
+                        .attr("stop-opacity", 1);
+
+
+                    svg.selectAll(".layer")
+                        .data(layers)
+                        .enter().append("path")
+                        .attr("class", "layer")
+                        .attr("d", function (d) {
+                            return area(d.values);
+                        })
+                        .style("fill", function (d, i) {
+                            return "url(#"+"lag"+ d.key+")";
+                            //console.log("d:"+i+":"+z(i));
+                            //return z(i);
+                        }).on("mouseover", function(d) {
+                            if(d.values[0] == null)
+                                return;
+                            var cor = 0;
+                            var lag = 0;
+                            var city = "";
+                            for(var i = 0; i < clusterResult.length; i ++){
+                                for(var j = 0; j < clusterResult[i].cluster.length; j ++){
+                                    if(clusterResult[i].cluster[j].code == d.key) {
+                                        cor = clusterResult[i].correlation;
+                                        lag = clusterResult[i].lag;
+                                        city = clusterResult[i].cluster[j].city;
+                                        break;
+                                    }
+                                }
+                                if(cor != 0)
+                                    break;
+                            }
+                            var div = d3.select("#tooltip");
+                            div.transition()
+                                .duration(100)
+                                .style("opacity", .9);
+                            div	.html(city +":"+ parseFloat(cor).toFixed(2)+":"+(parseInt(lag)))
+                                .style("left", (d3.event.pageX) + "px")
+                                .style("top", (d3.event.pageY - 28) + "px");
+                            //console.log(d.values[0].city    );
+                        }).on("mouseout", function(d) {
+                            var div = d3.select("#tooltip");
+                            div.transition()
+                                .duration(500)
+                                .style("opacity", 0);
+                        });
+
+                    svg.append("g")
+                        .attr("class", "x axis")
+                        .attr("transform", "translate(0," + height + ")")
+                        .call(xAxis);
+
+                    //<line x1="0" y1="0" x2="200" y2="200" style="stroke:rgb(255,0,0);stroke-width:2" />
+                    //框出选择的区域
+                    svg.append("line")
+                        .attr("x1", x(detailBrush[0]))
+                        .attr("y1", "0")
+                        .attr("x2", x(detailBrush[0]))
+                        .attr("y2", "150")
+                        .attr("stroke", "rgb(0, 0, 0)")
+                        .attr("stroke-width", "1");
+                    svg.append("line")
+                        .attr("x1", x(detailBrush[1]))
+                        .attr("y1", "0")
+                        .attr("x2", x(detailBrush[1]))
+                        .attr("y2", "150")
+                        .attr("stroke", "rgb(0, 0, 0)")
+                        .attr("stroke-width", "1");
+                });
+                themeLayer[i].addTo(map);
 
             },
             async:false
@@ -3024,10 +2968,6 @@ function createCorHeatMapView(){
  * 使用两个维度映射实现heatmap
  */
 function createCorHeatMapView2(){
-    var sel = d3.select("#correlationHM");
-    if(sel[0][0] == null)
-        sel = d3.select("#circleView").append("g").attr("id", "correlationHM");
-
     if(corHeatMapLayer != null)
         map.removeLayer(corHeatMapLayer);
     outerRadius = sizeScreen.y / 2-50;
@@ -3046,7 +2986,7 @@ function createCorHeatMapView2(){
     var maxLeadCor = 0;
     var maxLagCor = 0;
     for(var i = 0; i < clusterResult.length; i ++){
-        if(clusterResult[i].pvalue > 0.05 )
+        if(clusterResult[i].pvalue > P_THREADHOOD)
             continue;
         if(clusterResult[i].lag > 0){
             sumLead += clusterResult[i].lag;
@@ -3077,8 +3017,7 @@ function createCorHeatMapView2(){
     }
     var standardDeviationLag = Math.sqrt(sumTemp / countLag);
 
-    //corHeatMapLayer = L.d3SvgOverlay(function(sel, proj) {
-
+    corHeatMapLayer = L.d3SvgOverlay(function(sel, proj) {
     var x = [], y = [], t = [];
     var tL = [];//tL是lead/lagValue
     $("circle").each(function() {
@@ -3096,11 +3035,12 @@ function createCorHeatMapView2(){
                 console.log("lagValue:"+clusterResult[i].lag);
                 continue;
             }
+            //
+            if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD / 2))
+                continue;
+            if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD / 2))
+                continue;
 
-            if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD))
-                continue;
-            if(Math.abs(clusterResult[i].correlation < COR_THREADHOOD))
-                continue;
 
             x.push($(this).attr("cx"));
             y.push($(this).attr("cy"));
@@ -3127,18 +3067,24 @@ function createCorHeatMapView2(){
 
     //var leadH = d3.scale.linear().domain([1, 0]).range([0, 60]);
     //var lagH = d3.scale.linear().domain([-1,0]).range([120, 60]);
-    var leadH = d3.scale.linear().domain([1, maxCor,  COR_THREADHOOD, 0]).range([0, 0, 60, 60]);
-    var lagH = d3.scale.linear().domain([-1, -maxCor, -COR_THREADHOOD, 0]).range([120, 120, 60, 60]);
+        //下面的颜色映射是蓝色 蓝绿 绿
+    var leadH = d3.scale.linear().domain([1, maxCor,  COR_THREADHOOD, 0]).range([240, 240, 180, 180]);
+    var lagH = d3.scale.linear().domain([-1, -maxCor, -COR_THREADHOOD, 0]).range([120, 120, 180, 180]);
+    //var leadH = d3.scale.linear().domain([1, maxCor,  COR_THREADHOOD, 0]).range([0, 0, 60, 60]);
+    //var lagH = d3.scale.linear().domain([-1, -maxCor, -COR_THREADHOOD, 0]).range([120, 120, 60, 60]);
     //var leadS = d3.scale.linear().domain([0, (avgLead + 2 * standardDeviationLead), 1000]).range([0.5, 0.9, 0.9]);
     //var lagS = d3.scale.linear().domain([0, (avgLag - 2 * standardDeviationLag), -1000]).range([0.5, 0.9, 0.9]);
     //var leadS = d3.scale.linear().domain([0, temp, 1000]).range([0.5, 0.9, 0.9]);
     //var lagS = d3.scale.linear().domain([0, -temp, -1000]).range([0.5, 0.9, 0.9]);
     var temp1 = (avgLead - 2 * standardDeviationLead) > 0 ? (avgLead - 2 * standardDeviationLead) : 0;
     var temp2 = (avgLag + 2 * standardDeviationLag) < 0 ? (avgLag + 2 * standardDeviationLag) : 0;
-    var leadS2 = d3.scale.linear().domain([0, temp1,  (avgLead + 2 * standardDeviationLead), 1000]).range([0.5, 0.5, 0.9, 0.9]);
-    var lagS2 = d3.scale.linear().domain([0, temp2, (avgLag - 2 * standardDeviationLag), -1000]).range([0.5, 0.5, 0.9, 0.9]);
-    var leadS = d3.scale.linear().domain([0, temp1,  (avgLead + 2 * standardDeviationLead), 1000]).range([1, 1, 0, 0]);
-    var lagS = d3.scale.linear().domain([0, temp2, (avgLag - 2 * standardDeviationLag), -1000]).range([1, 1, 0, 0]);
+    //leadS3 lagS3把颜色映射的亮度表示掉个个
+    var leadS2 = d3.scale.linear().domain([0, temp1,  (avgLead + 2 * standardDeviationLead), 1000]).range([0.9, 0.9, 0.5, 0.5]);
+    var lagS2 = d3.scale.linear().domain([0, temp2, (avgLag - 2 * standardDeviationLag), -1000]).range([0.9, 0.9, 0.5, 0.5]);
+    //var leadS2 = d3.scale.linear().domain([0, temp1,  (avgLead + 2 * standardDeviationLead), 1000]).range([0.5, 0.5, 0.9, 0.9]);
+    //var lagS2 = d3.scale.linear().domain([0, temp2, (avgLag - 2 * standardDeviationLag), -1000]).range([0.5, 0.5, 0.9, 0.9]);
+    //var leadS = d3.scale.linear().domain([0, temp1,  (avgLead + 2 * standardDeviationLead), 1000]).range([1, 1, 0, 0]);
+    //var lagS = d3.scale.linear().domain([0, temp2, (avgLag - 2 * standardDeviationLag), -1000]).range([1, 1, 0, 0]);
 
     console.log("avgLead:"+avgLead+":"+standardDeviationLead);
     console.log("avgLag:"+avgLag+":"+standardDeviationLag);
@@ -3187,6 +3133,8 @@ function createCorHeatMapView2(){
         }
     }
 
+    });
+    corHeatMapLayer.addTo(map);
 
 }
 
@@ -3481,7 +3429,48 @@ function cityValueControl(){
     }
 }
 
+function controlContextRing(){
+    if(contextRing != null) {
+        map.removeLayer(contextRing);
+        if(scatterGroup != null)
+            map.removeLayer(scatterGroup);
+    }
+    if($("#controlContextRing").is(":checked")){
+        if(freedrawEvent.latLngs == null || freedrawEvent.latLngs.length == 0) {
+            window.alert("you should select a region on the map first.");
+            return;
+        }else if(overAllBrush == null){
+            window.alert("you should select a time region on the trend view first.");
+            return;
+        }
+        createCircleView();
+    }
+    else{
+        map.removeLayer(contextRing);
+        if(scatterGroup != null)
+            map.removeLayer(scatterGroup);
+    }
+}
 
+function controlStl(){
+    if($("#controlStl").is( ':checked' )){
+        if(stlLayer != null)
+            map.removeLayer(stlLayer);
+        createStlview();
+    }else{
+        if(stlLayer != null)
+            map.removeLayer(stlLayer);
+    }
+}
+
+function activeContextRing(){
+    if(!$("#controlContextRing").is(":checked")){
+
+    }else{
+        $("#controlContextRing").attr('checked', true);
+    }
+    controlContextRing();
+}
 
 function controlThemeRiver(){
     for(var i = 0; i < 8; i ++){
@@ -3507,6 +3496,12 @@ function controlGroupThemeRiver(){
 }
 
 function controlCluster(){
+    if(clusterLayer != null){
+        if($("#controlContextRing").is(":checked") && $("#scattergroup").length == 0){
+            drawScatterGroup();
+        }
+        map.removeLayer(clusterLayer);
+    }
     if($("#controlCluster").is(":checked")){
         if(freedrawEvent.latLngs == null || freedrawEvent.latLngs.length == 0) {
             window.alert("you should select a region on the map first.");
@@ -3516,9 +3511,20 @@ function controlCluster(){
             return;
         }
         cluster();
-    }else{
-        drawScatterGroup();
+        if(detailBrush != null){
+            clusterWithCorrelation();
+        }
+        if($("#scattergroup").length != 0){
+            $("#scattergroup").remove();
+        }
     }
+    //else{
+    //    if(clusterLayer != null)
+    //        map.removeLayer(clusterLayer);
+    //    if($("#scattergroup").length != 0){
+    //        $("#scattergroup").remove();
+    //    }
+    //}
 }
 
 function controlClusterWind(){
@@ -3530,10 +3536,12 @@ function controlClusterWind(){
 
 }
 function controlHeatMapCor(){
+    if(corHeatMapLayer != null)
+        map.removeLayer(corHeatMapLayer);
     if($("#controlHeatMapCor").is(":checked")){
         createCorHeatMapView2();
     }else{
-        $("#correlationHM").remove();
+        map.removeLayer(corHeatMapLayer);
     }
 }
 

@@ -170,7 +170,7 @@ public class WindController {
         }
         result.put(ucomp);
         result.put(vcomp);
-
+        client.close();
         return result.toString();
     }
 
@@ -331,6 +331,7 @@ public class WindController {
         result.put(ucomp);
         result.put(vcomp);
 
+        client.close();
         return result.toString();
     }
 }
