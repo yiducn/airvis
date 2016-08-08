@@ -342,7 +342,7 @@ function createProvinceValue(){
                 return colorScale(d.pm25);
             })
             .attr('fill-opacity', '0.9');
-        //upd.attr('stroke-width', 1 / proj.scale);
+        upd.attr('stroke-width', 1 / proj.scale);
 
     });
 
@@ -374,7 +374,6 @@ function createProvinceValue(){
             );
         }
     });
-
 }
 
 function createCityMap(){
@@ -395,14 +394,15 @@ function createCityMap(){
 
 }
 
+
 /**
  * 按城市填充中国地图颜色
  */
 function createCityValue(){
     //TODO 如果空 则创建,如果非空,则更新
-
     var cities = [];
     cityValueOverlay = L.d3SvgOverlay(function(sel, proj) {
+
 
         var upd = sel.selectAll('path').data(cities);
         upd.enter()
@@ -412,6 +412,7 @@ function createCityValue(){
             .attr('stroke-width', '0px')
             .attr('stroke-opacity', '0')
             .attr("fill", function(d){
+                //return "url(#test1)"
                 return colorScale(d.pm25);
             })
             //.attr('fill', function(d){
@@ -480,6 +481,154 @@ function createCityValue(){
                         cities[i].pm25 = findValue(cities[i].properties.name, cities[i].id);
                     }
                     cityValueOverlay.addTo(map)
+                }
+            );
+        }
+    });
+
+}
+
+/**
+ * 根据时序情况颜色变化,按城市填充地图颜色
+ * TODO
+ */
+function createCityTemporalCartogram(){
+
+}
+
+/**
+ * 填充中国地图颜色,根据时序的情况颜色变化
+ */
+function createProvinceTemporalCartogram(){
+    var provinces = [];
+    provinceValueOverlay = L.d3SvgOverlay(function(sel, proj) {
+        /**
+         <pattern id="fagl" patternUnits="objectBoundingBox" width="2" height="1" x="-50%">
+         <path style="stroke:#FF0; stroke-opacity:1;stroke-width:20;fill-opacity:0;" d="M150 0 L75 200 L225 200 Z">
+         </pattern>
+         */
+        var upd = sel.selectAll('path').data(provinces);
+        var pattern = upd.enter()
+            .append("pattern")
+            .attr("id", function(d){return "pat" + d.id;})
+            .attr("patternUnits", "objectBoundingBox")
+            .attr("width", "1")
+            .attr("height", "1")
+            .attr("x", 0)
+            .attr("y", 0);
+        pattern.append("path")
+            .attr("stroke-width", 10)
+            .attr("fill", "none")
+            .attr("stroke", function(d){
+                if(d.pm25 == null || d.pm25[0] == null)
+                    return "#FFFFFF";
+                return colorScale(d.pm25[0].pm25);//TODO 显示平均
+            })
+            .attr("d", proj.pathFromGeojson)
+            .attr("transform", function (d){
+                var bbox = Snap.path.getBBox(proj.pathFromGeojson(d));
+                //需要偏移一段距离
+                //https://jsfiddle.net/sunsnowad/0b1vyk6q/
+                //https://jsfiddle.net/sunsnowad/0b1vyk6q/3/
+                return "translate("+
+                    - bbox.x +
+                    ","+
+                    - bbox.y + ")";
+            });
+
+        /**
+         * <clipPath id="clipPath">
+         <path id="triangle1" d="M150 0 L75 200 L225 200 Z">
+         </clipPath>
+         */
+        var clippath = upd.enter()
+            .append("clipPath")
+            .attr("id",function(d){return "clippath" + d.id;})
+            .append("path")
+            .attr("id", function(d){return "clippathPath" + d.id;})
+            .attr("d", proj.pathFromGeojson)
+            .attr("transform", function (d){
+                var bbox = Snap.path.getBBox(proj.pathFromGeojson(d));
+                //需要偏移一段距离
+                //https://jsfiddle.net/sunsnowad/0b1vyk6q/
+                //https://jsfiddle.net/sunsnowad/0b1vyk6q/3/
+                return "translate("+
+                    - bbox.x +
+                    ","+
+                    - bbox.y + ")";
+            });
+
+        /**
+         * <circle cx="145" cy="40" r="20"
+         style="fill: #0000ff; clip-path: url(#clipPath); " />
+         */
+        for(var i = 0; i < provinces.length; i ++){
+            var d = provinces[i];
+
+            var bbox = Snap.path.getBBox(proj.pathFromGeojson(provinces[i]));
+            var tempBarG = sel.append("g")
+                .attr("id", "tempBar"+provinces[i].id)
+                //.attr("x", bbox.x)
+                //.attr("y", bbox.y)
+                .attr("width", bbox.width)
+                .attr("height", bbox.height)
+                .attr("transform", "translate("+bbox.x+","+bbox.y+")");
+
+            for(var j = 0; d.pm25 != null && j < d.pm25.length; j ++){
+                tempBarG.append("rect")
+                    .attr("x", (j * bbox.width ) / d.pm25.length )//TODO sort
+                    .attr("width", bbox.width / d.pm25.length)
+                    .attr("y", 0)
+                    .attr("height", bbox.height)
+                    .attr("fill", colorScale(d.pm25[j].pm25))
+                    .attr("clip-path", "url(#clippath"+provinces[i].id+")");
+            }
+
+            sel.append('path')
+                .attr('d', proj.pathFromGeojson(provinces[i]))
+                .attr("fill", "url(#"+"pat"+ d.id+")")
+                .attr('fill-opacity', '0.9');
+        }
+
+
+        //upd.enter()
+        //    .append('path')
+        //    .attr('d', proj.pathFromGeojson)
+        //    .attr("fill", function(d){
+        //        return "url(#"+"pat"+ d.id+")"
+        //    })
+        //    .attr('fill-opacity', '0.9');
+
+    });
+
+    var time = "";
+    if(overAllBrush != null){
+        time += "startTime="+overAllBrush[0] +"&endTime="+overAllBrush[1];
+    }
+    $.ajax({
+        url: "getMonthlyValueByProvinces.do",
+        type: "post",
+        data: time,
+        success: function (resultData) {
+            var result = JSON.parse(resultData);
+            var nested_data = d3.nest()
+                .key(function(d) { return d._id.province; })
+                .entries(result);
+
+            var findValue = function(proName){
+                for(var i = 0; i < nested_data.length; i ++){
+                    if(nested_data[i].key != null && nested_data[i].key.substr(0,2) == proName.substr(0,2))
+                        return nested_data[i].values;
+                }
+            };
+
+            d3.json("maps/china_provinces.json",
+                function (data) {
+                    provinces = data.features;
+                    for(var i = 0; i < provinces.length; i ++){
+                        provinces[i].pm25 = findValue(provinces[i].properties.name);
+                    }
+                    provinceValueOverlay.addTo(map)
                 }
             );
         }
@@ -3589,6 +3738,16 @@ function provinceValueControl(){
         if(provinceValueOverlay != null)
             map.removeLayer(provinceValueOverlay);
         createProvinceValue();
+    }else{
+        if(provinceValueOverlay != null)
+            map.removeLayer(provinceValueOverlay);
+    }
+}
+function provinceTemporalValueControl(){
+    if($("#provinceTemporalValue").is( ':checked' )){
+        if(provinceValueOverlay != null)
+            map.removeLayer(provinceValueOverlay);
+        createProvinceTemporalCartogram();
     }else{
         if(provinceValueOverlay != null)
             map.removeLayer(provinceValueOverlay);

@@ -230,6 +230,60 @@ public class HelloController {
     }
 
     /**
+     * 根据pmdata_month的各月平均数据,返回各省份平均数
+     * @param startTime
+     * @param endTime
+     * @return
+     */
+    @RequestMapping(value = "getMonthlyValueByProvinces.do", method = RequestMethod.POST)
+    public @ResponseBody String getMonthlyValueByProvinces(@RequestParam(value="startTime", required=false) String startTime,
+                                                    @RequestParam(value="endTime", required=false) String endTime){
+        MongoDatabase db = client.getDatabase(NEW_DB_NAME);
+        MongoCollection coll = db.getCollection(COL_AVG_MONTH);
+        Calendar cal = Calendar.getInstance();
+        //TODO time zone problem
+        SimpleDateFormat df = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss", Locale.US);
+
+        Document match;
+        Document group = new Document().append("$group",
+                new Document().append("_id", new Document().append("province", "$province").append("year", "$_id.year").append("month", "$_id.month"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("aqi", new Document("$avg", "$aqi"))
+//                        .append("co", new Document("$avg", "$co"))
+//                        .append("no2", new Document("$avg", "$no2"))
+//                        .append("o3", new Document("$avg", "$o3"))
+//                        .append("pm10", new Document("$avg", "$pm10"))
+                        .append("pm25", new Document("$avg", "$pm25")));
+//                        .append("so2", new Document("$avg", "$so2")));
+        List<Document> query = new ArrayList<Document>();
+        MongoCursor cur;
+        JSONArray result = new JSONArray();
+
+        if(startTime == null && endTime == null){
+            query.add(group);
+            cur = coll.aggregate(query).allowDiskUse(true).iterator();
+        }else if(startTime != null && endTime != null){
+            try {
+                cal.setTime(df.parse(startTime));
+                match = new Document("$match", new Document("_id.month", cal.get(Calendar.MONTH)+1).append("_id.year", cal.get(Calendar.YEAR)).append("pm", new Document("$ne", 0)));
+                query.add(match);
+                query.add(group);
+            }catch(ParseException e){
+                e.printStackTrace();
+            }
+            cur = coll.aggregate(query).iterator();
+        }else{
+            //TODO
+            cur = null;
+        }
+
+        while(cur.hasNext()){
+            result.put(cur.next());
+        }
+        return result.toString();
+    }
+
+    /**
      * 根据pmdata_month的月平均数据,返回各城市平均数
      * @param startTime
      * @param endTime
