@@ -502,6 +502,16 @@ function createCityTemporalCartogram(){
 function createProvinceTemporalCartogram(){
     var provinces = [];
     provinceValueOverlay = L.d3SvgOverlay(function(sel, proj) {
+        var widthOfBorder = 5/ proj.scale;
+        //添加filter
+        //https://developer.mozilla.org/en-US/docs/Web/CSS/filter
+        sel.append('filter')
+            .attr('id','desaturate')
+            .append('feColorMatrix')
+            .attr('type','matrix')
+            .attr('values',"0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0  0      0      0      1 0");
+
+
         /**
          <pattern id="fagl" patternUnits="objectBoundingBox" width="2" height="1" x="-50%">
          <path style="stroke:#FF0; stroke-opacity:1;stroke-width:20;fill-opacity:0;" d="M150 0 L75 200 L225 200 Z">
@@ -517,7 +527,7 @@ function createProvinceTemporalCartogram(){
             .attr("x", 0)
             .attr("y", 0);
         pattern.append("path")
-            .attr("stroke-width", 10)
+            .attr("stroke-width", widthOfBorder)
             .attr("fill", "none")
             .attr("stroke", function(d){
                 if(d.pm25 == null || d.pm25[0] == null)
@@ -576,6 +586,7 @@ function createProvinceTemporalCartogram(){
 
             for(var j = 0; d.pm25 != null && j < d.pm25.length; j ++){
                 tempBarG.append("rect")
+                    .attr("id", "tempbarRectId"+j)
                     .attr("x", (j * bbox.width ) / d.pm25.length )//TODO sort
                     .attr("width", bbox.width / d.pm25.length)
                     .attr("y", 0)
@@ -588,8 +599,60 @@ function createProvinceTemporalCartogram(){
                 .attr('d', proj.pathFromGeojson(provinces[i]))
                 .attr("fill", "url(#"+"pat"+ d.id+")")
                 .attr('fill-opacity', '0.9');
+
         }
 
+        for(var i = 0; i < provinces.length; i ++) {
+            var d = provinces[i];
+            var bbox = Snap.path.getBBox(proj.pathFromGeojson(provinces[i]));
+            //添加一个影子rect,用来支持交互
+            var tempBarGShadow = sel.append("g")
+                .attr("id", "tempBarShadow"+provinces[i].id)
+                //.attr("x", bbox.x)
+                //.attr("y", bbox.y)
+                .attr("width", bbox.width)
+                .attr("height", bbox.height)
+                .attr("cursor", "pointer")
+                .attr("transform", "translate("+bbox.x+","+bbox.y+")");
+
+            for (var j = 0; d.pm25 != null && j < d.pm25.length; j++) {
+                tempBarGShadow.append("rect")
+                    .attr("id", "tempbarshadowRectId"+j)
+                    .attr("x", (j * bbox.width ) / d.pm25.length)//TODO sort
+                    .attr("width", bbox.width / d.pm25.length)
+                    .attr("y", 0)
+                    .attr("height", bbox.height)
+                    .attr("fill", "rgba(1,0,0,0)")
+                    .attr("filter", "grayscale(100%)")
+                    .attr("clip-path", "url(#clippath" + provinces[i].id + ")")
+                    .on("mousemove", function () {
+                        console.log("move");
+                    })
+                    .on("mouseout", function () {
+                        var filterId = function(ids){
+                            return ids.substr(19);
+                        };
+                        var id = "tempbarRectId"+filterId(this.id);
+                        d3.selectAll("rect").attr("filter", function(){
+                            return "";
+                        });
+                    })
+                    .on("mouseover", function () {
+                        var filterId = function(ids){
+                            return ids.substr(19);
+                        };
+                        var id = "tempbarRectId"+filterId(this.id);
+                        d3.selectAll("rect").attr("filter", function(){
+                            if(this.id.startsWith("tempbarRectId") && this.id != id)
+                                return "url(#desaturate)";
+                            else if(this.id.startsWith("tempbarRectId"))
+                                return "";
+                        });
+                        console.log("I can see you!");
+                    });
+            }
+
+        }
 
         //upd.enter()
         //    .append('path')
